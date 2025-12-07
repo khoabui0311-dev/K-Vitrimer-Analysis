@@ -5,3 +5,4 @@ matplotlib
 streamlit
 plotly
 openpyxl
+scikit-learn
