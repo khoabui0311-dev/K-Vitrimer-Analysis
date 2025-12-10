@@ -7,8 +7,6 @@ import re
 import json
 from scipy.optimize import curve_fit
 from scipy.stats import linregress
-from sklearn.linear_model import Ridge
-from sklearn.ensemble import RandomForestRegressor
 import matplotlib.pyplot as plt
 
 # Import proper modules from can_relax
@@ -18,14 +16,21 @@ from can_relax.io.parser import parse_wide_format_data as parser_module_func
 # Simple implementations for engine classes used in the app
 class SpectrumAnalyzer:
     def compute_continuous_spectrum(self, t, g, num_modes=50, alpha=0.1):
-        """Compute relaxation time spectrum using Ridge regression"""
+        """Compute relaxation time spectrum using simple Tikhonov regularization"""
         g_norm = g / g[0] if g[0] > 0 else g
         log_min, log_max = np.log10(max(t.min(), 1e-6)), np.log10(t.max())
         tau_grid = np.logspace(log_min-1, log_max+1, num_modes)
         A = np.exp(-t[:, None] / tau_grid[None, :])
-        clf = Ridge(alpha=alpha, fit_intercept=False, positive=True)
-        clf.fit(A, g_norm)
-        return tau_grid, clf.coef_
+        
+        # Simple Tikhonov regularization without sklearn
+        # Solve: (A^T A + alpha*L^T L) H = A^T g
+        # where L is identity matrix for L2 regularization
+        ATA = A.T @ A
+        ATg = A.T @ g_norm
+        L = np.eye(num_modes)
+        H = np.linalg.solve(ATA + alpha * (L.T @ L), ATg)
+        H = np.maximum(H, 0)  # Non-negative constraint
+        return tau_grid, H
 
 class MaterialSimulator:
     def simulate_curve(self, T, model_name, p):
