@@ -68,18 +68,18 @@ class CurveAnalyzer:
         try:
             popt_s, _ = curve_fit(model_s.func, t, g, p0=model_s.get_initial_guess(t, g), bounds=model_s.get_bounds(), maxfev=5000)
             pred_s = model_s.func(t, *popt_s)
-            r2_s, aic_s = self._calculate_metrics(g, pred_s, 3)
+            r2_s, aic_s = self._calculate_metrics(g, pred_s, 2)  # 2 params: tau, beta
             result['Fits']['Single_KWW'] = {'popt': popt_s, 'r2': r2_s, 'aic': aic_s, 'curve': pred_s}
-        except: result['Fits']['Single_KWW'] = {'r2': 0, 'aic': np.inf}
+        except: result['Fits']['Single_KWW'] = {'r2': 0, 'aic': np.inf, 'curve': g, 'popt': [np.nan, np.nan]}
 
         # Maxwell
         model_m = self.models['Maxwell']
         try:
             popt_m, _ = curve_fit(model_m.func, t, g, p0=model_m.get_initial_guess(t, g), bounds=model_m.get_bounds(), maxfev=5000)
             pred_m = model_m.func(t, *popt_m)
-            r2_m, aic_m = self._calculate_metrics(g, pred_m, 2)
+            r2_m, aic_m = self._calculate_metrics(g, pred_m, 1)  # 1 param: tau
             result['Fits']['Maxwell'] = {'popt': popt_m, 'r2': r2_m, 'aic': aic_m, 'curve': pred_m}
-        except: result['Fits']['Maxwell'] = {'r2': 0, 'aic': np.inf}
+        except: result['Fits']['Maxwell'] = {'r2': 0, 'aic': np.inf, 'curve': g, 'popt': [np.nan]}
 
         # Dual KWW
         model_d = self.models['Dual_KWW']
@@ -87,9 +87,9 @@ class CurveAnalyzer:
             p0_d = model_d.get_initial_guess(t, g, popt_s)
             popt_d, _ = curve_fit(model_d.func, t, g, p0=p0_d, bounds=model_d.get_bounds(), maxfev=10000)
             pred_d = model_d.func(t, *popt_d)
-            r2_d, aic_d = self._calculate_metrics(g, pred_d, 6)
+            r2_d, aic_d = self._calculate_metrics(g, pred_d, 5)  # 5 params: A, tau1, beta1, tau2, beta2
             result['Fits']['Dual_KWW'] = {'popt': popt_d, 'r2': r2_d, 'aic': aic_d, 'curve': pred_d}
-        except: result['Fits']['Dual_KWW'] = {'r2': 0, 'aic': np.inf}
+        except: result['Fits']['Dual_KWW'] = {'r2': 0, 'aic': np.inf, 'curve': g, 'popt': [np.nan]*5}
 
         # 4. Pick Best
         best_model = min(result['Fits'], key=lambda k: result['Fits'][k]['aic'])

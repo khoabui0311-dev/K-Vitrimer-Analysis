@@ -37,28 +37,35 @@ class DataProcessor:
         # 4. Find Peak (Start of Relaxation)
         peak_idx = np.argmax(g_smooth)
         
-        # 5. Define Start: Drop slightly below peak to avoid initial machine jitter
+        # 5. Define Start: Use the peak directly for pre-trimmed data
+        # Only skip initial jitter if there's a clear rise before the peak
         start_idx = peak_idx
-        threshold = g_smooth[peak_idx] * 0.99 # 1% drop threshold
         
-        for i in range(peak_idx, len(g_smooth)):
-            if g_smooth[i] < threshold:
-                start_idx = max(0, i - 1)
-                break
+        # If peak is not at the beginning, check for initial overshoot/jitter
+        if peak_idx > 5:
+            # Look for where curve drops 1% from peak (to skip overshoot)
+            threshold = g_smooth[peak_idx] * 0.99
+            for i in range(peak_idx, min(peak_idx + 10, len(g_smooth))):
+                if g_smooth[i] < threshold:
+                    start_idx = max(0, i - 1)
+                    break
+        # Otherwise keep start_idx = peak_idx (data is already clean)
         
         # 6. Find End (Drift Detection)
         # Scan for a local minimum followed by a significant rise (drift)
         end_idx = len(g)
-        if start_idx < len(g) - 10:
+        if start_idx < len(g) - 20:  # Need at least 20 points for drift detection
             remaining = g_smooth[start_idx:]
             min_idx_rel = np.argmin(remaining)
             min_idx = start_idx + min_idx_rel
             
-            # Check if it rises significantly (>5%) after the minimum
+            # Only trim if minimum is not at the very end and there's clear drift upward
             if min_idx < len(g) - 10:
-                # Look ahead
-                if np.any(g_smooth[min_idx:] > g_smooth[min_idx] * 1.05):
+                # Look ahead and check if drift is significant (>10% rise)
+                tail = g_smooth[min_idx:]
+                if len(tail) > 5 and np.max(tail) > g_smooth[min_idx] * 1.10:
                     end_idx = min_idx
+            # If minimum is at the end, keep all data (no drift detected)
 
         # 7. Cut the Data
         t_clean = t[start_idx:end_idx]
@@ -68,10 +75,14 @@ class DataProcessor:
             return None, None, None
 
         # 8. Normalize
-        # Time starts at 0
-        t_final = t_clean - t_clean[0] + 1e-6 # small epsilon to avoid div/0
-        # G0 is average of first 5 points (more robust than single point)
-        G0 = np.mean(g_clean[:5])
+        # Time starts at 0.01 (better numerical stability than 1e-6)
+        t_final = t_clean - t_clean[0] + 0.01
+        
+        # G0 should be the maximum value (peak of the curve after trimming start artifacts)
+        # Taking max of first 10% of points to be robust against single outliers
+        n_init = max(3, min(10, len(g_clean) // 10))
+        G0 = np.max(g_clean[:n_init])
+        
         g_final = g_clean / G0
 
         return t_final, g_final, G0

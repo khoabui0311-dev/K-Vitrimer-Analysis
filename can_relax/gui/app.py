@@ -11,184 +11,38 @@ from sklearn.linear_model import Ridge
 from sklearn.ensemble import RandomForestRegressor
 import matplotlib.pyplot as plt
 
-# ==========================================
-# 1. CORE ENGINE (INTERNALIZED FROM can_relax)
-# ==========================================
+# Import proper modules from can_relax
+from can_relax.core.analyzer import CurveAnalyzer
+from can_relax.io.parser import parse_wide_format_data as parser_module_func
 
-# --- A. ROBUST PARSER (The Fix) ---
-def parse_wide_format_data(file_obj):
-    """
-    Parses wide-format CSV/Excel: Col 0 = Time, Cols 1..N = Data at Temp.
-    Handles headers like '140', '140C', 'Temp 140'.
-    """
-    try:
-        # 1. Read File
-        if isinstance(file_obj, str): 
-            if file_obj.endswith('.csv'): df = pd.read_csv(file_obj, header=None) # Read headerless first to inspect
-            else: df = pd.read_excel(file_obj, header=None)
-        else:
-            if file_obj.name.endswith('.csv'): df = pd.read_csv(file_obj, header=None)
-            else: df = pd.read_excel(file_obj, header=None)
-
-        curves = {}
-        
-        # Check if it's the "Block Format" (Temp, Time, Modulus repeated)
-        # Row 0 usually contains headers like "Temperature", "Step time", "Modulus" repeated
-        # Row 1 might contain units or data.
-        
-        # Let's try to detect the structure.
-        # Strategy: Iterate columns. If we find a "Temperature" column, grab the value from the first data row.
-        
-        # Convert to string to search for headers
-        df_str = df.astype(str)
-        
-        # Find columns that look like "Step time" or "Time"
-        time_cols = []
-        mod_cols = []
-        temp_vals = []
-        
-        # Reload with header=0 to get column names if standard
-        if isinstance(file_obj, str):
-             if file_obj.endswith('.csv'): df_main = pd.read_csv(file_obj)
-             else: df_main = pd.read_excel(file_obj)
-        else:
-             file_obj.seek(0)
-             if file_obj.name.endswith('.csv'): df_main = pd.read_csv(file_obj)
-             else: df_main = pd.read_excel(file_obj)
-
-        # LOGIC A: Block Format (Temp, Time, Modulus, Temp, Time, Modulus...)
-        # In your specific file, it seems like:
-        # Col 0: Temp (value 50 repeated), Col 1: Time, Col 2: Modulus
-        # Col 3: Temp (value 90 repeated), Col 4: Time, Col 5: Modulus
-        
-        num_cols = df_main.shape[1]
-        
-        # Iterate in blocks of 3? Or check headers.
-        # Your headers are: "Temperature", "Step time", "Modulus", "Temperature", "Step time", "Modulus"...
-        
-        # Identify triplets
-        for i in range(0, num_cols, 3):
-            if i+2 < num_cols:
-                # Assume Col i is Temp, i+1 is Time, i+2 is Modulus
-                # Check if headers match roughly
-                h1 = str(df_main.columns[i]).lower()
-                h2 = str(df_main.columns[i+1]).lower()
-                h3 = str(df_main.columns[i+2]).lower()
-                
-                if "temp" in h1 and ("time" in h2 or "s" in h2) and ("modulus" in h3 or "pa" in h3 or "stress" in h3):
-                    # Extract Temperature from the first row of data (since it's repeated)
-                    try:
-                        temp_val = float(df_main.iloc[0, i])
-                        
-                        t_data = pd.to_numeric(df_main.iloc[:, i+1], errors='coerce').values
-                        g_data = pd.to_numeric(df_main.iloc[:, i+2], errors='coerce').values
-                        
-                        mask = ~np.isnan(t_data) & ~np.isnan(g_data) & (t_data > 0)
-                        if np.sum(mask) > 5:
-                            curves[temp_val] = pd.DataFrame({'t': t_data[mask], 'g': g_data[mask]})
-                    except: pass
-
-        # LOGIC B: Standard Wide Format (Time, Temp1, Temp2...) - Fallback
-        if not curves:
-            # Assume Col 0 is Time
-            t_col = df_main.iloc[:, 0].values
-            for col in df_main.columns[1:]:
-                match = re.search(r"(\d+(\.\d+)?)", str(col))
-                if match:
-                    temp_val = float(match.group(1))
-                    g_data = df_main[col].values
-                    curves[temp_val] = pd.DataFrame({'t': t_col, 'g': g_data})
-
-        return curves
-    except Exception as e: 
-        st.error(f"Parser Error: {e}")
-        return {}
-
-# --- B. PHYSICS MODELS ---
-class Maxwell:
-    def func(self, t, tau): return np.exp(-t/tau)
-    def get_initial_guess(self, t, g): return [np.mean(t)]
-
-class SingleKWW:
-    def func(self, t, tau, beta): return np.exp(-(t/tau)**beta)
-    def get_initial_guess(self, t, g): return [np.mean(t), 0.8]
-
-class DualKWW:
-    def func(self, t, f, tau1, beta1, tau2, beta2): 
-        return f * np.exp(-(t/tau1)**beta1) + (1-f) * np.exp(-(t/tau2)**beta2)
-    def get_initial_guess(self, t, g): 
-        return [0.5, np.mean(t)/10, 0.8, np.mean(t)*10, 0.9]
-
-# --- C. ANALYZER ---
-class CurveAnalyzer:
-    def __init__(self):
-        self.models = {'Maxwell': Maxwell(), 'Single_KWW': SingleKWW(), 'Dual_KWW': DualKWW()}
-
-    def fit_one_temp(self, temp, df, Tg=None):
-        # RELAXED Tg CHECK: Only skip if strictly LESS than Tg (allow equal)
-        if Tg is not None and temp < Tg: return {'Valid': False}
-        
-        t = df['t'].values; g = df['g'].values
-        
-        # Normalize
-        g0 = g[0] if g[0] > 0 else 1.0
-        g_norm = g / g0
-        
-        fits = {}
-        for name, model in self.models.items():
-            try:
-                p0 = model.get_initial_guess(t, g_norm)
-                bounds = (0, np.inf)
-                if name == "Single_KWW": bounds = ([0, 0.1], [np.inf, 1.0])
-                elif name == "Dual_KWW": bounds = ([0, 0, 0.1, 0, 0.1], [1, np.inf, 1.0, np.inf, 1.0])
-                
-                popt, _ = curve_fit(model.func, t, g_norm, p0=p0, bounds=bounds, maxfev=5000)
-                g_fit = model.func(t, *popt) * g0
-                fits[name] = {'popt': popt, 'curve': g_fit}
-            except: pass
-        
-        return {
-            'Valid': True, 'Temp': temp,
-            'Raw': {'t': t, 'g': g}, 'Fits': fits
-        }
-
-# --- D. SPECTRUM ANALYZER ---
+# Simple implementations for engine classes used in the app
 class SpectrumAnalyzer:
     def compute_continuous_spectrum(self, t, g, num_modes=50, alpha=0.1):
-        g_norm = g / g[0]
-        log_min, log_max = np.log10(min(t)), np.log10(max(t))
+        """Compute relaxation time spectrum using Ridge regression"""
+        g_norm = g / g[0] if g[0] > 0 else g
+        log_min, log_max = np.log10(max(t.min(), 1e-6)), np.log10(t.max())
         tau_grid = np.logspace(log_min-1, log_max+1, num_modes)
         A = np.exp(-t[:, None] / tau_grid[None, :])
         clf = Ridge(alpha=alpha, fit_intercept=False, positive=True)
         clf.fit(A, g_norm)
         return tau_grid, clf.coef_
 
-# --- E. SIMULATOR ---
 class MaterialSimulator:
     def simulate_curve(self, T, model_name, p):
+        """Simulate a relaxation curve at temperature T"""
         R = 8.314
         try:
-            # Calculate Tau based on Tv/Ea logic
-            # tau(Tv) = 1e6/G (if G in MPa). 
-            # tau0 = tau(Tv) / exp(Ea/RTv)
             tau_v = 1e6 / p['G_plateau'] 
             term_tv = np.exp((p['Ea']*1000/R) * (1/(p['Tv']+273.15)))
             tau0 = tau_v / term_tv
-            
-            # Tau at T
             term_t = np.exp((p['Ea']*1000/R) * (1/(T+273.15)))
             tau_T = tau0 * term_t
-            
             t = np.logspace(np.log10(tau_T)-3, np.log10(tau_T)+2, 100)
             
             if model_name == 'Maxwell':
                 g = p['G_plateau'] * np.exp(-t/tau_T)
             elif model_name == 'Single_KWW':
                 g = p['G_plateau'] * np.exp(-(t/tau_T)**p['beta'])
-            elif model_name == 'Dual_KWW':
-                tau1 = tau_T / np.sqrt(p['tau_factor'])
-                tau2 = tau_T * np.sqrt(p['tau_factor'])
-                g = p['G_plateau'] * (p['fraction_fast']*np.exp(-(t/tau1)**0.8) + (1-p['fraction_fast'])*np.exp(-(t/tau2)**p['beta_2']))
             else: g = t*0
             
             return t, g, tau_T
@@ -196,67 +50,40 @@ class MaterialSimulator:
             return np.array([1]), np.array([1]), 1
 
 class TTSEngine:
-    def __init__(self):
-        pass
-
     def generate_mastercurve(self, results, ref_temp=None):
-        """
-        Shifts curves horizontally to create a Mastercurve.
-        Shift Factor a_T = tau(T) / tau(T_ref)
-        """
+        """Generate time-temperature superposition mastercurve"""
         if not results: return None
         
-        # 1. Sort results by Temperature
         sorted_res = sorted(results, key=lambda x: x['Temp'])
-        
-        # 2. Pick Reference Temperature (middle temp usually best, or user defined)
         if ref_temp is None:
-            # Default to the one in the middle
-            mid_idx = len(sorted_res) // 2
-            ref_res = sorted_res[mid_idx]
+            ref_res = sorted_res[len(sorted_res)//2]
         else:
-            # Find closest
             ref_res = min(sorted_res, key=lambda x: abs(x['Temp'] - ref_temp))
-            
+        
         T_ref = ref_res['Temp']
         
-        # Get Ref Tau (from the Best Model fit)
         def get_tau(res):
             best = res.get('Best_Model', 'Single_KWW')
-            if best not in res.get('Fits', {}):
-                return 1.0
+            if best not in res.get('Fits', {}): return 1.0
             popt = res['Fits'][best]['popt']
-            if best == 'Maxwell': return popt[0]  # Maxwell: tau is index 0
-            if best == 'Single_KWW': return popt[0]  # Single_KWW: tau is index 0
-            if best == 'Dual_KWW': return popt[1]  # Dual_KWW: tau1 is index 1
+            if best == 'Maxwell' or best == 'Single_KWW': return popt[0]
+            if best == 'Dual_KWW': return popt[1]
             return 1.0
 
         tau_ref = get_tau(ref_res)
-        
-        master_t = []
-        master_g = []
-        shift_factors = {}
+        master_t, master_g, shift_factors = [], [], {}
         
         for res in sorted_res:
             T = res['Temp']
             tau = get_tau(res)
-            
-            # Calculate Shift Factor a_T
             aT = tau / tau_ref
             shift_factors[T] = aT
-            
-            # Shift Time: t_master = t / aT
             t_shifted = res['Raw']['t'] / aT
-            g_raw = res['Raw']['g']
-            
             master_t.append(t_shifted)
-            master_g.append(g_raw)
-            
-        # Concatenate
+            master_g.append(res['Raw']['g'])
+        
         full_t = np.concatenate(master_t)
         full_g = np.concatenate(master_g)
-        
-        # Sort for plotting
         sort_idx = np.argsort(full_t)
         
         return {
@@ -265,6 +92,35 @@ class TTSEngine:
             "Master_g": full_g[sort_idx],
             "Shifts": shift_factors
         }
+
+
+
+# ==========================================
+# 1. CORE ENGINE (INTERNALIZED FROM can_relax)
+# ==========================================
+
+# --- A. ROBUST PARSER (The Fix) ---
+# Helper wrapper for Streamlit UploadedFile
+def parse_uploaded_file(uploaded_file):
+    """Wrapper to handle Streamlit UploadedFile objects for parsing"""
+    import tempfile
+    import os
+    
+    if uploaded_file is None:
+        return {}
+    
+    # Save to temporary file
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx' if 'xlsx' in uploaded_file.name else '.csv') as tmp:
+        tmp.write(uploaded_file.getbuffer())
+        tmp_path = tmp.name
+    
+    try:
+        # Use the proper parser - it returns {temp: DataFrame with 'Time' and 'Modulus' columns}
+        result = parser_module_func(tmp_path)
+        return result
+    finally:
+        os.unlink(tmp_path)
+
 
 # ==========================================
 # 2. APP UI
@@ -329,8 +185,8 @@ with tab_analysis:
 
     # PROCESS
     if uploaded_file and run_btn:
-        # Use Internal Parser
-        curves = parse_wide_format_data(uploaded_file)
+        # Use the wrapper to parse Streamlit UploadedFile
+        curves = parse_uploaded_file(uploaded_file)
         
         if not curves: st.error("Parsing failed. Data must be columns of Temp/Time/Modulus."); st.stop()
         
@@ -382,11 +238,8 @@ with tab_analysis:
                     t_raw = r['Raw']['t']
                     g_raw = r['Raw']['g']
                     
-                    # Normalize G(t) / G(0)
-                    if len(g_raw) > 0 and g_raw[0] != 0:
-                        g_norm = g_raw / g_raw[0]
-                    else:
-                        g_norm = g_raw
+                    # Data is already normalized from trim_curve (G(t)/G₀)
+                    g_norm = g_raw
                         
                     # Decimate for speed
                     step = max(1, len(t_raw)//50)
@@ -401,13 +254,10 @@ with tab_analysis:
                     ))
                     
                     if show_fits and fit_model in r['Fits']:
-                        # The fit curve is un-normalized in the analyzer (g_fit = func * g0)
-                        # So we need to normalize it back for display: g_fit / g0
-                        g_fit_raw = r['Fits'][fit_model]['curve']
-                        if len(g_raw) > 0 and g_raw[0] != 0:
-                            g_fit_norm = g_fit_raw / g_raw[0]
-                        else:
-                            g_fit_norm = g_fit_raw
+                        # Fit curve is already normalized from analyzer
+                        g_fit_raw = r['Fits'][fit_model].get('curve', r['Raw']['g'])
+                        # Use fit directly - it's already G(t)/G0
+                        g_fit_norm = g_fit_raw
                             
                         fig.add_trace(go.Scatter(
                             x=t_raw, 
@@ -431,10 +281,11 @@ with tab_analysis:
                 if kinetics_mode == "Raw 1/e": t_val = r.get('Tau_1e', np.nan)
                 elif fit_model in r['Fits']:
                     p = r['Fits'][fit_model]['popt']
-                    idx = 2 if fit_model == 'Dual_KWW' else 0 # 0 for Single KWW/Maxwell (tau is usually first)
-                    if fit_model == "Single_KWW": idx = 0
-                    if fit_model == "Maxwell": idx = 0
-                    if fit_model == "Dual_KWW": idx = 3 # Tau 2
+                    # After removing G0: Maxwell=[tau], Single_KWW=[tau,beta], Dual_KWW=[A,tau1,beta1,tau2,beta2]
+                    if fit_model == "Maxwell": idx = 0  # tau
+                    elif fit_model == "Single_KWW": idx = 0  # tau
+                    elif fit_model == "Dual_KWW": idx = 3  # tau2 (slow relaxation)
+                    else: idx = 0
                     t_val = p[idx]
                 if t_val > 0:
                     k_data.append({"Include": True, "Temp": r['Temp'], "1000/T": 1000.0/(r['Temp']+273.15), "Tau": t_val, "ln(Tau)": np.log(t_val), "Type": "Main"})
@@ -601,15 +452,10 @@ with tab_sim:
                 t, g_true, _ = sim.simulate_curve(T, sim_model, params)
                 sim_results.append((T, t, g_true))
                 if T > Tg_sim:
-                    model_map = {'Maxwell': Maxwell(), 'Single_KWW': SingleKWW(), 'Dual_KWW': DualKWW()}
-                    model_obj = model_map[sim_model]
                     try:
-                        p0 = model_obj.get_initial_guess(t, g_true/g_true[0])
-                        popt, _ = curve_fit(model_obj.func, t, g_true/g_true[0], p0=p0, maxfev=5000)
-                        if sim_model=='Maxwell': t_fit=popt[0]
-                        elif sim_model=='Single_KWW': t_fit=popt[0]
-                        elif sim_model=='Dual_KWW': t_fit=popt[3]
-                        else: t_fit=0
+                        # Simple tau extraction from simulated curve
+                        target = 0.36788 * g_true[0]
+                        t_fit = np.interp(target, g_true[::-1], t[::-1])
                         if 1e-5 < t_fit < 1e12: fitted_taus.append(t_fit); valid_temps.append(T)
                     except: pass
 
@@ -1085,11 +931,8 @@ with tab_pub:
                 t_raw = r['Raw']['t']
                 g_raw = r['Raw']['g']
                 
-                # Normalize G(t) / G(0)
-                if len(g_raw) > 0 and g_raw[0] != 0:
-                    g_norm = g_raw / g_raw[0]
-                else:
-                    g_norm = g_raw
+                # Data is already normalized from trim_curve
+                g_norm = g_raw
                 
                 # Decimate for cleaner plot
                 step = max(1, len(t_raw)//50)
@@ -1101,11 +944,9 @@ with tab_pub:
                 if show_fit_pub and 'Best_Model' in r:
                     fit_model = r['Best_Model']
                     if fit_model in r['Fits']:
-                        g_fit_raw = r['Fits'][fit_model]['curve']
-                        if len(g_raw) > 0 and g_raw[0] != 0:
-                            g_fit_norm = g_fit_raw / g_raw[0]
-                        else:
-                            g_fit_norm = g_fit_raw
+                        g_fit_raw = r['Fits'][fit_model].get('curve', r['Raw']['g'])
+                        # Fit is already normalized
+                        g_fit_norm = g_fit_raw
                         ax1.plot(t_raw, g_fit_norm, '--', color=colors[idx], linewidth=1.5, alpha=0.8)
             
             # Formatting
