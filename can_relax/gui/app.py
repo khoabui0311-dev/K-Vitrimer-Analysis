@@ -1,3 +1,8 @@
+import sys
+import os
+# Add parent directory to path for Streamlit Cloud
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
