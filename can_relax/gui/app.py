@@ -357,7 +357,7 @@ with tab_analysis:
                         fig_mc.update_xaxes(type="log", title=f"Shifted Time (s) @ Tref={master['T_ref']}°C")
                         fig_mc.update_yaxes(title="G(t) (Pa)")
                         fig_mc.update_layout(height=500, title="Time-Temperature Superposition Mastercurve")
-                        st.plotly_chart(fig_mc, use_container_width=True)
+                        st.plotly_chart(fig_mc, width='stretch')
                         
                         # Display shift factors
                         st.markdown("##### Shift Factors (aT)")
@@ -365,7 +365,7 @@ with tab_analysis:
                             {"Temperature (°C)": T, "log(aT)": np.log10(aT), "aT": f"{aT:.2e}"}
                             for T, aT in master['Shifts'].items()
                         ])
-                        st.dataframe(shifts_df, hide_index=True, use_container_width=True)
+                        st.dataframe(shifts_df, hide_index=True, width='stretch')
                     else:
                         st.info("👈 Click 'Generate Mastercurve' to create TTS plot")
             else:
@@ -652,7 +652,7 @@ with tab_comparison:
     
     # Analysis button
     st.markdown("---")
-    if st.button("🔍 Analyze All Samples", type="primary", use_container_width=True):
+    if st.button("🔍 Analyze All Samples", type="primary", width='stretch'):
         # Collect non-empty samples
         valid_samples = []
         for key, sample_data in st.session_state.comparison_samples.items():
@@ -762,7 +762,7 @@ with tab_comparison:
             for r in results
         ])
         
-        st.dataframe(results_df, hide_index=True, use_container_width=True)
+        st.dataframe(results_df, hide_index=True, width='stretch')
         
         # Download table
         csv_data = results_df.to_csv(index=False)
@@ -845,7 +845,7 @@ with tab_comparison:
                 margin=dict(l=60, r=20, t=50, b=50)
             )
             
-            st.plotly_chart(fig_comp, use_container_width=True)
+            st.plotly_chart(fig_comp, width='stretch')
         
         # Export matplotlib figure
         if st.button("📥 Export Comparison Plot", key="export_comp"):
@@ -1297,7 +1297,7 @@ with tab_education:
             'Thermoplastic': ['✅ Reversible chain', '✅ Can remold', '✅ Fast (mins)', '1-100 s', 'Single-KWW']
         })
         
-        st.dataframe(comparison_df, hide_index=True, use_container_width=True)
+        st.dataframe(comparison_df, hide_index=True, width='stretch')
         
         st.markdown("""
         **Temperature Effect on Vitrimer Exchange:**
