@@ -84,7 +84,7 @@ class CurveAnalyzer:
         # Dual KWW
         model_d = self.models['Dual_KWW']
         try:
-            p0_d = model_d.get_initial_guess(t, g, popt_s)
+            p0_d = model_d.get_initial_guess(t, g)
             popt_d, _ = curve_fit(model_d.func, t, g, p0=p0_d, bounds=model_d.get_bounds(), maxfev=10000)
             pred_d = model_d.func(t, *popt_d)
             r2_d, aic_d = self._calculate_metrics(g, pred_d, 5)  # 5 params: A, tau1, beta1, tau2, beta2

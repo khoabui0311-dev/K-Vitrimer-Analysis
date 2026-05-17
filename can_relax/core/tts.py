@@ -38,9 +38,9 @@ class TTSEngine:
         def get_tau(res):
             best = res['Best_Model']
             popt = res['Fits'][best]['popt']
-            if best == 'Maxwell': return popt[1]
-            if best == 'Single_KWW': return popt[1]
-            if best == 'Dual_KWW': return popt[2] # Tau1 (fast) usually dominates shift
+            if best == 'Maxwell': return popt[0]
+            if best == 'Single_KWW': return popt[0]
+            if best == 'Dual_KWW': return popt[1] # Tau1 (fast) usually dominates shift
             return 1.0
 
         tau_ref = get_tau(ref_res)
