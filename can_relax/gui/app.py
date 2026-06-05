@@ -1074,13 +1074,6 @@ with tab_pub:
 
                 st.markdown("##### 📌 Tick Settings")
                 rel_mirror = st.checkbox("Mirror Ticks to Top/Right", value=False, key="pub_rel_mirror")
-                tc1, tc2 = st.columns(2)
-                with tc1:
-                    rel_x_major = st.selectbox("X-Axis Major Ticks", ["Auto", "3", "4", "5", "6", "8", "10", "12", "15"], key="pub_rel_x_major")
-                    rel_x_minor = st.selectbox("X-Axis Minor Ticks", ["Auto", "0", "1", "2", "3", "4", "5", "9"], key="pub_rel_x_minor")
-                with tc2:
-                    rel_y_major = st.selectbox("Y-Axis Major Ticks", ["Auto", "3", "4", "5", "6", "8", "10", "12", "15"], key="pub_rel_y_major")
-                    rel_y_minor = st.selectbox("Y-Axis Minor Ticks", ["Auto", "0", "1", "2", "3", "4", "5", "9"], key="pub_rel_y_minor")
 
                 st.markdown("##### 📐 Axis Limits")
                 rel_custom_lims = st.checkbox("Manual Axis Bounding", value=False, key="pub_rel_cust_lims")
