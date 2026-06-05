@@ -1367,7 +1367,7 @@ with tab_pub:
             try:
                 fig1.canvas.draw()
             except Exception as e:
-                st.error("Matplotlib canvas draw failed for Figure 1!")
+                st.error(f"Matplotlib canvas draw failed for Figure 1! Error: {e}")
                 st.write("**X-Axis Label:**", ax1.get_xlabel())
                 st.write("**Y-Axis Label:**", ax1.get_ylabel())
                 st.write("**Text Elements:**")
@@ -1547,7 +1547,7 @@ with tab_pub:
                     try:
                         fig2.canvas.draw()
                     except Exception as e:
-                        st.error("Matplotlib canvas draw failed for Figure 2!")
+                        st.error(f"Matplotlib canvas draw failed for Figure 2! Error: {e}")
                         st.write("**X-Axis Label:**", ax2.get_xlabel())
                         st.write("**Y-Axis Label:**", ax2.get_ylabel())
                         st.write("**Text Elements:**")
