@@ -1000,11 +1000,23 @@ with tab_pub:
             with c4:
                 show_legend = st.checkbox("Show Legend", value=True)
                 if show_legend:
-                    leg_pos = st.selectbox("Legend Position", ["Best (Auto)", "Upper Right", "Upper Left", "Lower Left", "Lower Right", "Right (Outside)"])
+                    leg_pos = st.selectbox("Legend Position", ["Best (Auto)", "Upper Right", "Upper Left", "Lower Left", "Lower Right", "Right (Outside)", "Custom (Coords)"])
+                    if leg_pos == "Custom (Coords)":
+                        lc1, lc2 = st.columns(2)
+                        with lc1:
+                            leg_x = st.slider("Legend X Coord", -0.5, 1.5, 1.0, 0.02)
+                        with lc2:
+                            leg_y = st.slider("Legend Y Coord", -0.5, 1.5, 1.0, 0.02)
+                    else:
+                        leg_x, leg_y = 1.0, 1.0
+                    
+                    leg_ncol = st.number_input("Legend Columns", min_value=1, max_value=10, value=1)
                     leg_font_size = st.slider("Legend Font Size", 4, 16, 8)
                     leg_box = st.checkbox("Legend Border (Box)", value=False)
                 else:
                     leg_pos, leg_font_size, leg_box = "Best (Auto)", 8, False
+                    leg_x, leg_y = 1.0, 1.0
+                    leg_ncol = 1
                     
                 show_fit_pub = st.checkbox("Show Fitting Curves", value=False)
                 show_tau_star = st.checkbox("Mark τ* (1/e Intersection)", value=True)
@@ -1136,7 +1148,10 @@ with tab_pub:
                 elif leg_pos == "Right (Outside)":
                     l_pos = 'upper left'
                     l_anchor = (1.02, 1.0)
-                ax1.legend(frameon=leg_box, loc=l_pos, bbox_to_anchor=l_anchor, fontsize=leg_font_size)
+                elif leg_pos == "Custom (Coords)":
+                    l_pos = 'upper left'
+                    l_anchor = (leg_x, leg_y)
+                ax1.legend(frameon=leg_box, loc=l_pos, bbox_to_anchor=l_anchor, fontsize=leg_font_size, ncol=leg_ncol)
                 
             if panel_letter:
                 ax1.text(-0.12, 1.02, f"({panel_letter})", transform=ax1.transAxes, fontsize=12, fontweight='bold', va='bottom', ha='right')
@@ -1249,7 +1264,10 @@ with tab_pub:
                         elif leg_pos == "Right (Outside)":
                             l_pos = 'upper left'
                             l_anchor = (1.02, 1.0)
-                        ax2.legend(frameon=leg_box, loc=l_pos, bbox_to_anchor=l_anchor, fontsize=leg_font_size)
+                        elif leg_pos == "Custom (Coords)":
+                            l_pos = 'upper left'
+                            l_anchor = (leg_x, leg_y)
+                        ax2.legend(frameon=leg_box, loc=l_pos, bbox_to_anchor=l_anchor, fontsize=leg_font_size, ncol=leg_ncol)
                         
                     # Panel Letter (increment letter)
                     if panel_letter and len(panel_letter) == 1 and panel_letter.isalpha():
