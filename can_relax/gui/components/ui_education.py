@@ -1,7 +1,8 @@
 import streamlit as st
 import numpy as np
 import plotly.graph_objects as go
-
+import matplotlib.pyplot as plt
+import pandas as pd
 def render_education_tab(tab_education):
     with tab_education:
             st.header("📚 Educational & Scientific Foundation")
