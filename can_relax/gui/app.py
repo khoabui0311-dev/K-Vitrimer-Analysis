@@ -1271,7 +1271,7 @@ with tab_pub:
                         if not is_normalized:
                             ax1.hlines(intersection_level, xmin=t_plot.min() * 0.8, xmax=tau_star_plot, colors=color, linestyles='--', linewidths=0.8, alpha=0.5)
                         if annotate_tau_star:
-                            ax1.text(tau_star_plot * 1.15, intersection_level + (0.02 if is_normalized else intersection_level * 0.02), r"$\tau^* = {:.1f}\text{{ {}}}$".format(tau_star_plot, x_label), fontsize=7, color=color)
+                            ax1.text(tau_star_plot * 1.15, intersection_level + (0.02 if is_normalized else intersection_level * 0.02), r"$\tau^* = %.1f\text{ %s}$" % (tau_star_plot, x_label), fontsize=7, color=color)
 
             if show_tau_star and is_normalized:
                 ax1.axhline(1/np.e, color='gray', linestyle='--', linewidth=1.0)
@@ -1414,7 +1414,7 @@ with tab_pub:
                     }
                     ax2.scatter(active_k['1000/T'], active_k['ln(Tau)'], s=kin_marker_size**2, alpha=0.8, edgecolors='black', linewidth=0.8, color='steelblue', zorder=3)
 
-                    label_ea = (r"$E_\mathrm{a} = {:.1f} \pm {:.1f}\text{ kJ~mol}^{-1}$" + "\n" + r"$R^2 = {:.4f}$").format(Ea, Ea_stderr, r_sq) if show_ea_std else (r"$E_\mathrm{a} = {:.1f}\text{ kJ~mol}^{-1}$" + "\n" + r"$R^2 = {:.4f}$").format(Ea, r_sq)
+                    label_ea = (r"$E_\mathrm{a} = %.1f \pm %.1f\text{ kJ~mol}^{-1}$" + "\n" + r"$R^2 = %.4f$") % (Ea, Ea_stderr, r_sq) if show_ea_std else (r"$E_\mathrm{a} = %.1f\text{ kJ~mol}^{-1}$" + "\n" + r"$R^2 = %.4f$") % (Ea, r_sq)
 
                     if show_tv:
                         Tv_x = (ln_tau_t - intercept) / slope
@@ -1427,7 +1427,7 @@ with tab_pub:
                         else:
                             ax2.set_xlim(min_x * 0.95, max_x * 1.05)
                             ax2.set_ylim(min_y - 0.5, max_y + 0.5)
-                        ax2.plot([Tv_x], [ln_tau_t], marker='*', markersize=kin_marker_size * 2, color='gold', markeredgecolor='black', markeredgewidth=0.8, label=r"$T_\mathrm{{v}} = {:.1f}^\circ\text{{C}}$".format(Tv_val), zorder=4)
+                        ax2.plot([Tv_x], [ln_tau_t], marker='*', markersize=kin_marker_size * 2, color='gold', markeredgecolor='black', markeredgewidth=0.8, label=r"$T_\mathrm{v} = %.1f^\circ\text{C}$" % Tv_val, zorder=4)
                     else:
                         x_range = np.linspace(active_k['1000/T'].min() * 0.95, active_k['1000/T'].max() * 1.05, 100)
                         if kin_custom_lims:
