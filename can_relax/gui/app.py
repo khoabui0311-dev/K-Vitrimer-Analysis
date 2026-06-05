@@ -873,198 +873,207 @@ with tab_comparison:
                     comp_ymin = st.number_input("Y Min (ln(\u03c4))", value=comp_auto_ymin, format="%.4f", key="comp_ymin")
                     comp_ymax = st.number_input("Y Max (ln(\u03c4))", value=comp_auto_ymax, format="%.4f", key="comp_ymax")
         
-        with col_plot:
-            fig_comp = go.Figure()
-            
-            # Color palette for up to 6 samples
-            colors = ['#EF553B', '#636EFA', '#00CC96', '#AB63FA', '#FFA15A', '#25D098']
-            
-            for idx, r in enumerate(results):
-                inv_T = r['inv_T']
-                ln_tau = r['ln_tau']
-                name = r['Sample Name']
-                Ea = r['Ea (kJ/mol)']
-                slope = r['slope']
-                intercept = r['intercept']
-                tau_target = r['tau_target']
-                ln_tau_target = r['ln_tau_target']
-                
-                color = colors[idx % 6]
-                
-                # Data points
-                fig_comp.add_trace(go.Scatter(
-                    x=inv_T,
-                    y=ln_tau,
-                    mode='markers',
-                    name=name,
-                    marker=dict(size=8, color=color, opacity=0.8, line=dict(width=1, color='rgba(0,0,0,0.5)')),
-                    hovertemplate=f"<b>{name}</b><br>1000/T: %{{x:.3f}}<br>ln(τ): %{{y:.2f}}<extra></extra>"
-                ))
-                
-                # Fit line
-                x_range = np.linspace(inv_T.min() * 0.9, inv_T.max() * 1.1, 50)
-                y_fit = slope * x_range + intercept
-                fig_comp.add_trace(go.Scatter(
-                    x=x_range,
-                    y=y_fit,
-                    mode='lines',
-                    name=f"{name} fit",
-                    line=dict(color=color, dash='dash', width=2),
-                    showlegend=False,
-                    hoverinfo='skip'
-                ))
-                
-                # Tv marker (star)
-                tv_x = (ln_tau_target - intercept) / slope
-                fig_comp.add_trace(go.Scatter(
-                    x=[tv_x],
-                    y=[ln_tau_target],
-                    mode='markers',
-                    marker=dict(size=14, symbol='star', color=color, line=dict(width=2, color='black')),
-                    name=f"{name} Tv",
-                    showlegend=False,
-                    hovertemplate=f"<b>{name} Tv</b><br>1000/T: %{{x:.3f}}<br>ln(τ): %{{y:.2f}}<extra></extra>"
-                ))
-            
-            fig_comp.update_layout(
-                title="Arrhenius Comparison: Multiple Samples",
-                xaxis_title="1000/T (K<sup>-1</sup>)",
-                yaxis_title="ln(tau) (s)",
-                height=500,
-                hovermode='closest',
-                showlegend=show_comp_legend,
-                legend=dict(x=0.02, y=0.98, bgcolor='rgba(255,255,255,0.8)', borderwidth=1),
-                margin=dict(l=60, r=20, t=50, b=50)
-            )
-            
-            st.plotly_chart(fig_comp, width='stretch')
+        # --- Pre-generate Matplotlib comparison figure ---
+        fig_mpl = plt.figure(figsize=(comp_width, comp_height), facecolor='white')
+        ax_mpl = fig_mpl.add_subplot(111)
+        ax_mpl.set_facecolor('white')
+        ax_mpl.grid(False)
+        for spine in ['top', 'bottom', 'left', 'right']:
+            ax_mpl.spines[spine].set_linewidth(1.0)
+            ax_mpl.spines[spine].set_color('black')
         
-        # Export matplotlib figure
-        if st.button("📥 Export Comparison Plot", key="export_comp"):
-            fig_mpl = plt.figure(figsize=(comp_width, comp_height), facecolor='white')
-            ax_mpl = fig_mpl.add_subplot(111)
-            ax_mpl.set_facecolor('white')
-            ax_mpl.grid(False)
-            for spine in ['top', 'bottom', 'left', 'right']:
-                ax_mpl.spines[spine].set_linewidth(1.0)
-                ax_mpl.spines[spine].set_color('black')
-            
-            ax_mpl.tick_params(axis='both', which='major', labelsize=comp_tick_size, width=1.0, length=4, direction='in', color='black', top=comp_mirror, right=comp_mirror)
-            ax_mpl.tick_params(axis='both', which='minor', width=0.8, length=2.5, direction='in', color='black', top=comp_mirror, right=comp_mirror)
-            
-            # Apply tick locator settings
-            import matplotlib.ticker as ticker
-            # X-Axis Ticks
-            if comp_x_major != "Auto":
-                ax_mpl.xaxis.set_major_locator(ticker.MaxNLocator(nbins=int(comp_x_major)))
-            if comp_x_minor != "Auto":
-                if int(comp_x_minor) == 0:
-                    ax_mpl.xaxis.set_minor_locator(ticker.NullLocator())
-                else:
-                    ax_mpl.xaxis.set_minor_locator(ticker.AutoMinorLocator(n=int(comp_x_minor)+1))
+        ax_mpl.tick_params(axis='both', which='major', labelsize=comp_tick_size, width=1.0, length=4, direction='in', color='black', top=comp_mirror, right=comp_mirror)
+        ax_mpl.tick_params(axis='both', which='minor', width=0.8, length=2.5, direction='in', color='black', top=comp_mirror, right=comp_mirror)
+        
+        # Apply tick locator settings
+        import matplotlib.ticker as ticker
+        # X-Axis Ticks
+        if comp_x_major != "Auto":
+            ax_mpl.xaxis.set_major_locator(ticker.MaxNLocator(nbins=int(comp_x_major)))
+        if comp_x_minor != "Auto":
+            if int(comp_x_minor) == 0:
+                ax_mpl.xaxis.set_minor_locator(ticker.NullLocator())
             else:
-                ax_mpl.xaxis.set_minor_locator(ticker.AutoMinorLocator())
-            
-            # Y-Axis Ticks
-            if comp_y_major != "Auto":
-                ax_mpl.yaxis.set_major_locator(ticker.MaxNLocator(nbins=int(comp_y_major)))
-            if comp_y_minor != "Auto":
-                if int(comp_y_minor) == 0:
-                    ax_mpl.yaxis.set_minor_locator(ticker.NullLocator())
-                else:
-                    ax_mpl.yaxis.set_minor_locator(ticker.AutoMinorLocator(n=int(comp_y_minor)+1))
+                ax_mpl.xaxis.set_minor_locator(ticker.AutoMinorLocator(n=int(comp_x_minor)+1))
+        else:
+            ax_mpl.xaxis.set_minor_locator(ticker.AutoMinorLocator())
+        
+        # Y-Axis Ticks
+        if comp_y_major != "Auto":
+            ax_mpl.yaxis.set_major_locator(ticker.MaxNLocator(nbins=int(comp_y_major)))
+        if comp_y_minor != "Auto":
+            if int(comp_y_minor) == 0:
+                ax_mpl.yaxis.set_minor_locator(ticker.NullLocator())
             else:
-                ax_mpl.yaxis.set_minor_locator(ticker.AutoMinorLocator())
+                ax_mpl.yaxis.set_minor_locator(ticker.AutoMinorLocator(n=int(comp_y_minor)+1))
+        else:
+            ax_mpl.yaxis.set_minor_locator(ticker.AutoMinorLocator())
+        
+        colors_mpl = ['#EF553B', '#636EFA', '#00CC96', '#AB63FA', '#FFA15A', '#25D098']
+        
+        for idx, r in enumerate(results):
+            inv_T = r['inv_T']
+            ln_tau = r['ln_tau']
+            name = r['Sample Name']
+            slope = r['slope']
+            intercept = r['intercept']
+            Ea = r['Ea (kJ/mol)']
+            tau_target = r['tau_target']
+            ln_tau_target = r['ln_tau_target']
             
-            colors_mpl = ['#EF553B', '#636EFA', '#00CC96', '#AB63FA', '#FFA15A', '#25D098']
+            color = colors_mpl[idx % len(colors_mpl)]
             
-            for idx, r in enumerate(results):
-                inv_T = r['inv_T']
-                ln_tau = r['ln_tau']
-                name = r['Sample Name']
-                slope = r['slope']
-                intercept = r['intercept']
-                Ea = r['Ea (kJ/mol)']
-                tau_target = r['tau_target']
-                ln_tau_target = r['ln_tau_target']
-                
-                color = colors_mpl[idx % len(colors_mpl)]
-                
-                # Plot data
-                ax_mpl.scatter(inv_T, ln_tau, s=comp_ms**2, alpha=0.7, edgecolors='black', linewidth=0.8,
-                             label=name, color=color, zorder=3)
-                
-                # Plot fit line
-                x_range = np.linspace(inv_T.min() * 0.9, inv_T.max() * 1.1, 50)
-                y_fit = slope * x_range + intercept
-                ax_mpl.plot(x_range, y_fit, '--', color=color, linewidth=comp_lw, alpha=0.8, zorder=2)
-                
-                # Plot Tv marker
-                if comp_show_tv:
-                    tv_x = (ln_tau_target - intercept) / slope
-                    ax_mpl.plot([tv_x], [ln_tau_target], marker='*', markersize=comp_ms*2, color=color,
-                              markeredgecolor='black', markeredgewidth=1.0, zorder=4)
+            # Plot data
+            ax_mpl.scatter(inv_T, ln_tau, s=comp_ms**2, alpha=0.7, edgecolors='black', linewidth=0.8,
+                         label=name, color=color, zorder=3)
             
-            # Label font dictionary
-            font_label_comp = {
-                'family': comp_font_family,
-                'size': comp_lbl_sz,
-                'weight': comp_lbl_wt,
-                'style': comp_lbl_sty
-            }
-            ax_mpl.set_xlabel(r"$1000/T$ ($\mathrm{K}^{-1}$)", fontdict=font_label_comp, labelpad=8)
-            ax_mpl.set_ylabel(r"$\ln(\tau)$ ($\mathrm{s}$)", fontdict=font_label_comp, labelpad=8)
+            # Plot fit line
+            x_range = np.linspace(inv_T.min() * 0.9, inv_T.max() * 1.1, 50)
+            y_fit = slope * x_range + intercept
+            ax_mpl.plot(x_range, y_fit, '--', color=color, linewidth=comp_lw, alpha=0.8, zorder=2)
             
-            # Apply axis limits
-            if comp_custom_lims:
-                ax_mpl.set_xlim(comp_xmin, comp_xmax)
-                ax_mpl.set_ylim(comp_ymin, comp_ymax)
-            else:
-                all_inv_T = np.concatenate([r['inv_T'] for r in results])
-                all_ln_tau = np.concatenate([r['ln_tau'] for r in results])
-                ax_mpl.set_xlim(all_inv_T.min() * 0.95, all_inv_T.max() * 1.05)
-                ax_mpl.set_ylim(all_ln_tau.min() - 0.5, all_ln_tau.max() + 0.5)
+            # Plot Tv marker
+            if comp_show_tv:
+                tv_x = (ln_tau_target - intercept) / slope
+                ax_mpl.plot([tv_x], [ln_tau_target], marker='*', markersize=comp_ms*2, color=color,
+                          markeredgecolor='black', markeredgewidth=1.0, zorder=4)
+        
+        # Label font dictionary
+        font_label_comp = {
+            'family': comp_font_family,
+            'size': comp_lbl_sz,
+            'weight': comp_lbl_wt,
+            'style': comp_lbl_sty
+        }
+        ax_mpl.set_xlabel(r"$1000/T$ ($\mathrm{K}^{-1}$)", fontdict=font_label_comp, labelpad=8)
+        ax_mpl.set_ylabel(r"$\ln(\tau)$ ($\mathrm{s}$)", fontdict=font_label_comp, labelpad=8)
+        
+        # Apply axis limits
+        if comp_custom_lims:
+            ax_mpl.set_xlim(comp_xmin, comp_xmax)
+            ax_mpl.set_ylim(comp_ymin, comp_ymax)
+        else:
+            all_inv_T = np.concatenate([r['inv_T'] for r in results])
+            all_ln_tau = np.concatenate([r['ln_tau'] for r in results])
+            ax_mpl.set_xlim(all_inv_T.min() * 0.95, all_inv_T.max() * 1.05)
+            ax_mpl.set_ylim(all_ln_tau.min() - 0.5, all_ln_tau.max() + 0.5)
 
-            # Apply tick number fonts
-            comp_num_family = comp_font_family if comp_tick_font == "Same as Label" else comp_tick_font
-            for label in ax_mpl.get_xticklabels():
-                label.set_family(comp_num_family)
-                label.set_size(comp_tick_size)
-                label.set_weight(comp_tick_weight)
-                label.set_style(comp_tick_style)
-            for label in ax_mpl.get_yticklabels():
-                label.set_family(comp_num_family)
-                label.set_size(comp_tick_size)
-                label.set_weight(comp_tick_weight)
-                label.set_style(comp_tick_style)
-            
-            if show_comp_legend:
-                ax_mpl.legend(frameon=True, fontsize=comp_tick_size, loc='best')
-            
-            plt.tight_layout()
-            
-            if comp_colorspace.startswith("CMYK"):
-                # Save figure as RGB PNG bytes first
-                buf_rgb_png = io.BytesIO()
-                fig_mpl.savefig(buf_rgb_png, format='png', dpi=1200, bbox_inches='tight')
-                buf_rgb_png.seek(0)
+        # Apply tick number fonts
+        comp_num_family = comp_font_family if comp_tick_font == "Same as Label" else comp_tick_font
+        for label in ax_mpl.get_xticklabels():
+            label.set_family(comp_num_family)
+            label.set_size(comp_tick_size)
+            label.set_weight(comp_tick_weight)
+            label.set_style(comp_tick_style)
+        for label in ax_mpl.get_yticklabels():
+            label.set_family(comp_num_family)
+            label.set_size(comp_tick_size)
+            label.set_weight(comp_tick_weight)
+            label.set_style(comp_tick_style)
+        
+        if show_comp_legend:
+            ax_mpl.legend(frameon=True, fontsize=comp_tick_size, loc='best')
+        
+        plt.tight_layout()
+        
+        # Save figure to memory bytes for download
+        if comp_colorspace.startswith("CMYK"):
+            buf_rgb_png = io.BytesIO()
+            fig_mpl.savefig(buf_rgb_png, format='png', dpi=1200, bbox_inches='tight')
+            buf_rgb_png.seek(0)
+            from PIL import Image
+            img = Image.open(buf_rgb_png)
+            img_cmyk = img.convert('CMYK')
+            buf_export = io.BytesIO()
+            img_cmyk.save(buf_export, format='pdf')
+            buf_export.seek(0)
+            dl_filename = "Arrhenius_Comparison_CMYK.pdf"
+            dl_mime = "application/pdf"
+            btn_label = "⬇️ Download Comparison Figure (CMYK PDF)"
+        else:
+            buf_export = io.BytesIO()
+            fig_mpl.savefig(buf_export, format=comp_fmt.lower(), dpi=comp_dpi, bbox_inches='tight')
+            buf_export.seek(0)
+            dl_filename = f"Arrhenius_Comparison.{comp_fmt.lower()}"
+            dl_mime = f"image/{comp_fmt.lower()}" if comp_fmt.lower() != "pdf" else "application/pdf"
+            btn_label = f"⬇️ Download Comparison Figure ({comp_fmt})"
+        
+        # Add the download button to col_settings
+        with col_settings:
+            st.download_button(btn_label, buf_export, dl_filename, mime=dl_mime, key="dl_comp_plot")
+
+        # Render the plot in col_plot
+        with col_plot:
+            comp_plot_mode = st.radio("Plot Type", ["Interactive Plot (Plotly)", "Publication Figure Preview (Matplotlib)"], horizontal=True, key="comp_plot_mode")
+            if comp_plot_mode == "Interactive Plot (Plotly)":
+                fig_comp = go.Figure()
                 
-                # Convert to CMYK using Pillow
-                from PIL import Image
-                img = Image.open(buf_rgb_png)
-                img_cmyk = img.convert('CMYK')
+                # Color palette for up to 6 samples
+                colors = ['#EF553B', '#636EFA', '#00CC96', '#AB63FA', '#FFA15A', '#25D098']
                 
-                # Save as CMYK PDF
-                buf_pdf = io.BytesIO()
-                img_cmyk.save(buf_pdf, format='pdf')
-                buf_pdf.seek(0)
-                st.download_button("⬇️ Download Comparison Figure (CMYK PDF)", buf_pdf, "Arrhenius_Comparison_CMYK.pdf", key="dl_comp_plot")
+                for idx, r in enumerate(results):
+                    inv_T = r['inv_T']
+                    ln_tau = r['ln_tau']
+                    name = r['Sample Name']
+                    Ea = r['Ea (kJ/mol)']
+                    slope = r['slope']
+                    intercept = r['intercept']
+                    tau_target = r['tau_target']
+                    ln_tau_target = r['ln_tau_target']
+                    
+                    color = colors[idx % 6]
+                    
+                    # Data points
+                    fig_comp.add_trace(go.Scatter(
+                        x=inv_T,
+                        y=ln_tau,
+                        mode='markers',
+                        name=name,
+                        marker=dict(size=8, color=color, opacity=0.8, line=dict(width=1, color='rgba(0,0,0,0.5)')),
+                        hovertemplate=f"<b>{name}</b><br>1000/T: %{{x:.3f}}<br>ln(τ): %{{y:.2f}}<extra></extra>"
+                    ))
+                    
+                    # Fit line
+                    x_range = np.linspace(inv_T.min() * 0.9, inv_T.max() * 1.1, 50)
+                    y_fit = slope * x_range + intercept
+                    fig_comp.add_trace(go.Scatter(
+                        x=x_range,
+                        y=y_fit,
+                        mode='lines',
+                        name=f"{name} fit",
+                        line=dict(color=color, dash='dash', width=2),
+                        showlegend=False,
+                        hoverinfo='skip'
+                    ))
+                    
+                    # Tv marker (star)
+                    tv_x = (ln_tau_target - intercept) / slope
+                    fig_comp.add_trace(go.Scatter(
+                        x=[tv_x],
+                        y=[ln_tau_target],
+                        mode='markers',
+                        marker=dict(size=14, symbol='star', color=color, line=dict(width=2, color='black')),
+                        name=f"{name} Tv",
+                        showlegend=False,
+                        hovertemplate=f"<b>{name} Tv</b><br>1000/T: %{{x:.3f}}<br>ln(τ): %{{y:.2f}}<extra></extra>"
+                    ))
+                
+                fig_comp.update_layout(
+                    title="Arrhenius Comparison: Multiple Samples",
+                    xaxis_title="1000/T (K<sup>-1</sup>)",
+                    yaxis_title="ln(tau) (s)",
+                    height=500,
+                    hovermode='closest',
+                    showlegend=show_comp_legend,
+                    legend=dict(x=0.02, y=0.98, bgcolor='rgba(255,255,255,0.8)', borderwidth=1),
+                    margin=dict(l=60, r=20, t=50, b=50)
+                )
+                
+                st.plotly_chart(fig_comp, width='stretch')
             else:
-                buf = io.BytesIO()
-                fig_mpl.savefig(buf, format=comp_fmt.lower(), dpi=comp_dpi, bbox_inches='tight')
-                buf.seek(0)
-                st.download_button(f"⬇️ Download Comparison Figure ({comp_fmt})", buf, f"Arrhenius_Comparison.{comp_fmt.lower()}", key="dl_comp_plot")
-            plt.close(fig_mpl)
+                st.pyplot(fig_mpl, dpi=300, bbox_inches='tight')
+        
+        plt.close(fig_mpl)
     else:
         st.info("👈 Fill in samples and click 'Analyze All Samples' to start comparison")
 
