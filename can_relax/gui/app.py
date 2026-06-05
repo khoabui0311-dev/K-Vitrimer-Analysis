@@ -255,7 +255,7 @@ with tab_analysis:
                 t_raw = r['Raw']['t']
                 g_raw = r['Raw']['g']
                 g_norm = g_raw
-                step = max(1, len(t_raw)//50)
+                step = max(1, len(t_raw)//300)
                 fig.add_trace(go.Scatter(
                     x=t_raw[::step],
                     y=g_norm[::step],
@@ -982,10 +982,12 @@ with tab_pub:
                 curve_style = st.selectbox("Data Style", ["Continuous Lines (Raw)", "Markers Only", "Lines + Markers"], key="pub_style")
 
                 st.markdown("---")
-                ax1c, ax2c = st.columns(2)
+                ax1c, ax2c, ax3c = st.columns(3)
                 with ax1c:
                     pub_time_axis = st.selectbox("Time Scale", ["Log", "Linear"], key="pub_xscale")
                 with ax2c:
+                    pub_y_scale = st.selectbox("Y-Axis Scale", ["Linear", "Log"], key="pub_yscale")
+                with ax3c:
                     x_unit_select = st.selectbox("Time Unit", ["Seconds (s)", "Minutes (min)", "Hours (h)"], key="pub_xunit")
 
                 st.markdown("---")
@@ -1101,10 +1103,10 @@ with tab_pub:
                 if curve_style == "Continuous Lines (Raw)":
                     ax1.plot(t_plot, g_plot, '-', linewidth=2.0, color=color, label=label_name)
                 elif curve_style == "Markers Only":
-                    step = max(1, len(t_plot)//50)
+                    step = max(1, len(t_plot)//300)
                     ax1.plot(t_plot[::step], g_plot[::step], 'o', color=color, markersize=4, alpha=0.8, label=label_name)
                 elif curve_style == "Lines + Markers":
-                    step = max(1, len(t_plot)//50)
+                    step = max(1, len(t_plot)//300)
                     ax1.plot(t_plot, g_plot, '-', linewidth=1.5, color=color)
                     ax1.plot(t_plot[::step], g_plot[::step], 'o', color=color, markersize=3, alpha=0.8, label=label_name)
 
@@ -1130,15 +1132,26 @@ with tab_pub:
                 ax1.axhline(1/np.e, color='gray', linestyle='--', linewidth=1.0)
             if pub_time_axis == "Log":
                 ax1.set_xscale('log')
+            if pub_y_scale == "Log":
+                ax1.set_yscale('log')
 
             ax1.set_xlabel(f"Time ({x_label})", fontsize=10, fontweight='bold', family='sans-serif', labelpad=8)
             ax1.set_ylabel(y_label_text, fontsize=10, fontweight='bold', family='sans-serif', labelpad=8)
 
             if is_normalized:
-                ax1.set_ylim(0, 1.05)
+                if pub_y_scale == "Log":
+                    ax1.set_ylim(1e-3, 1.05)
+                else:
+                    ax1.set_ylim(0, 1.05)
             else:
                 max_y = max([np.max(r['Raw']['g'] * r['Raw'].get('G0', 1.0)) for r in active_res])
-                ax1.set_ylim(0, max_y * 1.05)
+                if pub_y_scale == "Log":
+                    min_y = min([np.min(r['Raw']['g'] * r['Raw'].get('G0', 1.0)) for r in active_res])
+                    if min_y <= 0:
+                        min_y = max_y * 1e-4
+                    ax1.set_ylim(min_y * 0.8, max_y * 1.2)
+                else:
+                    ax1.set_ylim(0, max_y * 1.05)
 
             all_times = np.concatenate([r['Raw']['t'] / x_factor for r in active_res])
             ax1.set_xlim(all_times.min() * 0.8, all_times.max() * 1.2)
@@ -1159,7 +1172,7 @@ with tab_pub:
                 ax1.text(-0.12, 1.02, f"({panel_letter})", transform=ax1.transAxes, fontsize=12, fontweight='bold', va='bottom', ha='right')
 
             plt.tight_layout()
-            st.pyplot(fig1, bbox_inches='tight')
+            st.pyplot(fig1, dpi=300, bbox_inches='tight')
 
             buf_pdf1 = io.BytesIO(); fig1.savefig(buf_pdf1, format='pdf', bbox_inches='tight'); buf_pdf1.seek(0)
             buf_svg1 = io.BytesIO(); fig1.savefig(buf_svg1, format='svg', bbox_inches='tight'); buf_svg1.seek(0)
@@ -1241,7 +1254,7 @@ with tab_pub:
                         ax2.text(-0.12, 1.02, f"({next_letter})", transform=ax2.transAxes, fontsize=12, fontweight='bold', va='bottom', ha='right')
 
                     plt.tight_layout()
-                    st.pyplot(fig2, bbox_inches='tight')
+                    st.pyplot(fig2, dpi=300, bbox_inches='tight')
 
                     buf_pdf2 = io.BytesIO(); fig2.savefig(buf_pdf2, format='pdf', bbox_inches='tight'); buf_pdf2.seek(0)
                     buf_svg2 = io.BytesIO(); fig2.savefig(buf_svg2, format='svg', bbox_inches='tight'); buf_svg2.seek(0)
