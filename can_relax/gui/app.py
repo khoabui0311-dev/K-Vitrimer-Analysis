@@ -950,6 +950,43 @@ with tab_pub:
         active_res = st.session_state.active_results
         kinetics_df = st.session_state.get('kinetics_df', pd.DataFrame())
 
+        # Pre-calculate auto bounds for default input values
+        x_unit_sel_temp = st.session_state.get('pub_xunit', 'Seconds (s)')
+        y_norm_sel_temp = st.session_state.get('pub_ynorm', 'Normalized (G/G\u2080 or E/E\u2080)')
+
+        if x_unit_sel_temp == "Minutes (min)":
+            x_factor_temp = 60.0
+        elif x_unit_sel_temp == "Hours (h)":
+            x_factor_temp = 3600.0
+        else:
+            x_factor_temp = 1.0
+
+        all_times_temp = np.concatenate([r['Raw']['t'] / x_factor_temp for r in active_res])
+        auto_rel_xmin = float(all_times_temp.min() * 0.8)
+        auto_rel_xmax = float(all_times_temp.max() * 1.2)
+
+        is_norm_temp = y_norm_sel_temp.startswith("Normal")
+        if is_norm_temp:
+            auto_rel_ymin = 0.0
+            auto_rel_ymax = 1.05
+        else:
+            max_y_temp = max([np.max(r['Raw']['g'] * r['Raw'].get('G0', 1.0)) for r in active_res])
+            auto_rel_ymin = 0.0
+            auto_rel_ymax = float(max_y_temp * 1.05)
+
+        # Pre-calculate auto bounds for Kinetics Plot
+        if not kinetics_df.empty:
+            active_k_temp = kinetics_df[kinetics_df['Include']==True]
+            if not active_k_temp.empty and len(active_k_temp) >= 2:
+                auto_kin_xmin = float(active_k_temp['1000/T'].min() * 0.95)
+                auto_kin_xmax = float(active_k_temp['1000/T'].max() * 1.05)
+                auto_kin_ymin = float(active_k_temp['ln(Tau)'].min() - 0.5)
+                auto_kin_ymax = float(active_k_temp['ln(Tau)'].max() + 0.5)
+            else:
+                auto_kin_xmin, auto_kin_xmax, auto_kin_ymin, auto_kin_ymax = 2.0, 3.5, -2.0, 10.0
+        else:
+            auto_kin_xmin, auto_kin_xmax, auto_kin_ymin, auto_kin_ymax = 2.0, 3.5, -2.0, 10.0
+
         # ── Two-panel: Settings LEFT | Previews RIGHT ──────────────────
         pan_settings, pan_preview = st.columns([1, 2], gap="large")
 
@@ -1031,6 +1068,20 @@ with tab_pub:
                 with rns3:
                     rel_tick_style = st.selectbox("Number Style", ["normal", "italic"], key="pub_rel_num_sty")
 
+                st.markdown("##### 📐 Axis Limits")
+                rel_custom_lims = st.checkbox("Manual Axis Bounding", value=False, key="pub_rel_cust_lims")
+                if rel_custom_lims:
+                    xlim_col1, xlim_col2 = st.columns(2)
+                    ylim_col1, ylim_col2 = st.columns(2)
+                    with xlim_col1:
+                        rel_xmin = st.number_input("X Min (Time)", value=auto_rel_xmin, format="%.3e", key="pub_rel_xmin")
+                    with xlim_col2:
+                        rel_xmax = st.number_input("X Max (Time)", value=auto_rel_xmax, format="%.3e", key="pub_rel_xmax")
+                    with ylim_col1:
+                        rel_ymin = st.number_input("Y Min (Modulus)", value=auto_rel_ymin, format="%.3e", key="pub_rel_ymin")
+                    with ylim_col2:
+                        rel_ymax = st.number_input("Y Max (Modulus)", value=auto_rel_ymax, format="%.3e", key="pub_rel_ymax")
+
             # ── 3. Kinetics Plot: Style & Axes ───────────────────────────
             with st.expander("🔥 Kinetics Plot: Style & Axes", expanded=False):
                 chk4, chk5 = st.columns(2)
@@ -1066,6 +1117,20 @@ with tab_pub:
                     kin_tick_weight = st.selectbox("Number Weight ", ["normal", "bold"], key="pub_kin_num_wt")
                 with kns3:
                     kin_tick_style = st.selectbox("Number Style ", ["normal", "italic"], key="pub_kin_num_sty")
+
+                st.markdown("##### 📐 Axis Limits")
+                kin_custom_lims = st.checkbox("Manual Axis Bounding ", value=False, key="pub_kin_cust_lims")
+                if kin_custom_lims:
+                    kxlim_col1, kxlim_col2 = st.columns(2)
+                    kylim_col1, kylim_col2 = st.columns(2)
+                    with kxlim_col1:
+                        kin_xmin = st.number_input("X Min (1000/T)", value=auto_kin_xmin, format="%.4f", key="pub_kin_xmin")
+                    with kxlim_col2:
+                        kin_xmax = st.number_input("X Max (1000/T)", value=auto_kin_xmax, format="%.4f", key="pub_kin_xmax")
+                    with kylim_col1:
+                        kin_ymin = st.number_input("Y Min (ln(\u03c4))", value=auto_kin_ymin, format="%.4f", key="pub_kin_ymin")
+                    with kylim_col2:
+                        kin_ymax = st.number_input("Y Max (ln(\u03c4))", value=auto_kin_ymax, format="%.4f", key="pub_kin_ymax")
 
             # ── 2. Relaxation Legend ──────────────────────────────────
             with st.expander("\U0001f5fa Relaxation Legend", expanded=False):
@@ -1217,23 +1282,27 @@ with tab_pub:
             ax1.set_xlabel(f"Time ({x_label})", fontdict=font_label_rel, labelpad=8)
             ax1.set_ylabel(y_label_text, fontdict=font_label_rel, labelpad=8)
 
-            if is_normalized:
-                if pub_y_scale == "Log":
-                    ax1.set_ylim(1e-3, 1.05)
-                else:
-                    ax1.set_ylim(0, 1.05)
+            if rel_custom_lims:
+                ax1.set_xlim(rel_xmin, rel_xmax)
+                ax1.set_ylim(rel_ymin, rel_ymax)
             else:
-                max_y = max([np.max(r['Raw']['g'] * r['Raw'].get('G0', 1.0)) for r in active_res])
-                if pub_y_scale == "Log":
-                    min_y = min([np.min(r['Raw']['g'] * r['Raw'].get('G0', 1.0)) for r in active_res])
-                    if min_y <= 0:
-                        min_y = max_y * 1e-4
-                    ax1.set_ylim(min_y * 0.8, max_y * 1.2)
+                if is_normalized:
+                    if pub_y_scale == "Log":
+                        ax1.set_ylim(1e-3, 1.05)
+                    else:
+                        ax1.set_ylim(0, 1.05)
                 else:
-                    ax1.set_ylim(0, max_y * 1.05)
+                    max_y = max([np.max(r['Raw']['g'] * r['Raw'].get('G0', 1.0)) for r in active_res])
+                    if pub_y_scale == "Log":
+                        min_y = min([np.min(r['Raw']['g'] * r['Raw'].get('G0', 1.0)) for r in active_res])
+                        if min_y <= 0:
+                            min_y = max_y * 1e-4
+                        ax1.set_ylim(min_y * 0.8, max_y * 1.2)
+                    else:
+                        ax1.set_ylim(0, max_y * 1.05)
 
-            all_times = np.concatenate([r['Raw']['t'] / x_factor for r in active_res])
-            ax1.set_xlim(all_times.min() * 0.8, all_times.max() * 1.2)
+                all_times = np.concatenate([r['Raw']['t'] / x_factor for r in active_res])
+                ax1.set_xlim(all_times.min() * 0.8, all_times.max() * 1.2)
 
             if show_rel_leg:
                 l_pos = 'best'; l_anchor = None
@@ -1320,12 +1389,21 @@ with tab_pub:
                         min_x = min(active_k['1000/T'].min(), Tv_x); max_x = max(active_k['1000/T'].max(), Tv_x)
                         x_range = np.linspace(min_x * 0.95, max_x * 1.05, 100)
                         min_y = min(active_k['ln(Tau)'].min(), ln_tau_t); max_y = max(active_k['ln(Tau)'].max(), ln_tau_t)
-                        ax2.set_xlim(min_x * 0.95, max_x * 1.05); ax2.set_ylim(min_y - 0.5, max_y + 0.5)
+                        if kin_custom_lims:
+                            ax2.set_xlim(kin_xmin, kin_xmax)
+                            ax2.set_ylim(kin_ymin, kin_ymax)
+                        else:
+                            ax2.set_xlim(min_x * 0.95, max_x * 1.05)
+                            ax2.set_ylim(min_y - 0.5, max_y + 0.5)
                         ax2.plot([Tv_x], [ln_tau_t], marker='*', markersize=kin_marker_size * 2, color='gold', markeredgecolor='black', markeredgewidth=0.8, label=f"T\u1d65 = {Tv_val:.1f}\u00b0C", zorder=4)
                     else:
                         x_range = np.linspace(active_k['1000/T'].min() * 0.95, active_k['1000/T'].max() * 1.05, 100)
-                        ax2.set_xlim(active_k['1000/T'].min() * 0.95, active_k['1000/T'].max() * 1.05)
-                        ax2.set_ylim(active_k['ln(Tau)'].min() - 0.5, active_k['ln(Tau)'].max() + 0.5)
+                        if kin_custom_lims:
+                            ax2.set_xlim(kin_xmin, kin_xmax)
+                            ax2.set_ylim(kin_ymin, kin_ymax)
+                        else:
+                            ax2.set_xlim(active_k['1000/T'].min() * 0.95, active_k['1000/T'].max() * 1.05)
+                            ax2.set_ylim(active_k['ln(Tau)'].min() - 0.5, active_k['ln(Tau)'].max() + 0.5)
 
                     y_fit = slope * x_range + intercept
                     ax2.plot(x_range, y_fit, '--', color='red', linewidth=kin_line_width, label=label_ea, zorder=2)
