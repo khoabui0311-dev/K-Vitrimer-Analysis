@@ -1,12 +1,13 @@
 import numpy as np
 import pandas as pd
 from scipy.optimize import curve_fit
+from typing import Dict, Any, Tuple, Optional
 from can_relax.core.models import Maxwell, SingleKWW, DualKWW
 from can_relax.core.processing import DataProcessor
 from can_relax.core.auto_engine import AutoEngine
 
 class CurveAnalyzer:
-    def __init__(self):
+    def __init__(self) -> None:
         self.processor = DataProcessor()
         self.auto = AutoEngine()
         self.models = {
@@ -15,7 +16,7 @@ class CurveAnalyzer:
             'Dual_KWW': DualKWW()
         }
 
-    def _calculate_metrics(self, g_true, g_pred, n_params):
+    def _calculate_metrics(self, g_true: np.ndarray, g_pred: np.ndarray, n_params: int) -> Tuple[float, float]:
         rss = np.sum((g_true - g_pred)**2)
         n = len(g_true)
         ss_tot = np.sum((g_true - np.mean(g_true))**2)
@@ -26,9 +27,9 @@ class CurveAnalyzer:
             aicc = aic + (2 * n_params * (n_params + 1)) / (n - n_params - 1)
         else:
             aicc = np.inf
-        return r2, aicc
+        return float(r2), float(aicc)
 
-    def fit_one_temp(self, temp, df_raw, Tg=None):
+    def fit_one_temp(self, temp: float, df_raw: pd.DataFrame, Tg: Optional[float] = None) -> Dict[str, Any]:
         """
         Runs analysis for one temperature.
         If Tg is provided and temp < Tg, returns a 'Frozen' status.

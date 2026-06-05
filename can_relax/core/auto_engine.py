@@ -8,10 +8,10 @@ Created on Thu Dec  4 15:36:00 2025
 import numpy as np
 
 class AutoEngine:
-    def __init__(self):
+    def __init__(self) -> None:
         pass
 
-    def compute_signal_quality(self, t, g):
+    def compute_signal_quality(self, t: np.ndarray, g: np.ndarray) -> float:
         """
         Returns a Quality Score (0.0 to 1.0) based on noise and drift.
         """
@@ -40,7 +40,7 @@ class AutoEngine:
         final_score = (0.4 * noise_score) + (0.4 * range_score) + (0.2 * wiggle_score)
         return float(np.clip(final_score, 0, 1))
 
-    def generate_explanation(self, temp, best_model, r2, quality):
+    def generate_explanation(self, temp: float, best_model: str, r2: float, quality: float) -> str:
         """
         Writes a human-readable summary of the curve.
         """

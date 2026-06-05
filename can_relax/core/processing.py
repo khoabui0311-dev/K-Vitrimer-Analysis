@@ -1,12 +1,13 @@
 import numpy as np
 import pandas as pd
 from scipy.signal import savgol_filter
+from typing import Tuple, Optional
 
 class DataProcessor:
-    def __init__(self, min_points=8):
+    def __init__(self, min_points: int = 8) -> None:
         self.min_points = min_points
 
-    def trim_curve(self, t, g):
+    def trim_curve(self, t: np.ndarray, g: np.ndarray) -> Tuple[Optional[np.ndarray], Optional[np.ndarray], Optional[float]]:
         """
         Trims artifacts from the relaxation curve.
         Returns: (t_trimmed, g_normalized, G0) or (None, None, None)

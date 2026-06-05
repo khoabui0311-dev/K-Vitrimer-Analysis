@@ -37,11 +37,11 @@ def parse_wide_format_data(file_path):
             df_raw = pd.read_excel(file_path)
 
     except Exception as e:
-        print(f"❌ [PARSER] Critical failure opening file: {e}")
+        logger.error(f"❌ [PARSER] Critical failure opening file: {e}")
         return {}
 
     if df_raw is None:
-        print("❌ [PARSER] Could not read file. Checked UTF-8, Latin-1, and Excel formats.")
+        logger.error("❌ [PARSER] Could not read file. Checked UTF-8, Latin-1, and Excel formats.")
         return {}
 
     # 2. Identify Columns via Regex
