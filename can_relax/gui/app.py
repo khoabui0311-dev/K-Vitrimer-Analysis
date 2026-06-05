@@ -1225,41 +1225,17 @@ with tab_pub:
             # Apply tick locator settings
             # X-Axis Ticks
             if pub_time_axis != "Log":
-                if rel_x_major != "Auto":
-                    ax1.xaxis.set_major_locator(ticker.MaxNLocator(nbins=int(rel_x_major), prune=None))
-                if rel_x_minor != "Auto":
-                    n_minor = int(rel_x_minor)
-                    if n_minor == 0:
-                        ax1.xaxis.set_minor_locator(ticker.NullLocator())
-                    else:
-                        ax1.xaxis.set_minor_locator(ticker.AutoMinorLocator(n=n_minor + 1))
-                else:
-                    ax1.xaxis.set_minor_locator(ticker.AutoMinorLocator())
+                ax1.xaxis.set_minor_locator(ticker.AutoMinorLocator())
             else: # Log scale
                 ax1.xaxis.set_major_locator(ticker.LogLocator(base=10.0))
-                if rel_x_minor != "Auto" and int(rel_x_minor) == 0:
-                    ax1.xaxis.set_minor_locator(ticker.NullLocator())
-                else:
-                    ax1.xaxis.set_minor_locator(ticker.LogLocator(base=10.0, subs=(2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0)))
+                ax1.xaxis.set_minor_locator(ticker.LogLocator(base=10.0, subs=(2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0)))
             
             # Y-Axis Ticks
             if pub_y_scale != "Log":
-                if rel_y_major != "Auto":
-                    ax1.yaxis.set_major_locator(ticker.MaxNLocator(nbins=int(rel_y_major), prune=None))
-                if rel_y_minor != "Auto":
-                    n_minor = int(rel_y_minor)
-                    if n_minor == 0:
-                        ax1.yaxis.set_minor_locator(ticker.NullLocator())
-                    else:
-                        ax1.yaxis.set_minor_locator(ticker.AutoMinorLocator(n=n_minor + 1))
-                else:
-                    ax1.yaxis.set_minor_locator(ticker.AutoMinorLocator())
+                ax1.yaxis.set_minor_locator(ticker.AutoMinorLocator())
             else: # Log scale
                 ax1.yaxis.set_major_locator(ticker.LogLocator(base=10.0))
-                if rel_y_minor != "Auto" and int(rel_y_minor) == 0:
-                    ax1.yaxis.set_minor_locator(ticker.NullLocator())
-                else:
-                    ax1.yaxis.set_minor_locator(ticker.LogLocator(base=10.0, subs=(2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0)))
+                ax1.yaxis.set_minor_locator(ticker.LogLocator(base=10.0, subs=(2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0)))
 
 
             font_label_rel = {
