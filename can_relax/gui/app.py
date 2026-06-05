@@ -1001,45 +1001,61 @@ with tab_pub:
                 st.markdown("**Relaxation Legend**")
                 show_rel_leg = st.checkbox("Show Relaxation Legend", value=True)
                 if show_rel_leg:
-                    rel_leg_pos = st.selectbox("Position (Relaxation)", ["Best (Auto)", "Upper Right", "Upper Left", "Lower Left", "Lower Right", "Right (Outside)", "Custom (Coords)"])
+                    rel_leg_pos = st.selectbox("Position (Relaxation)", ["Best (Auto)", "Upper Right", "Upper Left", "Lower Left", "Lower Right", "Right (Outside)", "Above the Plot (Horizontal)", "Below the Plot (Horizontal)", "Custom (Coords)"])
                     if rel_leg_pos == "Custom (Coords)":
                         rlc1, rlc2 = st.columns(2)
                         with rlc1:
                             rel_leg_x = st.slider("X (Relaxation)", -0.5, 1.5, 1.0, 0.02)
                         with rlc2:
                             rel_leg_y = st.slider("Y (Relaxation)", -0.5, 1.5, 1.0, 0.02)
+                        rel_leg_anchor = st.selectbox("Anchor (Relaxation)", ["upper left", "upper center", "upper right", "lower left", "lower center", "lower right", "center"])
                     else:
                         rel_leg_x, rel_leg_y = 1.0, 1.0
+                        rel_leg_anchor = "upper left"
                     
-                    rel_leg_ncol = st.number_input("Columns (Relaxation)", min_value=1, max_value=10, value=1)
+                    # Default columns count: horizontal presets default to number of curves
+                    default_rel_ncol = 1
+                    if "Horizontal" in rel_leg_pos:
+                        default_rel_ncol = len(active_res) if 'active_res' in locals() else 4
+                        
+                    rel_leg_ncol = st.number_input("Columns (Relaxation)", min_value=1, max_value=10, value=default_rel_ncol)
                     rel_leg_font_size = st.slider("Font Size (Relaxation)", 4, 16, 8)
                     rel_leg_box = st.checkbox("Border (Relaxation)", value=False)
                 else:
                     rel_leg_pos, rel_leg_font_size, rel_leg_box = "Best (Auto)", 8, False
                     rel_leg_x, rel_leg_y = 1.0, 1.0
                     rel_leg_ncol = 1
+                    rel_leg_anchor = "upper left"
                 
                 st.markdown("---")
                 st.markdown("**Kinetics Legend**")
                 show_kin_leg = st.checkbox("Show Kinetics Legend", value=True)
                 if show_kin_leg:
-                    kin_leg_pos = st.selectbox("Position (Kinetics)", ["Best (Auto)", "Upper Right", "Upper Left", "Lower Left", "Lower Right", "Right (Outside)", "Custom (Coords)"])
+                    kin_leg_pos = st.selectbox("Position (Kinetics)", ["Best (Auto)", "Upper Right", "Upper Left", "Lower Left", "Lower Right", "Right (Outside)", "Above the Plot (Horizontal)", "Below the Plot (Horizontal)", "Custom (Coords)"])
                     if kin_leg_pos == "Custom (Coords)":
                         klc1, klc2 = st.columns(2)
                         with klc1:
                             kin_leg_x = st.slider("X (Kinetics)", -0.5, 1.5, 1.0, 0.02)
                         with klc2:
                             kin_leg_y = st.slider("Y (Kinetics)", -0.5, 1.5, 1.0, 0.02)
+                        kin_leg_anchor = st.selectbox("Anchor (Kinetics)", ["upper left", "upper center", "upper right", "lower left", "lower center", "lower right", "center"])
                     else:
                         kin_leg_x, kin_leg_y = 1.0, 1.0
+                        kin_leg_anchor = "upper left"
                     
-                    kin_leg_ncol = st.number_input("Columns (Kinetics)", min_value=1, max_value=10, value=1)
+                    # Default columns count for kinetics
+                    default_kin_ncol = 1
+                    if "Horizontal" in kin_leg_pos:
+                        default_kin_ncol = 3
+                        
+                    kin_leg_ncol = st.number_input("Columns (Kinetics)", min_value=1, max_value=10, value=default_kin_ncol)
                     kin_leg_font_size = st.slider("Font Size (Kinetics)", 4, 16, 8)
                     kin_leg_box = st.checkbox("Border (Kinetics)", value=False)
                 else:
                     kin_leg_pos, kin_leg_font_size, kin_leg_box = "Best (Auto)", 8, False
                     kin_leg_x, kin_leg_y = 1.0, 1.0
                     kin_leg_ncol = 1
+                    kin_leg_anchor = "upper left"
                 
                 st.markdown("---")
                     
@@ -1173,8 +1189,14 @@ with tab_pub:
                 elif rel_leg_pos == "Right (Outside)":
                     l_pos = 'upper left'
                     l_anchor = (1.02, 1.0)
+                elif rel_leg_pos == "Above the Plot (Horizontal)":
+                    l_pos = 'lower center'
+                    l_anchor = (0.5, 1.05)
+                elif rel_leg_pos == "Below the Plot (Horizontal)":
+                    l_pos = 'upper center'
+                    l_anchor = (0.5, -0.22)
                 elif rel_leg_pos == "Custom (Coords)":
-                    l_pos = 'upper left'
+                    l_pos = rel_leg_anchor
                     l_anchor = (rel_leg_x, rel_leg_y)
                 ax1.legend(frameon=rel_leg_box, loc=l_pos, bbox_to_anchor=l_anchor, fontsize=rel_leg_font_size, ncol=rel_leg_ncol)
                 
@@ -1289,8 +1311,14 @@ with tab_pub:
                         elif kin_leg_pos == "Right (Outside)":
                             l_pos = 'upper left'
                             l_anchor = (1.02, 1.0)
+                        elif kin_leg_pos == "Above the Plot (Horizontal)":
+                            l_pos = 'lower center'
+                            l_anchor = (0.5, 1.05)
+                        elif kin_leg_pos == "Below the Plot (Horizontal)":
+                            l_pos = 'upper center'
+                            l_anchor = (0.5, -0.22)
                         elif kin_leg_pos == "Custom (Coords)":
-                            l_pos = 'upper left'
+                            l_pos = kin_leg_anchor
                             l_anchor = (kin_leg_x, kin_leg_y)
                         ax2.legend(frameon=kin_leg_box, loc=l_pos, bbox_to_anchor=l_anchor, fontsize=kin_leg_font_size, ncol=kin_leg_ncol)
                         
