@@ -187,13 +187,14 @@ def render_education_tab(tab_education):
                 ax_comp.semilogy(T_range - 273.15, tau_vft, 's-', linewidth=2.5, markersize=4, label='VFT ($B = 2000$ K)', color='#636EFA')
                 ax_comp.axvline(x=50, color='gray', linestyle='--', alpha=0.6, label='Approximate $T_g$')
                 ax_comp.set_xlabel('Temperature (°C)', fontsize=12, fontweight='bold')
-                ax_comp.set_ylabel('Relaxation Time τ (s)', fontsize=12, fontweight='bold')
+                ax_comp.set_ylabel('Relaxation Time $\\tau$ (s)', fontsize=12, fontweight='bold')
                 ax_comp.set_title('Temperature Dependence: Arrhenius vs VFT', fontsize=13, fontweight='bold')
                 ax_comp.grid(True, alpha=0.3, which='both')
                 ax_comp.legend(fontsize=11, loc='upper left')
                 ax_comp.set_ylim([1e-8, 1e4])
                 plt.tight_layout()
                 st.pyplot(fig_comp)
+                plt.close(fig_comp)
 
                 st.markdown("""
                 **Key Observations:**
@@ -328,9 +329,9 @@ def render_education_tab(tab_education):
                 g_dual = G0 * (f_dual * np.exp(-(t/tau1_dual)**beta1_dual) + (1-f_dual) * np.exp(-(t/tau2_dual)**beta2_dual))
 
                 fig_models, ax_models = plt.subplots(figsize=(10, 6))
-                ax_models.loglog(t, g_maxwell, 'o-', linewidth=2.5, markersize=4, alpha=0.8, label='Maxwell ($τ=10$ s)')
-                ax_models.loglog(t, g_kww, 's-', linewidth=2.5, markersize=4, alpha=0.8, label=f'Single-KWW ($τ=15$ s, $β=0.85$)')
-                ax_models.loglog(t, g_dual, '^-', linewidth=2.5, markersize=4, alpha=0.8, label=f'Dual-KWW ($τ_1=5$, $τ_2=100$ s)')
+                ax_models.loglog(t, g_maxwell, 'o-', linewidth=2.5, markersize=4, alpha=0.8, label=r'Maxwell ($\tau=10$ s)')
+                ax_models.loglog(t, g_kww, 's-', linewidth=2.5, markersize=4, alpha=0.8, label=r'Single-KWW ($\tau=15$ s, $\beta=0.85$)')
+                ax_models.loglog(t, g_dual, '^-', linewidth=2.5, markersize=4, alpha=0.8, label=r'Dual-KWW ($\tau_1=5$, $\tau_2=100$ s)')
                 ax_models.set_xlabel('Time (s)', fontsize=12, fontweight='bold')
                 ax_models.set_ylabel('G(t) / G₀', fontsize=12, fontweight='bold')
                 ax_models.set_title('Comparison of Relaxation Models', fontsize=13, fontweight='bold')
@@ -338,6 +339,7 @@ def render_education_tab(tab_education):
                 ax_models.legend(fontsize=11, loc='upper right')
                 plt.tight_layout()
                 st.pyplot(fig_models)
+                plt.close(fig_models)
 
                 st.markdown("""
                 **Observations from Example:**
