@@ -956,8 +956,8 @@ with tab_pub:
         with pan_settings:
             st.markdown("### \u2699\ufe0f Settings")
 
-            # ── 1. Figure & Axes ──────────────────────────────────────
-            with st.expander("\U0001f4d0 Figure & Axes", expanded=True):
+            # ── 1. Figure Dimensions & Panel ─────────────────────────
+            with st.expander("📐 Figure Dimensions & Panel", expanded=True):
                 fig_preset = st.selectbox("Journal Preset", [
                     "ACS/RSC Single-Column (85 x 75 mm)",
                     "ACS/RSC Double-Column (170 x 140 mm)",
@@ -975,8 +975,10 @@ with tab_pub:
                     fig_width = st.number_input("Width (in)", 1.0, 15.0, default_width, 0.1, disabled=disable_size, key="pub_w")
                 with sz2:
                     fig_height = st.number_input("Height (in)", 1.0, 15.0, default_height, 0.1, disabled=disable_size, key="pub_h")
+                panel_letter = st.text_input("First Panel Letter", "a", key="pub_panel")
 
-                st.markdown("---")
+            # ── 2. Relaxation Plot: Style & Axes ─────────────────────────
+            with st.expander("📈 Relaxation Plot: Style & Axes", expanded=False):
                 y_label_select = st.selectbox("Modulus Notation", ["G (Shear Modulus)", "E (Tensile Modulus)"], key="pub_ylabel")
                 y_norm_select = st.selectbox("Normalization", ["Normalized (G/G\u2080 or E/E\u2080)", "Non-Normalized (G or E)"], key="pub_ynorm")
                 curve_style = st.selectbox("Data Style", ["Continuous Lines (Raw)", "Markers Only", "Lines + Markers"], key="pub_style")
@@ -998,12 +1000,56 @@ with tab_pub:
                     show_tau_star = st.checkbox("\u03c4* mark", value=True, key="pub_taustar")
                 with chk3:
                     annotate_tau_star = st.checkbox("\u03c4* label", value=False, key="pub_taulabel")
+
+                st.markdown("##### 🔤 Axis Typography")
+                rel_font_family = st.selectbox("Font Family", ["Arial", "Times New Roman", "Courier New", "DejaVu Sans", "serif", "sans-serif", "monospace"], key="pub_relfont_family")
+                
+                st.markdown("**Axis Label Font**")
+                rls1, rls2, rls3 = st.columns(3)
+                with rls1:
+                    rel_label_size = st.number_input("Label Size", 4, 30, 10, key="pub_rel_lbl_sz")
+                with rls2:
+                    rel_label_weight = st.selectbox("Label Weight", ["bold", "normal"], key="pub_rel_lbl_wt")
+                with rls3:
+                    rel_label_style = st.selectbox("Label Style", ["normal", "italic"], key="pub_rel_lbl_sty")
+                
+                st.markdown("**Axis Number Font**")
+                rns1, rns2, rns3 = st.columns(3)
+                with rns1:
+                    rel_tick_size = st.number_input("Number Size", 4, 30, 8, key="pub_rel_num_sz")
+                with rns2:
+                    rel_tick_weight = st.selectbox("Number Weight", ["normal", "bold"], key="pub_rel_num_wt")
+                with rns3:
+                    rel_tick_style = st.selectbox("Number Style", ["normal", "italic"], key="pub_rel_num_sty")
+
+            # ── 3. Kinetics Plot: Style & Axes ───────────────────────────
+            with st.expander("🔥 Kinetics Plot: Style & Axes", expanded=False):
                 chk4, chk5 = st.columns(2)
                 with chk4:
                     show_tv = st.checkbox("Show T\u1d65", value=True, key="pub_showtv")
                 with chk5:
                     show_ea_std = st.checkbox("Ea \u00b1 std", value=True, key="pub_eastd")
-                panel_letter = st.text_input("First Panel Letter", "a", key="pub_panel")
+                
+                st.markdown("##### 🔤 Axis Typography")
+                kin_font_family = st.selectbox("Font Family ", ["Arial", "Times New Roman", "Courier New", "DejaVu Sans", "serif", "sans-serif", "monospace"], key="pub_kinfont_family")
+                
+                st.markdown("**Axis Label Font**")
+                kls1, kls2, kls3 = st.columns(3)
+                with kls1:
+                    kin_label_size = st.number_input("Label Size ", 4, 30, 10, key="pub_kin_lbl_sz")
+                with kls2:
+                    kin_label_weight = st.selectbox("Label Weight ", ["bold", "normal"], key="pub_kin_lbl_wt")
+                with kls3:
+                    kin_label_style = st.selectbox("Label Style ", ["normal", "italic"], key="pub_kin_lbl_sty")
+                
+                st.markdown("**Axis Number Font**")
+                kns1, kns2, kns3 = st.columns(3)
+                with kns1:
+                    kin_tick_size = st.number_input("Number Size ", 4, 30, 8, key="pub_kin_num_sz")
+                with kns2:
+                    kin_tick_weight = st.selectbox("Number Weight ", ["normal", "bold"], key="pub_kin_num_wt")
+                with kns3:
+                    kin_tick_style = st.selectbox("Number Style ", ["normal", "italic"], key="pub_kin_num_sty")
 
             # ── 2. Relaxation Legend ──────────────────────────────────
             with st.expander("\U0001f5fa Relaxation Legend", expanded=False):
@@ -1067,16 +1113,31 @@ with tab_pub:
 
             # ════ FIGURE 1: RELAXATION CURVES ════
             st.subheader("\U0001f4ca Relaxation Curves")
-            plt.rcParams['font.sans-serif'] = 'Arial'
-            plt.rcParams['font.family'] = 'sans-serif'
             fig1, ax1 = plt.subplots(figsize=(fig_width, fig_height), facecolor='white')
             ax1.set_facecolor('white')
             ax1.grid(False)
             for spine in ['top', 'bottom', 'left', 'right']:
                 ax1.spines[spine].set_linewidth(1.0)
                 ax1.spines[spine].set_color('black')
-            ax1.tick_params(axis='both', which='major', labelsize=8, width=1.0, length=4, direction='in', color='black', top=True, right=True)
+            ax1.tick_params(axis='both', which='major', labelsize=rel_tick_size, width=1.0, length=4, direction='in', color='black', top=True, right=True)
             ax1.tick_params(axis='both', which='minor', width=0.8, length=2.5, direction='in', color='black', top=True, right=True)
+
+            # Apply font family and styles to tick labels
+            for label in ax1.get_xticklabels():
+                label.set_family(rel_font_family)
+                label.set_weight(rel_tick_weight)
+                label.set_style(rel_tick_style)
+            for label in ax1.get_yticklabels():
+                label.set_family(rel_font_family)
+                label.set_weight(rel_tick_weight)
+                label.set_style(rel_tick_style)
+
+            font_label_rel = {
+                'family': rel_font_family,
+                'size': rel_label_size,
+                'weight': rel_label_weight,
+                'style': rel_label_style
+            }
 
             if x_unit_select == "Minutes (min)":
                 x_factor, x_label = 60.0, "min"
@@ -1135,8 +1196,8 @@ with tab_pub:
             if pub_y_scale == "Log":
                 ax1.set_yscale('log')
 
-            ax1.set_xlabel(f"Time ({x_label})", fontsize=10, fontweight='bold', family='sans-serif', labelpad=8)
-            ax1.set_ylabel(y_label_text, fontsize=10, fontweight='bold', family='sans-serif', labelpad=8)
+            ax1.set_xlabel(f"Time ({x_label})", fontdict=font_label_rel, labelpad=8)
+            ax1.set_ylabel(y_label_text, fontdict=font_label_rel, labelpad=8)
 
             if is_normalized:
                 if pub_y_scale == "Log":
@@ -1214,8 +1275,24 @@ with tab_pub:
                     ax2.set_facecolor('white'); ax2.grid(False)
                     for spine in ['top', 'bottom', 'left', 'right']:
                         ax2.spines[spine].set_linewidth(1.0); ax2.spines[spine].set_color('black')
-                    ax2.tick_params(axis='both', which='major', labelsize=8, width=1.0, length=4, direction='in', color='black', top=True, right=True)
+                    ax2.tick_params(axis='both', which='major', labelsize=kin_tick_size, width=1.0, length=4, direction='in', color='black', top=True, right=True)
                     ax2.tick_params(axis='both', which='minor', width=0.8, length=2.5, direction='in', color='black', top=True, right=True)
+
+                    for label in ax2.get_xticklabels():
+                        label.set_family(kin_font_family)
+                        label.set_weight(kin_tick_weight)
+                        label.set_style(kin_tick_style)
+                    for label in ax2.get_yticklabels():
+                        label.set_family(kin_font_family)
+                        label.set_weight(kin_tick_weight)
+                        label.set_style(kin_tick_style)
+
+                    font_label_kin = {
+                        'family': kin_font_family,
+                        'size': kin_label_size,
+                        'weight': kin_label_weight,
+                        'style': kin_label_style
+                    }
                     ax2.scatter(active_k['1000/T'], active_k['ln(Tau)'], s=40, alpha=0.8, edgecolors='black', linewidth=0.8, color='steelblue', zorder=3)
 
                     label_ea = f"E\u2090 = {Ea:.1f} \u00b1 {Ea_stderr:.1f} kJ/mol\nR\u00b2 = {r_sq:.4f}" if show_ea_std else f"E\u2090 = {Ea:.1f} kJ/mol\nR\u00b2 = {r_sq:.4f}"
@@ -1234,8 +1311,8 @@ with tab_pub:
 
                     y_fit = slope * x_range + intercept
                     ax2.plot(x_range, y_fit, '--', color='red', linewidth=1.5, label=label_ea, zorder=2)
-                    ax2.set_xlabel("1000/T (K\u207b\u00b9)", fontsize=10, fontweight='bold', family='sans-serif', labelpad=8)
-                    ax2.set_ylabel("ln(\u03c4)", fontsize=10, fontweight='bold', family='sans-serif', labelpad=8)
+                    ax2.set_xlabel("1000/T (K\u207b\u00b9)", fontdict=font_label_kin, labelpad=8)
+                    ax2.set_ylabel("ln(\u03c4)", fontdict=font_label_kin, labelpad=8)
 
                     if show_kin_leg:
                         l_pos = 'best'; l_anchor = None
