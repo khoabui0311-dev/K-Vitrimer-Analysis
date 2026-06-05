@@ -1013,6 +1013,7 @@ with tab_pub:
                 with sz2:
                     fig_height = st.number_input("Height (in)", 1.0, 15.0, default_height, 0.1, disabled=disable_size, key="pub_h")
                 panel_letter = st.text_input("First Panel Letter", "a", key="pub_panel")
+                pub_colorspace = st.selectbox("Color Space Mode", ["RGB", "CMYK (for Print/Publication)"], key="pub_colorspace")
 
             # ── 2. Relaxation Plot: Style & Axes ─────────────────────────
             with st.expander("📈 Relaxation Plot: Style & Axes", expanded=False):
@@ -1322,13 +1323,44 @@ with tab_pub:
             plt.tight_layout()
             st.pyplot(fig1, dpi=300, bbox_inches='tight')
 
-            buf_pdf1 = io.BytesIO(); fig1.savefig(buf_pdf1, format='pdf', bbox_inches='tight'); buf_pdf1.seek(0)
-            buf_svg1 = io.BytesIO(); fig1.savefig(buf_svg1, format='svg', bbox_inches='tight'); buf_svg1.seek(0)
-            buf_png1 = io.BytesIO(); fig1.savefig(buf_png1, format='png', dpi=1200, bbox_inches='tight'); buf_png1.seek(0)
-            dc1, dc2, dc3 = st.columns(3)
-            with dc1: st.download_button("\U0001f4e5 PDF (Vector)", buf_pdf1, "Relaxation_Curves.pdf", key="dl_pdf_rel")
-            with dc2: st.download_button("\U0001f4e5 SVG (Vector)", buf_svg1, "Relaxation_Curves.svg", key="dl_svg_rel")
-            with dc3: st.download_button("\U0001f4e5 PNG (1200 DPI)", buf_png1, "Relaxation_Curves.png", key="dl_png_rel")
+            if pub_colorspace.startswith("CMYK"):
+                # Save figure as RGB PNG bytes first
+                buf_rgb_png = io.BytesIO()
+                fig1.savefig(buf_rgb_png, format='png', dpi=1200, bbox_inches='tight')
+                buf_rgb_png.seek(0)
+                
+                # Convert to CMYK using Pillow
+                from PIL import Image
+                img = Image.open(buf_rgb_png)
+                img_cmyk = img.convert('CMYK')
+                
+                # Save as CMYK PDF
+                buf_pdf1 = io.BytesIO()
+                img_cmyk.save(buf_pdf1, format='PDF', dpi=(1200, 1200))
+                buf_pdf1.seek(0)
+                
+                # Save as CMYK TIFF (lossless LZW compression)
+                buf_tiff1 = io.BytesIO()
+                img_cmyk.save(buf_tiff1, format='TIFF', dpi=(1200, 1200), compression='tiff_lzw')
+                buf_tiff1.seek(0)
+                
+                # Save as CMYK JPEG (high quality)
+                buf_jpg1 = io.BytesIO()
+                img_cmyk.save(buf_jpg1, format='JPEG', dpi=(300, 300), quality=95)
+                buf_jpg1.seek(0)
+                
+                dc1, dc2, dc3 = st.columns(3)
+                with dc1: st.download_button("\U0001f4e5 PDF (1200 DPI CMYK)", buf_pdf1, "Relaxation_Curves_CMYK.pdf", key="dl_pdf_rel")
+                with dc2: st.download_button("\U0001f4e5 TIFF (1200 DPI CMYK)", buf_tiff1, "Relaxation_Curves_CMYK.tiff", key="dl_tiff_rel")
+                with dc3: st.download_button("\U0001f4e5 JPEG (300 DPI CMYK)", buf_jpg1, "Relaxation_Curves_CMYK.jpg", key="dl_jpg_rel")
+            else:
+                buf_pdf1 = io.BytesIO(); fig1.savefig(buf_pdf1, format='pdf', bbox_inches='tight'); buf_pdf1.seek(0)
+                buf_svg1 = io.BytesIO(); fig1.savefig(buf_svg1, format='svg', bbox_inches='tight'); buf_svg1.seek(0)
+                buf_png1 = io.BytesIO(); fig1.savefig(buf_png1, format='png', dpi=1200, bbox_inches='tight'); buf_png1.seek(0)
+                dc1, dc2, dc3 = st.columns(3)
+                with dc1: st.download_button("\U0001f4e5 PDF (Vector)", buf_pdf1, "Relaxation_Curves.pdf", key="dl_pdf_rel")
+                with dc2: st.download_button("\U0001f4e5 SVG (Vector)", buf_svg1, "Relaxation_Curves.svg", key="dl_svg_rel")
+                with dc3: st.download_button("\U0001f4e5 PNG (1200 DPI)", buf_png1, "Relaxation_Curves.png", key="dl_png_rel")
             plt.close(fig1)
 
             # ════ FIGURE 2: ARRHENIUS PLOT ════
@@ -1429,13 +1461,44 @@ with tab_pub:
                     plt.tight_layout()
                     st.pyplot(fig2, dpi=300, bbox_inches='tight')
 
-                    buf_pdf2 = io.BytesIO(); fig2.savefig(buf_pdf2, format='pdf', bbox_inches='tight'); buf_pdf2.seek(0)
-                    buf_svg2 = io.BytesIO(); fig2.savefig(buf_svg2, format='svg', bbox_inches='tight'); buf_svg2.seek(0)
-                    buf_png2 = io.BytesIO(); fig2.savefig(buf_png2, format='png', dpi=1200, bbox_inches='tight'); buf_png2.seek(0)
-                    da1, da2, da3 = st.columns(3)
-                    with da1: st.download_button("\U0001f4e5 PDF (Vector)", buf_pdf2, "Arrhenius_Plot.pdf", key="dl_pdf_arr")
-                    with da2: st.download_button("\U0001f4e5 SVG (Vector)", buf_svg2, "Arrhenius_Plot.svg", key="dl_svg_arr")
-                    with da3: st.download_button("\U0001f4e5 PNG (1200 DPI)", buf_png2, "Arrhenius_Plot.png", key="dl_png_arr")
+                    if pub_colorspace.startswith("CMYK"):
+                        # Save figure as RGB PNG bytes first
+                        buf_rgb_png = io.BytesIO()
+                        fig2.savefig(buf_rgb_png, format='png', dpi=1200, bbox_inches='tight')
+                        buf_rgb_png.seek(0)
+                        
+                        # Convert to CMYK using Pillow
+                        from PIL import Image
+                        img = Image.open(buf_rgb_png)
+                        img_cmyk = img.convert('CMYK')
+                        
+                        # Save as CMYK PDF
+                        buf_pdf2 = io.BytesIO()
+                        img_cmyk.save(buf_pdf2, format='PDF', dpi=(1200, 1200))
+                        buf_pdf2.seek(0)
+                        
+                        # Save as CMYK TIFF (lossless LZW compression)
+                        buf_tiff2 = io.BytesIO()
+                        img_cmyk.save(buf_tiff2, format='TIFF', dpi=(1200, 1200), compression='tiff_lzw')
+                        buf_tiff2.seek(0)
+                        
+                        # Save as CMYK JPEG (high quality)
+                        buf_jpg2 = io.BytesIO()
+                        img_cmyk.save(buf_jpg2, format='JPEG', dpi=(300, 300), quality=95)
+                        buf_jpg2.seek(0)
+                        
+                        da1, da2, da3 = st.columns(3)
+                        with da1: st.download_button("\U0001f4e5 PDF (1200 DPI CMYK)", buf_pdf2, "Arrhenius_Plot_CMYK.pdf", key="dl_pdf_arr")
+                        with da2: st.download_button("\U0001f4e5 TIFF (1200 DPI CMYK)", buf_tiff2, "Arrhenius_Plot_CMYK.tiff", key="dl_tiff_arr")
+                        with da3: st.download_button("\U0001f4e5 JPEG (300 DPI CMYK)", buf_jpg2, "Arrhenius_Plot_CMYK.jpg", key="dl_jpg_arr")
+                    else:
+                        buf_pdf2 = io.BytesIO(); fig2.savefig(buf_pdf2, format='pdf', bbox_inches='tight'); buf_pdf2.seek(0)
+                        buf_svg2 = io.BytesIO(); fig2.savefig(buf_svg2, format='svg', bbox_inches='tight'); buf_svg2.seek(0)
+                        buf_png2 = io.BytesIO(); fig2.savefig(buf_png2, format='png', dpi=1200, bbox_inches='tight'); buf_png2.seek(0)
+                        da1, da2, da3 = st.columns(3)
+                        with da1: st.download_button("\U0001f4e5 PDF (Vector)", buf_pdf2, "Arrhenius_Plot.pdf", key="dl_pdf_arr")
+                        with da2: st.download_button("\U0001f4e5 SVG (Vector)", buf_svg2, "Arrhenius_Plot.svg", key="dl_svg_arr")
+                        with da3: st.download_button("\U0001f4e5 PNG (1200 DPI)", buf_png2, "Arrhenius_Plot.png", key="dl_png_arr")
                     plt.close(fig2)
                 else:
                     st.warning("\u26a0\ufe0f Need at least 2 data points with 'Include' checked in the Analysis tab \u2192 Kinetics")
