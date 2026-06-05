@@ -1364,7 +1364,16 @@ with tab_pub:
                          fontweight=panel_font_weight, fontstyle=panel_font_style,
                          va='bottom', ha='right')
 
-            fig1.canvas.draw()
+            try:
+                fig1.canvas.draw()
+            except Exception as e:
+                st.error("Matplotlib canvas draw failed for Figure 1!")
+                st.write("**X-Axis Label:**", ax1.get_xlabel())
+                st.write("**Y-Axis Label:**", ax1.get_ylabel())
+                st.write("**Text Elements:**")
+                for txt in ax1.texts:
+                    st.write(f"- Text: `{txt.get_text()}` | Family: {txt.get_fontfamily()} | Size: {txt.get_fontsize()} | Weight: {txt.get_fontweight()} | Style: {txt.get_fontstyle()}")
+                raise e
             rel_num_family = rel_font_family if rel_tick_font == "Same as Label" else rel_tick_font
             for label in ax1.get_xticklabels():
                 label.set_family(rel_num_family)
@@ -1535,7 +1544,16 @@ with tab_pub:
                                  fontweight=panel_font_weight, fontstyle=panel_font_style,
                                  va='bottom', ha='right')
 
-                    fig2.canvas.draw()
+                    try:
+                        fig2.canvas.draw()
+                    except Exception as e:
+                        st.error("Matplotlib canvas draw failed for Figure 2!")
+                        st.write("**X-Axis Label:**", ax2.get_xlabel())
+                        st.write("**Y-Axis Label:**", ax2.get_ylabel())
+                        st.write("**Text Elements:**")
+                        for txt in ax2.texts:
+                            st.write(f"- Text: `{txt.get_text()}` | Family: {txt.get_fontfamily()} | Size: {txt.get_fontsize()} | Weight: {txt.get_fontweight()} | Style: {txt.get_fontstyle()}")
+                        raise e
                     kin_num_family = kin_font_family if kin_tick_font == "Same as Label" else kin_tick_font
                     for label in ax2.get_xticklabels():
                         label.set_family(kin_num_family)
