@@ -1166,8 +1166,8 @@ with tab_pub:
             if pub_time_axis == "Log":
                 ax1.set_xscale('log')
                 
-            ax1.set_xlabel(f"Time ({x_label})", fontsize=10, fontweight='bold', family='sans-serif')
-            ax1.set_ylabel(y_label_text, fontsize=10, fontweight='bold', family='sans-serif')
+            ax1.set_xlabel(f"Time ({x_label})", fontsize=10, fontweight='bold', family='sans-serif', labelpad=8)
+            ax1.set_ylabel(y_label_text, fontsize=10, fontweight='bold', family='sans-serif', labelpad=8)
             
             # Limits
             if is_normalized:
@@ -1198,7 +1198,7 @@ with tab_pub:
                 elif rel_leg_pos == "Custom (Coords)":
                     l_pos = rel_leg_anchor
                     l_anchor = (rel_leg_x, rel_leg_y)
-                ax1.legend(frameon=rel_leg_box, loc=l_pos, bbox_to_anchor=l_anchor, fontsize=rel_leg_font_size, ncol=rel_leg_ncol)
+                ax1.legend(frameon=rel_leg_box, loc=l_pos, bbox_to_anchor=l_anchor, fontsize=rel_leg_font_size, ncol=rel_leg_ncol, columnspacing=1.0, handletextpad=0.5)
                 
             if panel_letter:
                 ax1.text(-0.12, 1.02, f"({panel_letter})", transform=ax1.transAxes, fontsize=12, fontweight='bold', va='bottom', ha='right')
@@ -1298,8 +1298,8 @@ with tab_pub:
                     y_fit = slope * x_range + intercept
                     ax2.plot(x_range, y_fit, '--', color='red', linewidth=1.5, label=label_ea, zorder=2)
                     
-                    ax2.set_xlabel("1000/T (K⁻¹)", fontsize=10, fontweight='bold', family='sans-serif')
-                    ax2.set_ylabel("ln(τ)", fontsize=10, fontweight='bold', family='sans-serif')
+                    ax2.set_xlabel("1000/T (K⁻¹)", fontsize=10, fontweight='bold', family='sans-serif', labelpad=8)
+                    ax2.set_ylabel("ln(τ)", fontsize=10, fontweight='bold', family='sans-serif', labelpad=8)
                     
                     if show_kin_leg:
                         l_pos = 'best'
@@ -1320,7 +1320,7 @@ with tab_pub:
                         elif kin_leg_pos == "Custom (Coords)":
                             l_pos = kin_leg_anchor
                             l_anchor = (kin_leg_x, kin_leg_y)
-                        ax2.legend(frameon=kin_leg_box, loc=l_pos, bbox_to_anchor=l_anchor, fontsize=kin_leg_font_size, ncol=kin_leg_ncol)
+                        ax2.legend(frameon=kin_leg_box, loc=l_pos, bbox_to_anchor=l_anchor, fontsize=kin_leg_font_size, ncol=kin_leg_ncol, columnspacing=1.0, handletextpad=0.5)
                         
                     # Panel Letter (increment letter)
                     if panel_letter and len(panel_letter) == 1 and panel_letter.isalpha():
