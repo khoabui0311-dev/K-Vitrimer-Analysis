@@ -1,0 +1,152 @@
+================================================================================
+SUPPORTING INFORMATION / EXPERIMENTAL SECTION: STRESS RELAXATION ANALYSIS METHODOLOGY
+================================================================================
+
+This document provides a formal, scientifically rigorous description of the data 
+preprocessing, viscoelastic modeling, temperature-dependent kinetics, continuous 
+relaxation spectra, and master curve construction protocols used in this study. 
+This text may be directly adapted for the Experimental Section or Supporting 
+Information (SI) of research manuscripts.
+
+--------------------------------------------------------------------------------
+1. Data Preprocessing, Smoothing, and Normalization
+--------------------------------------------------------------------------------
+Raw stress relaxation data (relaxation modulus G(t) or E(t) as a function of 
+time t) were preprocessed to remove experimental artifacts, initial loading 
+transients, and high-frequency noise. The signal-to-noise ratio was enhanced by 
+applying a Savitzky-Golay smoothing filter (second-order polynomial, with a 
+dynamic window size optimized to 10% of the total dataset length). 
+
+To isolate the true onset of viscoelastic relaxation and eliminate initial strain-
+loading artifacts (e.g., motor ramp-up or inertial overshoot), the start of the 
+relaxation process (t = 0) was defined by identifying the maximum modulus (peak 
+force) in the smoothed curve. Any initial data points preceding this peak were 
+discarded. The time axis was then shifted to establish the origin:
+    t_shifted = t - t_peak + t_offset
+where a regularizing time offset (t_offset = 0.01 s) was added to ensure 
+numerical stability and prevent logarithmic divergence during subsequent power-law 
+fitting. 
+
+The relaxation modulus was normalized to the initial modulus (G_0 or E_0), defined 
+as the maximum value within the first 10% of the trimmed curve to suppress 
+outlier influence, yielding the normalized modulus:
+    g(t) = G(t) / G_0   or   e(t) = E(t) / E_0
+
+Data points exhibiting thermal drift or instrument-related upward forces at long 
+times (detected as a systematic modulus rise exceeding 10% from a local minimum 
+near the tail) were automatically truncated to preserve fitting integrity.
+
+--------------------------------------------------------------------------------
+2. Viscoelastic Stress Relaxation Modeling
+--------------------------------------------------------------------------------
+The normalized stress relaxation curves, g(t), were fitted to three physics-based 
+rheological models using a non-linear least-squares fitting algorithm based on 
+the Levenberg-Marquardt method:
+
+A. Maxwell Model (Single Exponential Decay)
+   This model represents the relaxation of a simple viscoelastic liquid with a 
+   single, discrete relaxation time scale:
+       g(t) = exp( -t / \tau )
+   where \tau is the characteristic relaxation time.
+
+B. Kohlrausch-Williams-Watts (KWW) Model (Stretched Exponential)
+   This model accounts for a continuous distribution of relaxation times, typical 
+   of polydisperse polymer networks and glassy dynamics:
+       g(t) = exp( -(t / \tau)^\beta )
+   where \tau is the characteristic relaxation time and \beta is the stretching 
+   exponent (0 < \beta <= 1). A lower value of \beta indicates a broader 
+   distribution of relaxation processes, whereas \beta = 1 recovers the single 
+   Maxwellian decay.
+
+C. Dual-mode KWW Model (Double Stretched Exponential)
+   This model captures multi-scale dynamics where two distinct relaxation 
+   mechanisms occur simultaneously (e.g., rapid glassy or matrix relaxation 
+   coupled with slower dynamic bond-exchange flow in vitrimers):
+       g(t) = f * exp( -(t / \tau_1)^{\beta_1} ) + (1 - f) * exp( -(t / \tau_2)^{\beta_2} )
+   where f represents the fraction of the fast mode, \tau_1 and \beta_1 are the 
+   relaxation time and stretching exponent of the fast process, and \tau_2 and 
+   \beta_2 are those of the slow process.
+
+To prevent overfitting and ensure physical validity, model selection was automated 
+using the Akaike Information Criterion (AIC). The AIC evaluates the quality of 
+each fit by balancing the goodness of fit (residual sum of squares, RSS) against 
+model complexity (number of adjustable parameters, k):
+    AIC = 2*k + n * ln(RSS / n)
+where n is the number of data points. The model yielding the minimum AIC was 
+selected as the mathematically and physically optimal representation of the 
+material's relaxation behavior.
+
+--------------------------------------------------------------------------------
+3. Temperature-Dependent Kinetics and Activation Energy (E_a)
+--------------------------------------------------------------------------------
+The temperature dependence of the characteristic relaxation times (\tau) was 
+analyzed using the classical Arrhenius equation:
+    ln(\tau) = ln(\tau_0) + E_a / (R * T)
+where \tau_0 is the pre-exponential factor (s), E_a is the flow activation energy 
+for network topology rearrangement (kJ/mol), R is the universal gas constant 
+(8.314462 J/(mol*K)), and T is the absolute temperature (K).
+
+Linear regression of ln(\tau) against 1000/T was performed to determine the slope 
+(slope = E_a / (1000 * R)) and intercept. To provide statistical rigor, the 
+standard deviation of the activation energy (\Delta E_a) was calculated from the 
+standard error of the regression slope (stderr_slope) via error propagation:
+    \Delta E_a = stderr_slope * R * 1000
+
+For dynamic networks near the glass transition temperature (T_g), deviations from 
+Arrhenius behavior were monitored. In such regimes, the Vogel-Fulcher-Tammann 
+(VFT) equation was applied:
+    ln(\tau) = A + B / (T - T_0)
+where A is a pre-exponential factor, B is the steepness parameter (K), and T_0 
+is the ideal glass transition temperature (K) at which relaxation time diverges.
+
+--------------------------------------------------------------------------------
+4. Extrapolation of the Vitrimer Topology Freezing Temperature (T_v)
+--------------------------------------------------------------------------------
+The vitrimer topology freezing transition temperature (T_v) marks the transition 
+from a solid-like network with frozen topology to a liquid-like malleable network 
+undergoing active bond exchange. By definition, T_v corresponds to the temperature 
+where the material reaches a shear viscosity threshold of \eta = 10^12 Pa*s 
+(the conventional glass transition threshold). 
+
+Using the Maxwell relation:
+    \tau^* = \eta / G'
+the target relaxation time at the threshold (\tau^*) was calculated by dividing 
+10^12 Pa*s by the storage modulus (G', entered in MPa). T_v was subsequently 
+extrapolated by solving the fitted Arrhenius equation for the target value:
+    1000 / T_v(K) = (ln(\tau^*) - intercept) / slope
+    T_v(degC) = T_v(K) - 273.15
+where slope and intercept are derived from the Arrhenius linear fit of the experimental 
+relaxation times.
+
+--------------------------------------------------------------------------------
+5. Continuous Relaxation Time Spectrum
+--------------------------------------------------------------------------------
+The continuous distribution of relaxation times, represented by the relaxation 
+spectrum H(\tau), was calculated from the normalized experimental modulus 
+g(t) by solving the Fredholm integral equation of the first kind:
+    g(t) = \int_{-\infty}^{\infty} H(\tau) * exp(-t/\tau) * d(ln \tau)
+This ill-posed inverse problem was solved numerically using Tikhonov regularization 
+(Ridge regression) over a logarithmically spaced grid of relaxation times (\tau_j) 
+spanning beyond the experimental time window:
+    Minimize || A * H - g ||^2 + \alpha * || H ||^2
+where A_ij = exp(-t_i / \tau_j) is the kernel matrix, \alpha is the regularization 
+parameter controlling the smoothness of the spectrum, and the constraint H >= 0 
+was strictly enforced to ensure physical validity (non-negative relaxation times).
+
+--------------------------------------------------------------------------------
+6. Master Curve Construction (Time-Temperature Superposition - TTS)
+--------------------------------------------------------------------------------
+To study viscoelastic dynamics over a wider frequency/time domain than is 
+experimentally accessible, master curves were constructed via Time-Temperature 
+Superposition (TTS). Modulus curves obtained at different temperatures were 
+horizontally shifted along the logarithmic time axis relative to a chosen reference 
+temperature (T_ref). 
+
+The horizontal shift factor, a_T, was calculated directly from the fitted 
+characteristic relaxation times:
+    a_T = \tau(T) / \tau(T_ref)
+where \tau is extracted from the optimal model fit at each temperature. The shifted 
+time scales (t_shifted = t / a_T) from all temperatures were merged and sorted to 
+form a continuous master curve, validating the applicability of time-temperature 
+equivalence in the dynamic network.
+================================================================================

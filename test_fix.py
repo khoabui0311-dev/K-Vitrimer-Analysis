@@ -18,13 +18,13 @@ for T in [110.0, 120.0, 130.0, 140.0]:
     fit_curve = result['Fits'][fit_model]['curve']
     r2 = result['Fits'][fit_model]['r2']
     
-    print(f"\n{T}°C:")
-    print(f"  Time: {t[0]:.4f} s (start) to {t[-1]:.2f} s (end)")
-    print(f"  Raw data: g[0]={g[0]:.4f}, g[-1]={g[-1]:.4f}, G0={G0:.6f}")
-    print(f"  Best Model: {fit_model}")
-    print(f"  R²: {r2:.4f}")
-    print(f"  Fit curve: g_fit[0]={fit_curve[0]:.4f}, g_fit[-1]={fit_curve[-1]:.4f}")
-    print(f"  ✓ Fit starts correctly at {fit_curve[0]:.4f} ≈ 1.0")
+    print("\n{}°C:".format(T))
+    print("  Time: {:.4f} s (start) to {:.2f} s (end)".format(t[0], t[-1]))
+    print("  Raw data: g[0]={:.4f}, g[-1]={:.4f}, G0={:.6f}".format(g[0], g[-1], G0))
+    print("  Best Model: {}".format(fit_model))
+    print("  R²: {:.4f}".format(r2))
+    print("  Fit curve: g_fit[0]={:.4f}, g_fit[-1]={:.4f}".format(fit_curve[0], fit_curve[-1]))
+    print("  ✓ Fit starts correctly at {:.4f} ≈ 1.0".format(fit_curve[0]))
 
 print("\n" + "=" * 60)
 print("✅ All tests passed!")
