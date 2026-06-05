@@ -1014,6 +1014,23 @@ with tab_pub:
                 with sz2:
                     fig_height = st.number_input("Height (in)", 1.0, 15.0, default_height, 0.1, disabled=disable_size, key="pub_h")
                 panel_letter = st.text_input("First Panel Letter", "a", key="pub_panel")
+                
+                # Panel Letter Font Settings
+                panel_font_family = "Arial"
+                panel_font_size = 12
+                panel_font_weight = "bold"
+                panel_font_style = "normal"
+                
+                if panel_letter:
+                    st.markdown("**Panel Letter Font**")
+                    pl1, pl2 = st.columns(2)
+                    with pl1:
+                        panel_font_family = st.selectbox("Panel Font Family", ["Arial", "Times New Roman", "Courier New", "DejaVu Sans", "serif", "sans-serif", "monospace"], key="pub_panel_font_family")
+                        panel_font_weight = st.selectbox("Panel Font Weight", ["bold", "normal"], key="pub_panel_weight")
+                    with pl2:
+                        panel_font_size = st.number_input("Panel Font Size", 4, 30, 12, key="pub_panel_size")
+                        panel_font_style = st.selectbox("Panel Font Style", ["normal", "italic"], key="pub_panel_style")
+                
                 pub_colorspace = st.selectbox("Color Space Mode", ["RGB", "CMYK (for Print/Publication)"], key="pub_colorspace")
 
             # ── 2. Relaxation Plot: Style & Axes ─────────────────────────
@@ -1342,7 +1359,10 @@ with tab_pub:
                 ax1.legend(frameon=rel_leg_box, loc=l_pos, bbox_to_anchor=l_anchor, fontsize=rel_leg_font_size, ncol=rel_leg_ncol, columnspacing=1.0, handletextpad=0.5)
 
             if panel_letter:
-                ax1.text(-0.12, 1.02, f"({panel_letter})", transform=ax1.transAxes, fontsize=12, fontweight='bold', va='bottom', ha='right')
+                ax1.text(-0.12, 1.02, f"({panel_letter})", transform=ax1.transAxes,
+                         fontfamily=panel_font_family, fontsize=panel_font_size,
+                         fontweight=panel_font_weight, fontstyle=panel_font_style,
+                         va='bottom', ha='right')
 
             fig1.canvas.draw()
             rel_num_family = rel_font_family if rel_tick_font == "Same as Label" else rel_tick_font
@@ -1510,7 +1530,10 @@ with tab_pub:
 
                     if panel_letter and len(panel_letter) == 1 and panel_letter.isalpha():
                         next_letter = chr(ord(panel_letter) + 1)
-                        ax2.text(-0.12, 1.02, f"({next_letter})", transform=ax2.transAxes, fontsize=12, fontweight='bold', va='bottom', ha='right')
+                        ax2.text(-0.12, 1.02, f"({next_letter})", transform=ax2.transAxes,
+                                 fontfamily=panel_font_family, fontsize=panel_font_size,
+                                 fontweight=panel_font_weight, fontstyle=panel_font_style,
+                                 va='bottom', ha='right')
 
                     fig2.canvas.draw()
                     kin_num_family = kin_font_family if kin_tick_font == "Same as Label" else kin_tick_font
