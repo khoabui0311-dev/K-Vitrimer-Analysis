@@ -998,25 +998,50 @@ with tab_pub:
                 pub_time_axis = st.selectbox("Time Scale", ["Log", "Linear"])
                 x_unit_select = st.selectbox("X-Axis Time Unit", ["Seconds (s)", "Minutes (min)", "Hours (h)"])
             with c4:
-                show_legend = st.checkbox("Show Legend", value=True)
-                if show_legend:
-                    leg_pos = st.selectbox("Legend Position", ["Best (Auto)", "Upper Right", "Upper Left", "Lower Left", "Lower Right", "Right (Outside)", "Custom (Coords)"])
-                    if leg_pos == "Custom (Coords)":
-                        lc1, lc2 = st.columns(2)
-                        with lc1:
-                            leg_x = st.slider("Legend X Coord", -0.5, 1.5, 1.0, 0.02)
-                        with lc2:
-                            leg_y = st.slider("Legend Y Coord", -0.5, 1.5, 1.0, 0.02)
+                st.markdown("**Relaxation Legend**")
+                show_rel_leg = st.checkbox("Show Relaxation Legend", value=True)
+                if show_rel_leg:
+                    rel_leg_pos = st.selectbox("Position (Relaxation)", ["Best (Auto)", "Upper Right", "Upper Left", "Lower Left", "Lower Right", "Right (Outside)", "Custom (Coords)"])
+                    if rel_leg_pos == "Custom (Coords)":
+                        rlc1, rlc2 = st.columns(2)
+                        with rlc1:
+                            rel_leg_x = st.slider("X (Relaxation)", -0.5, 1.5, 1.0, 0.02)
+                        with rlc2:
+                            rel_leg_y = st.slider("Y (Relaxation)", -0.5, 1.5, 1.0, 0.02)
                     else:
-                        leg_x, leg_y = 1.0, 1.0
+                        rel_leg_x, rel_leg_y = 1.0, 1.0
                     
-                    leg_ncol = st.number_input("Legend Columns", min_value=1, max_value=10, value=1)
-                    leg_font_size = st.slider("Legend Font Size", 4, 16, 8)
-                    leg_box = st.checkbox("Legend Border (Box)", value=False)
+                    rel_leg_ncol = st.number_input("Columns (Relaxation)", min_value=1, max_value=10, value=1)
+                    rel_leg_font_size = st.slider("Font Size (Relaxation)", 4, 16, 8)
+                    rel_leg_box = st.checkbox("Border (Relaxation)", value=False)
                 else:
-                    leg_pos, leg_font_size, leg_box = "Best (Auto)", 8, False
-                    leg_x, leg_y = 1.0, 1.0
-                    leg_ncol = 1
+                    rel_leg_pos, rel_leg_font_size, rel_leg_box = "Best (Auto)", 8, False
+                    rel_leg_x, rel_leg_y = 1.0, 1.0
+                    rel_leg_ncol = 1
+                
+                st.markdown("---")
+                st.markdown("**Kinetics Legend**")
+                show_kin_leg = st.checkbox("Show Kinetics Legend", value=True)
+                if show_kin_leg:
+                    kin_leg_pos = st.selectbox("Position (Kinetics)", ["Best (Auto)", "Upper Right", "Upper Left", "Lower Left", "Lower Right", "Right (Outside)", "Custom (Coords)"])
+                    if kin_leg_pos == "Custom (Coords)":
+                        klc1, klc2 = st.columns(2)
+                        with klc1:
+                            kin_leg_x = st.slider("X (Kinetics)", -0.5, 1.5, 1.0, 0.02)
+                        with klc2:
+                            kin_leg_y = st.slider("Y (Kinetics)", -0.5, 1.5, 1.0, 0.02)
+                    else:
+                        kin_leg_x, kin_leg_y = 1.0, 1.0
+                    
+                    kin_leg_ncol = st.number_input("Columns (Kinetics)", min_value=1, max_value=10, value=1)
+                    kin_leg_font_size = st.slider("Font Size (Kinetics)", 4, 16, 8)
+                    kin_leg_box = st.checkbox("Border (Kinetics)", value=False)
+                else:
+                    kin_leg_pos, kin_leg_font_size, kin_leg_box = "Best (Auto)", 8, False
+                    kin_leg_x, kin_leg_y = 1.0, 1.0
+                    kin_leg_ncol = 1
+                
+                st.markdown("---")
                     
                 show_fit_pub = st.checkbox("Show Fitting Curves", value=False)
                 show_tau_star = st.checkbox("Mark τ* (1/e Intersection)", value=True)
@@ -1138,26 +1163,26 @@ with tab_pub:
             all_times = np.concatenate([r['Raw']['t'] / x_factor for r in active_res])
             ax1.set_xlim(all_times.min() * 0.8, all_times.max() * 1.2)
             
-            if show_legend:
+            if show_rel_leg:
                 l_pos = 'best'
                 l_anchor = None
-                if leg_pos == "Upper Right": l_pos = 'upper right'
-                elif leg_pos == "Upper Left": l_pos = 'upper left'
-                elif leg_pos == "Lower Left": l_pos = 'lower left'
-                elif leg_pos == "Lower Right": l_pos = 'lower right'
-                elif leg_pos == "Right (Outside)":
+                if rel_leg_pos == "Upper Right": l_pos = 'upper right'
+                elif rel_leg_pos == "Upper Left": l_pos = 'upper left'
+                elif rel_leg_pos == "Lower Left": l_pos = 'lower left'
+                elif rel_leg_pos == "Lower Right": l_pos = 'lower right'
+                elif rel_leg_pos == "Right (Outside)":
                     l_pos = 'upper left'
                     l_anchor = (1.02, 1.0)
-                elif leg_pos == "Custom (Coords)":
+                elif rel_leg_pos == "Custom (Coords)":
                     l_pos = 'upper left'
-                    l_anchor = (leg_x, leg_y)
-                ax1.legend(frameon=leg_box, loc=l_pos, bbox_to_anchor=l_anchor, fontsize=leg_font_size, ncol=leg_ncol)
+                    l_anchor = (rel_leg_x, rel_leg_y)
+                ax1.legend(frameon=rel_leg_box, loc=l_pos, bbox_to_anchor=l_anchor, fontsize=rel_leg_font_size, ncol=rel_leg_ncol)
                 
             if panel_letter:
                 ax1.text(-0.12, 1.02, f"({panel_letter})", transform=ax1.transAxes, fontsize=12, fontweight='bold', va='bottom', ha='right')
                 
             plt.tight_layout()
-            st.pyplot(fig1)
+            st.pyplot(fig1, bbox_inches='tight')
             
             # Save vectors and high-res PNG to buffers
             buf_pdf1 = io.BytesIO()
@@ -1254,20 +1279,20 @@ with tab_pub:
                     ax2.set_xlabel("1000/T (K⁻¹)", fontsize=10, fontweight='bold', family='sans-serif')
                     ax2.set_ylabel("ln(τ)", fontsize=10, fontweight='bold', family='sans-serif')
                     
-                    if show_legend:
+                    if show_kin_leg:
                         l_pos = 'best'
                         l_anchor = None
-                        if leg_pos == "Upper Right": l_pos = 'upper right'
-                        elif leg_pos == "Upper Left": l_pos = 'upper left'
-                        elif leg_pos == "Lower Left": l_pos = 'lower left'
-                        elif leg_pos == "Lower Right": l_pos = 'lower right'
-                        elif leg_pos == "Right (Outside)":
+                        if kin_leg_pos == "Upper Right": l_pos = 'upper right'
+                        elif kin_leg_pos == "Upper Left": l_pos = 'upper left'
+                        elif kin_leg_pos == "Lower Left": l_pos = 'lower left'
+                        elif kin_leg_pos == "Lower Right": l_pos = 'lower right'
+                        elif kin_leg_pos == "Right (Outside)":
                             l_pos = 'upper left'
                             l_anchor = (1.02, 1.0)
-                        elif leg_pos == "Custom (Coords)":
+                        elif kin_leg_pos == "Custom (Coords)":
                             l_pos = 'upper left'
-                            l_anchor = (leg_x, leg_y)
-                        ax2.legend(frameon=leg_box, loc=l_pos, bbox_to_anchor=l_anchor, fontsize=leg_font_size, ncol=leg_ncol)
+                            l_anchor = (kin_leg_x, kin_leg_y)
+                        ax2.legend(frameon=kin_leg_box, loc=l_pos, bbox_to_anchor=l_anchor, fontsize=kin_leg_font_size, ncol=kin_leg_ncol)
                         
                     # Panel Letter (increment letter)
                     if panel_letter and len(panel_letter) == 1 and panel_letter.isalpha():
@@ -1275,7 +1300,7 @@ with tab_pub:
                         ax2.text(-0.12, 1.02, f"({next_letter})", transform=ax2.transAxes, fontsize=12, fontweight='bold', va='bottom', ha='right')
                         
                     plt.tight_layout()
-                    st.pyplot(fig2)
+                    st.pyplot(fig2, bbox_inches='tight')
                     
                     # Save vectors and high-res PNG to buffers for Arrhenius
                     buf_pdf2 = io.BytesIO()
