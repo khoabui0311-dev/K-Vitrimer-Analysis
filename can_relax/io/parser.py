@@ -65,23 +65,41 @@ def parse_wide_format_data(file_path):
     for i, c in enumerate(cols):
         if col_type[c] != 'temp': continue
         
-        # Wide search window to catch your specific file layout
-        start_search = max(0, i - 5)
-        end_search = min(len(cols), i + 5)
+        # Define block boundary for this temp column (until the next temp column)
+        next_temp_idx = len(cols)
+        for idx in range(i + 1, len(cols)):
+            if col_type[cols[idx]] == 'temp':
+                next_temp_idx = idx
+                break
         
+        # Look for time and mod within this temp column's block first
         time_col = None
         mod_col = None
         
-        for idx in range(start_search, end_search):
-            if idx == i: continue 
-            # Find closest Time
-            if col_type[cols[idx]] == 'time': 
-                if time_col is None or abs(idx - i) < abs(cols.index(time_col) - i):
-                    time_col = cols[idx]
-            # Find closest Modulus
-            if col_type[cols[idx]] == 'mod':
-                if mod_col is None or abs(idx - i) < abs(cols.index(mod_col) - i):
-                    mod_col = cols[idx]
+        for idx in range(i + 1, next_temp_idx):
+            if col_type[cols[idx]] == 'time' and time_col is None:
+                time_col = cols[idx]
+            if col_type[cols[idx]] == 'mod' and mod_col is None:
+                mod_col = cols[idx]
+                
+        # Fallback to sliding window search if not found within the block
+        if time_col is None:
+            best_dist = len(cols)
+            for idx in range(max(0, i - 5), min(len(cols), i + 5)):
+                if idx != i and col_type[cols[idx]] == 'time':
+                    dist = abs(idx - i)
+                    if dist < best_dist:
+                        best_dist = dist
+                        time_col = cols[idx]
+                        
+        if mod_col is None:
+            best_dist = len(cols)
+            for idx in range(max(0, i - 5), min(len(cols), i + 5)):
+                if idx != i and col_type[cols[idx]] == 'mod':
+                    dist = abs(idx - i)
+                    if dist < best_dist:
+                        best_dist = dist
+                        mod_col = cols[idx]
         
         # 4. Extract Data
         if time_col and mod_col:
