@@ -13,6 +13,7 @@ import json
 from scipy.optimize import curve_fit
 from scipy.stats import linregress
 import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
 
 # Import proper modules from can_relax
 from can_relax.core.analyzer import CurveAnalyzer
@@ -1061,13 +1062,24 @@ with tab_pub:
                     rel_label_style = st.selectbox("Label Style", ["normal", "italic"], key="pub_rel_lbl_sty")
                 
                 st.markdown("**Axis Number Font**")
-                rns1, rns2, rns3 = st.columns(3)
+                rns1, rns2, rns3, rns4 = st.columns(4)
                 with rns1:
-                    rel_tick_size = st.number_input("Number Size", 4, 30, 8, key="pub_rel_num_sz")
+                    rel_tick_font = st.selectbox("Number Font", ["Same as Label", "Arial", "Times New Roman", "Courier New", "DejaVu Sans", "serif", "sans-serif", "monospace"], key="pub_rel_num_font")
                 with rns2:
-                    rel_tick_weight = st.selectbox("Number Weight", ["normal", "bold"], key="pub_rel_num_wt")
+                    rel_tick_size = st.number_input("Number Size", 4, 30, 8, key="pub_rel_num_sz")
                 with rns3:
+                    rel_tick_weight = st.selectbox("Number Weight", ["normal", "bold"], key="pub_rel_num_wt")
+                with rns4:
                     rel_tick_style = st.selectbox("Number Style", ["normal", "italic"], key="pub_rel_num_sty")
+
+                st.markdown("##### 📌 Tick Settings")
+                tc1, tc2 = st.columns(2)
+                with tc1:
+                    rel_x_major = st.selectbox("X-Axis Major Ticks", ["Auto", "3", "4", "5", "6", "8", "10", "12", "15"], key="pub_rel_x_major")
+                    rel_x_minor = st.selectbox("X-Axis Minor Ticks", ["Auto", "0", "1", "2", "3", "4", "5", "9"], key="pub_rel_x_minor")
+                with tc2:
+                    rel_y_major = st.selectbox("Y-Axis Major Ticks", ["Auto", "3", "4", "5", "6", "8", "10", "12", "15"], key="pub_rel_y_major")
+                    rel_y_minor = st.selectbox("Y-Axis Minor Ticks", ["Auto", "0", "1", "2", "3", "4", "5", "9"], key="pub_rel_y_minor")
 
                 st.markdown("##### 📐 Axis Limits")
                 rel_custom_lims = st.checkbox("Manual Axis Bounding", value=False, key="pub_rel_cust_lims")
@@ -1111,13 +1123,24 @@ with tab_pub:
                     kin_label_style = st.selectbox("Label Style ", ["normal", "italic"], key="pub_kin_lbl_sty")
                 
                 st.markdown("**Axis Number Font**")
-                kns1, kns2, kns3 = st.columns(3)
+                kns1, kns2, kns3, kns4 = st.columns(4)
                 with kns1:
-                    kin_tick_size = st.number_input("Number Size ", 4, 30, 8, key="pub_kin_num_sz")
+                    kin_tick_font = st.selectbox("Number Font ", ["Same as Label", "Arial", "Times New Roman", "Courier New", "DejaVu Sans", "serif", "sans-serif", "monospace"], key="pub_kin_num_font")
                 with kns2:
-                    kin_tick_weight = st.selectbox("Number Weight ", ["normal", "bold"], key="pub_kin_num_wt")
+                    kin_tick_size = st.number_input("Number Size ", 4, 30, 8, key="pub_kin_num_sz")
                 with kns3:
+                    kin_tick_weight = st.selectbox("Number Weight ", ["normal", "bold"], key="pub_kin_num_wt")
+                with kns4:
                     kin_tick_style = st.selectbox("Number Style ", ["normal", "italic"], key="pub_kin_num_sty")
+
+                st.markdown("##### 📌 Tick Settings")
+                ktc1, ktc2 = st.columns(2)
+                with ktc1:
+                    kin_x_major = st.selectbox("X-Axis Major Ticks ", ["Auto", "3", "4", "5", "6", "8", "10", "12", "15"], key="pub_kin_x_major")
+                    kin_x_minor = st.selectbox("X-Axis Minor Ticks ", ["Auto", "0", "1", "2", "3", "4", "5", "9"], key="pub_kin_x_minor")
+                with ktc2:
+                    kin_y_major = st.selectbox("Y-Axis Major Ticks ", ["Auto", "3", "4", "5", "6", "8", "10", "12", "15"], key="pub_kin_y_major")
+                    kin_y_minor = st.selectbox("Y-Axis Minor Ticks ", ["Auto", "0", "1", "2", "3", "4", "5", "9"], key="pub_kin_y_minor")
 
                 st.markdown("##### 📐 Axis Limits")
                 kin_custom_lims = st.checkbox("Manual Axis Bounding ", value=False, key="pub_kin_cust_lims")
@@ -1204,15 +1227,45 @@ with tab_pub:
             ax1.tick_params(axis='both', which='major', labelsize=rel_tick_size, width=1.0, length=4, direction='in', color='black', top=True, right=True)
             ax1.tick_params(axis='both', which='minor', width=0.8, length=2.5, direction='in', color='black', top=True, right=True)
 
-            # Apply font family and styles to tick labels
-            for label in ax1.get_xticklabels():
-                label.set_family(rel_font_family)
-                label.set_weight(rel_tick_weight)
-                label.set_style(rel_tick_style)
-            for label in ax1.get_yticklabels():
-                label.set_family(rel_font_family)
-                label.set_weight(rel_tick_weight)
-                label.set_style(rel_tick_style)
+            # Apply tick locator settings
+            # X-Axis Ticks
+            if pub_time_axis != "Log":
+                if rel_x_major != "Auto":
+                    ax1.xaxis.set_major_locator(ticker.MaxNLocator(nbins=int(rel_x_major), prune=None))
+                if rel_x_minor != "Auto":
+                    n_minor = int(rel_x_minor)
+                    if n_minor == 0:
+                        ax1.xaxis.set_minor_locator(ticker.NullLocator())
+                    else:
+                        ax1.xaxis.set_minor_locator(ticker.AutoMinorLocator(n=n_minor + 1))
+                else:
+                    ax1.xaxis.set_minor_locator(ticker.AutoMinorLocator())
+            else: # Log scale
+                ax1.xaxis.set_major_locator(ticker.LogLocator(base=10.0))
+                if rel_x_minor != "Auto" and int(rel_x_minor) == 0:
+                    ax1.xaxis.set_minor_locator(ticker.NullLocator())
+                else:
+                    ax1.xaxis.set_minor_locator(ticker.LogLocator(base=10.0, subs=(2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0)))
+            
+            # Y-Axis Ticks
+            if pub_y_scale != "Log":
+                if rel_y_major != "Auto":
+                    ax1.yaxis.set_major_locator(ticker.MaxNLocator(nbins=int(rel_y_major), prune=None))
+                if rel_y_minor != "Auto":
+                    n_minor = int(rel_y_minor)
+                    if n_minor == 0:
+                        ax1.yaxis.set_minor_locator(ticker.NullLocator())
+                    else:
+                        ax1.yaxis.set_minor_locator(ticker.AutoMinorLocator(n=n_minor + 1))
+                else:
+                    ax1.yaxis.set_minor_locator(ticker.AutoMinorLocator())
+            else: # Log scale
+                ax1.yaxis.set_major_locator(ticker.LogLocator(base=10.0))
+                if rel_y_minor != "Auto" and int(rel_y_minor) == 0:
+                    ax1.yaxis.set_minor_locator(ticker.NullLocator())
+                else:
+                    ax1.yaxis.set_minor_locator(ticker.LogLocator(base=10.0, subs=(2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0)))
+
 
             font_label_rel = {
                 'family': rel_font_family,
@@ -1320,6 +1373,19 @@ with tab_pub:
             if panel_letter:
                 ax1.text(-0.12, 1.02, f"({panel_letter})", transform=ax1.transAxes, fontsize=12, fontweight='bold', va='bottom', ha='right')
 
+            fig1.canvas.draw()
+            rel_num_family = rel_font_family if rel_tick_font == "Same as Label" else rel_tick_font
+            for label in ax1.get_xticklabels():
+                label.set_family(rel_num_family)
+                label.set_size(rel_tick_size)
+                label.set_weight(rel_tick_weight)
+                label.set_style(rel_tick_style)
+            for label in ax1.get_yticklabels():
+                label.set_family(rel_num_family)
+                label.set_size(rel_tick_size)
+                label.set_weight(rel_tick_weight)
+                label.set_style(rel_tick_style)
+
             plt.tight_layout()
             st.pyplot(fig1, dpi=300, bbox_inches='tight')
 
@@ -1397,14 +1463,31 @@ with tab_pub:
                     ax2.tick_params(axis='both', which='major', labelsize=kin_tick_size, width=1.0, length=4, direction='in', color='black', top=True, right=True)
                     ax2.tick_params(axis='both', which='minor', width=0.8, length=2.5, direction='in', color='black', top=True, right=True)
 
-                    for label in ax2.get_xticklabels():
-                        label.set_family(kin_font_family)
-                        label.set_weight(kin_tick_weight)
-                        label.set_style(kin_tick_style)
-                    for label in ax2.get_yticklabels():
-                        label.set_family(kin_font_family)
-                        label.set_weight(kin_tick_weight)
-                        label.set_style(kin_tick_style)
+                    # Apply tick locator settings
+                    # X-Axis Ticks
+                    if kin_x_major != "Auto":
+                        ax2.xaxis.set_major_locator(ticker.MaxNLocator(nbins=int(kin_x_major), prune=None))
+                    if kin_x_minor != "Auto":
+                        n_minor = int(kin_x_minor)
+                        if n_minor == 0:
+                            ax2.xaxis.set_minor_locator(ticker.NullLocator())
+                        else:
+                            ax2.xaxis.set_minor_locator(ticker.AutoMinorLocator(n=n_minor + 1))
+                    else:
+                        ax2.xaxis.set_minor_locator(ticker.AutoMinorLocator())
+                    
+                    # Y-Axis Ticks
+                    if kin_y_major != "Auto":
+                        ax2.yaxis.set_major_locator(ticker.MaxNLocator(nbins=int(kin_y_major), prune=None))
+                    if kin_y_minor != "Auto":
+                        n_minor = int(kin_y_minor)
+                        if n_minor == 0:
+                            ax2.yaxis.set_minor_locator(ticker.NullLocator())
+                        else:
+                            ax2.yaxis.set_minor_locator(ticker.AutoMinorLocator(n=n_minor + 1))
+                    else:
+                        ax2.yaxis.set_minor_locator(ticker.AutoMinorLocator())
+
 
                     font_label_kin = {
                         'family': kin_font_family,
@@ -1457,6 +1540,19 @@ with tab_pub:
                     if panel_letter and len(panel_letter) == 1 and panel_letter.isalpha():
                         next_letter = chr(ord(panel_letter) + 1)
                         ax2.text(-0.12, 1.02, f"({next_letter})", transform=ax2.transAxes, fontsize=12, fontweight='bold', va='bottom', ha='right')
+
+                    fig2.canvas.draw()
+                    kin_num_family = kin_font_family if kin_tick_font == "Same as Label" else kin_tick_font
+                    for label in ax2.get_xticklabels():
+                        label.set_family(kin_num_family)
+                        label.set_size(kin_tick_size)
+                        label.set_weight(kin_tick_weight)
+                        label.set_style(kin_tick_style)
+                    for label in ax2.get_yticklabels():
+                        label.set_family(kin_num_family)
+                        label.set_size(kin_tick_size)
+                        label.set_weight(kin_tick_weight)
+                        label.set_style(kin_tick_style)
 
                     plt.tight_layout()
                     st.pyplot(fig2, dpi=300, bbox_inches='tight')
