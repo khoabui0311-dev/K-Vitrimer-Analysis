@@ -1073,6 +1073,7 @@ with tab_pub:
                     rel_tick_style = st.selectbox("Number Style", ["normal", "italic"], key="pub_rel_num_sty")
 
                 st.markdown("##### 📌 Tick Settings")
+                rel_mirror = st.checkbox("Mirror Ticks to Top/Right", value=False, key="pub_rel_mirror")
                 tc1, tc2 = st.columns(2)
                 with tc1:
                     rel_x_major = st.selectbox("X-Axis Major Ticks", ["Auto", "3", "4", "5", "6", "8", "10", "12", "15"], key="pub_rel_x_major")
@@ -1134,6 +1135,7 @@ with tab_pub:
                     kin_tick_style = st.selectbox("Number Style ", ["normal", "italic"], key="pub_kin_num_sty")
 
                 st.markdown("##### 📌 Tick Settings")
+                kin_mirror = st.checkbox("Mirror Ticks to Top/Right", value=False, key="pub_kin_mirror")
                 ktc1, ktc2 = st.columns(2)
                 with ktc1:
                     kin_x_major = st.selectbox("X-Axis Major Ticks ", ["Auto", "3", "4", "5", "6", "8", "10", "12", "15"], key="pub_kin_x_major")
@@ -1224,8 +1226,8 @@ with tab_pub:
             for spine in ['top', 'bottom', 'left', 'right']:
                 ax1.spines[spine].set_linewidth(1.0)
                 ax1.spines[spine].set_color('black')
-            ax1.tick_params(axis='both', which='major', labelsize=rel_tick_size, width=1.0, length=4, direction='in', color='black', top=True, right=True)
-            ax1.tick_params(axis='both', which='minor', width=0.8, length=2.5, direction='in', color='black', top=True, right=True)
+            ax1.tick_params(axis='both', which='major', labelsize=rel_tick_size, width=1.0, length=4, direction='in', color='black', top=rel_mirror, right=rel_mirror)
+            ax1.tick_params(axis='both', which='minor', width=0.8, length=2.5, direction='in', color='black', top=rel_mirror, right=rel_mirror)
 
             # Apply tick locator settings
             # X-Axis Ticks
@@ -1460,8 +1462,8 @@ with tab_pub:
                     ax2.set_facecolor('white'); ax2.grid(False)
                     for spine in ['top', 'bottom', 'left', 'right']:
                         ax2.spines[spine].set_linewidth(1.0); ax2.spines[spine].set_color('black')
-                    ax2.tick_params(axis='both', which='major', labelsize=kin_tick_size, width=1.0, length=4, direction='in', color='black', top=True, right=True)
-                    ax2.tick_params(axis='both', which='minor', width=0.8, length=2.5, direction='in', color='black', top=True, right=True)
+                    ax2.tick_params(axis='both', which='major', labelsize=kin_tick_size, width=1.0, length=4, direction='in', color='black', top=kin_mirror, right=kin_mirror)
+                    ax2.tick_params(axis='both', which='minor', width=0.8, length=2.5, direction='in', color='black', top=kin_mirror, right=kin_mirror)
 
                     # Apply tick locator settings
                     # X-Axis Ticks
