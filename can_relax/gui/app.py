@@ -828,7 +828,50 @@ with tab_comparison:
             comp_dpi = st.number_input("DPI", 72, 1200, 300, 50, key="comp_dpi")
             comp_width = st.number_input("Width (in)", 2.0, 12.0, 5.0, 0.1, key="comp_width")
             comp_height = st.number_input("Height (in)", 2.0, 10.0, 4.0, 0.1, key="comp_height")
+            comp_colorspace = st.selectbox("Color Space Mode", ["RGB", "CMYK (for Print/Publication)"], key="comp_colorspace")
             show_comp_legend = st.checkbox("Legend", value=True, key="comp_legend")
+
+            # Style & Axes Settings
+            with st.expander("🎨 Marker & Line Style", expanded=False):
+                comp_lw = st.slider("Fit Line Width", 0.5, 6.0, 1.5, 0.5, key="comp_lw")
+                comp_ms = st.slider("Data Marker Size", 1, 15, 6, 1, key="comp_ms")
+                comp_show_tv = st.checkbox("Show Tv Star", value=True, key="comp_show_tv")
+            
+            with st.expander("🔤 Axis Typography", expanded=False):
+                comp_font_family = st.selectbox("Font Family", ["Arial", "Times New Roman", "Courier New", "DejaVu Sans", "serif", "sans-serif", "monospace"], key="comp_font_family")
+                
+                st.markdown("**Axis Label Font**")
+                comp_lbl_sz = st.number_input("Label Size", 4, 30, 10, key="comp_lbl_sz")
+                comp_lbl_wt = st.selectbox("Label Weight", ["bold", "normal"], key="comp_lbl_wt")
+                comp_lbl_sty = st.selectbox("Label Style", ["normal", "italic"], key="comp_lbl_sty")
+                
+                st.markdown("**Axis Number Font**")
+                comp_tick_font = st.selectbox("Number Font", ["Same as Label", "Arial", "Times New Roman", "Courier New", "DejaVu Sans", "serif", "sans-serif", "monospace"], key="comp_tick_font")
+                comp_tick_size = st.number_input("Number Size", 4, 30, 8, key="comp_tick_sz")
+                comp_tick_weight = st.selectbox("Number Weight", ["normal", "bold"], key="comp_tick_wt")
+                comp_tick_style = st.selectbox("Number Style", ["normal", "italic"], key="comp_tick_sty")
+
+            with st.expander("📌 Tick Settings", expanded=False):
+                comp_mirror = st.checkbox("Mirror Ticks to Top/Right", value=False, key="comp_mirror")
+                comp_x_major = st.selectbox("X-Axis Major Ticks", ["Auto", "3", "4", "5", "6", "8", "10", "12", "15"], key="comp_x_major")
+                comp_x_minor = st.selectbox("X-Axis Minor Ticks", ["Auto", "0", "1", "2", "3", "4", "5", "9"], key="comp_x_minor")
+                comp_y_major = st.selectbox("Y-Axis Major Ticks", ["Auto", "3", "4", "5", "6", "8", "10", "12", "15"], key="comp_y_major")
+                comp_y_minor = st.selectbox("Y-Axis Minor Ticks", ["Auto", "0", "1", "2", "3", "4", "5", "9"], key="comp_y_minor")
+
+            with st.expander("📐 Axis Limits", expanded=False):
+                comp_custom_lims = st.checkbox("Manual Axis Bounding", value=False, key="comp_custom_lims")
+                all_inv_T = np.concatenate([r['inv_T'] for r in results])
+                all_ln_tau = np.concatenate([r['ln_tau'] for r in results])
+                comp_auto_xmin = float(all_inv_T.min() * 0.95)
+                comp_auto_xmax = float(all_inv_T.max() * 1.05)
+                comp_auto_ymin = float(all_ln_tau.min() - 0.5)
+                comp_auto_ymax = float(all_ln_tau.max() + 0.5)
+                
+                if comp_custom_lims:
+                    comp_xmin = st.number_input("X Min (1000/T)", value=comp_auto_xmin, format="%.4f", key="comp_xmin")
+                    comp_xmax = st.number_input("X Max (1000/T)", value=comp_auto_xmax, format="%.4f", key="comp_xmax")
+                    comp_ymin = st.number_input("Y Min (ln(\u03c4))", value=comp_auto_ymin, format="%.4f", key="comp_ymin")
+                    comp_ymax = st.number_input("Y Max (ln(\u03c4))", value=comp_auto_ymax, format="%.4f", key="comp_ymax")
         
         with col_plot:
             fig_comp = go.Figure()
@@ -898,10 +941,42 @@ with tab_comparison:
         
         # Export matplotlib figure
         if st.button("📥 Export Comparison Plot", key="export_comp"):
-            fig_mpl = plt.figure(figsize=(comp_width, comp_height))
+            fig_mpl = plt.figure(figsize=(comp_width, comp_height), facecolor='white')
             ax_mpl = fig_mpl.add_subplot(111)
+            ax_mpl.set_facecolor('white')
+            ax_mpl.grid(False)
+            for spine in ['top', 'bottom', 'left', 'right']:
+                ax_mpl.spines[spine].set_linewidth(1.0)
+                ax_mpl.spines[spine].set_color('black')
             
-            colors_mpl = plt.cm.tab10(np.linspace(0, 1, len(results)))
+            ax_mpl.tick_params(axis='both', which='major', labelsize=comp_tick_size, width=1.0, length=4, direction='in', color='black', top=comp_mirror, right=comp_mirror)
+            ax_mpl.tick_params(axis='both', which='minor', width=0.8, length=2.5, direction='in', color='black', top=comp_mirror, right=comp_mirror)
+            
+            # Apply tick locator settings
+            import matplotlib.ticker as ticker
+            # X-Axis Ticks
+            if comp_x_major != "Auto":
+                ax_mpl.xaxis.set_major_locator(ticker.MaxNLocator(nbins=int(comp_x_major)))
+            if comp_x_minor != "Auto":
+                if int(comp_x_minor) == 0:
+                    ax_mpl.xaxis.set_minor_locator(ticker.NullLocator())
+                else:
+                    ax_mpl.xaxis.set_minor_locator(ticker.AutoMinorLocator(n=int(comp_x_minor)+1))
+            else:
+                ax_mpl.xaxis.set_minor_locator(ticker.AutoMinorLocator())
+            
+            # Y-Axis Ticks
+            if comp_y_major != "Auto":
+                ax_mpl.yaxis.set_major_locator(ticker.MaxNLocator(nbins=int(comp_y_major)))
+            if comp_y_minor != "Auto":
+                if int(comp_y_minor) == 0:
+                    ax_mpl.yaxis.set_minor_locator(ticker.NullLocator())
+                else:
+                    ax_mpl.yaxis.set_minor_locator(ticker.AutoMinorLocator(n=int(comp_y_minor)+1))
+            else:
+                ax_mpl.yaxis.set_minor_locator(ticker.AutoMinorLocator())
+            
+            colors_mpl = ['#EF553B', '#636EFA', '#00CC96', '#AB63FA', '#FFA15A', '#25D098']
             
             for idx, r in enumerate(results):
                 inv_T = r['inv_T']
@@ -913,31 +988,82 @@ with tab_comparison:
                 tau_target = r['tau_target']
                 ln_tau_target = r['ln_tau_target']
                 
+                color = colors_mpl[idx % len(colors_mpl)]
+                
                 # Plot data
-                ax_mpl.scatter(inv_T, ln_tau, s=100, alpha=0.7, edgecolors='black', linewidth=1.2,
-                             label=name, color=colors_mpl[idx], zorder=3)
+                ax_mpl.scatter(inv_T, ln_tau, s=comp_ms**2, alpha=0.7, edgecolors='black', linewidth=0.8,
+                             label=name, color=color, zorder=3)
                 
                 # Plot fit line
                 x_range = np.linspace(inv_T.min() * 0.9, inv_T.max() * 1.1, 50)
                 y_fit = slope * x_range + intercept
-                ax_mpl.plot(x_range, y_fit, '--', color=colors_mpl[idx], linewidth=2, alpha=0.8, zorder=2)
+                ax_mpl.plot(x_range, y_fit, '--', color=color, linewidth=comp_lw, alpha=0.8, zorder=2)
                 
                 # Plot Tv marker
-                tv_x = (ln_tau_target - intercept) / slope
-                ax_mpl.plot([tv_x], [ln_tau_target], marker='*', markersize=20, color=colors_mpl[idx],
-                          markeredgecolor='black', markeredgewidth=1.5, zorder=4)
+                if comp_show_tv:
+                    tv_x = (ln_tau_target - intercept) / slope
+                    ax_mpl.plot([tv_x], [ln_tau_target], marker='*', markersize=comp_ms*2, color=color,
+                              markeredgecolor='black', markeredgewidth=1.0, zorder=4)
             
-            ax_mpl.set_xlabel(r"$1000/T$ (K$^{-1}$)", fontsize=12, fontweight='bold')
-            ax_mpl.set_ylabel(r"$\ln(\tau)$ (s)", fontsize=12, fontweight='bold')
-            ax_mpl.grid(True, alpha=0.3, linestyle='--')
-            ax_mpl.legend(frameon=True, fontsize=10, loc='best')
-            ax_mpl.tick_params(labelsize=10)
+            # Label font dictionary
+            font_label_comp = {
+                'family': comp_font_family,
+                'size': comp_lbl_sz,
+                'weight': comp_lbl_wt,
+                'style': comp_lbl_sty
+            }
+            ax_mpl.set_xlabel(r"$1000/T$ ($\mathrm{K}^{-1}$)", fontdict=font_label_comp, labelpad=8)
+            ax_mpl.set_ylabel(r"$\ln(\tau)$ ($\mathrm{s}$)", fontdict=font_label_comp, labelpad=8)
+            
+            # Apply axis limits
+            if comp_custom_lims:
+                ax_mpl.set_xlim(comp_xmin, comp_xmax)
+                ax_mpl.set_ylim(comp_ymin, comp_ymax)
+            else:
+                all_inv_T = np.concatenate([r['inv_T'] for r in results])
+                all_ln_tau = np.concatenate([r['ln_tau'] for r in results])
+                ax_mpl.set_xlim(all_inv_T.min() * 0.95, all_inv_T.max() * 1.05)
+                ax_mpl.set_ylim(all_ln_tau.min() - 0.5, all_ln_tau.max() + 0.5)
+
+            # Apply tick number fonts
+            comp_num_family = comp_font_family if comp_tick_font == "Same as Label" else comp_tick_font
+            for label in ax_mpl.get_xticklabels():
+                label.set_family(comp_num_family)
+                label.set_size(comp_tick_size)
+                label.set_weight(comp_tick_weight)
+                label.set_style(comp_tick_style)
+            for label in ax_mpl.get_yticklabels():
+                label.set_family(comp_num_family)
+                label.set_size(comp_tick_size)
+                label.set_weight(comp_tick_weight)
+                label.set_style(comp_tick_style)
+            
+            if show_comp_legend:
+                ax_mpl.legend(frameon=True, fontsize=comp_tick_size, loc='best')
+            
             plt.tight_layout()
             
-            buf = io.BytesIO()
-            fig_mpl.savefig(buf, format=comp_fmt, dpi=comp_dpi, bbox_inches='tight')
-            buf.seek(0)
-            st.download_button("⬇️ Download Comparison Figure", buf, f"Arrhenius_Comparison.{comp_fmt}", key="dl_comp_plot")
+            if comp_colorspace.startswith("CMYK"):
+                # Save figure as RGB PNG bytes first
+                buf_rgb_png = io.BytesIO()
+                fig_mpl.savefig(buf_rgb_png, format='png', dpi=1200, bbox_inches='tight')
+                buf_rgb_png.seek(0)
+                
+                # Convert to CMYK using Pillow
+                from PIL import Image
+                img = Image.open(buf_rgb_png)
+                img_cmyk = img.convert('CMYK')
+                
+                # Save as CMYK PDF
+                buf_pdf = io.BytesIO()
+                img_cmyk.save(buf_pdf, format='pdf')
+                buf_pdf.seek(0)
+                st.download_button("⬇️ Download Comparison Figure (CMYK PDF)", buf_pdf, "Arrhenius_Comparison_CMYK.pdf", key="dl_comp_plot")
+            else:
+                buf = io.BytesIO()
+                fig_mpl.savefig(buf, format=comp_fmt.lower(), dpi=comp_dpi, bbox_inches='tight')
+                buf.seek(0)
+                st.download_button(f"⬇️ Download Comparison Figure ({comp_fmt})", buf, f"Arrhenius_Comparison.{comp_fmt.lower()}", key="dl_comp_plot")
             plt.close(fig_mpl)
     else:
         st.info("👈 Fill in samples and click 'Analyze All Samples' to start comparison")
