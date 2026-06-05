@@ -1001,6 +1001,15 @@ with tab_pub:
                 with chk3:
                     annotate_tau_star = st.checkbox("\u03c4* label", value=False, key="pub_taulabel")
 
+                st.markdown("##### 🎨 Marker & Line Style")
+                rc1, rc2, rc3 = st.columns(3)
+                with rc1:
+                    rel_line_width = st.slider("Line Width", 0.5, 6.0, 1.5, 0.5, key="pub_rel_lw")
+                with rc2:
+                    rel_marker_size = st.slider("Marker Size", 1, 15, 4, 1, key="pub_rel_ms")
+                with rc3:
+                    rel_marker_density = st.slider("Marker Density (%)", 0, 100, 20, 5, key="pub_rel_md")
+
                 st.markdown("##### 🔤 Axis Typography")
                 rel_font_family = st.selectbox("Font Family", ["Arial", "Times New Roman", "Courier New", "DejaVu Sans", "serif", "sans-serif", "monospace"], key="pub_relfont_family")
                 
@@ -1029,6 +1038,13 @@ with tab_pub:
                     show_tv = st.checkbox("Show T\u1d65", value=True, key="pub_showtv")
                 with chk5:
                     show_ea_std = st.checkbox("Ea \u00b1 std", value=True, key="pub_eastd")
+                
+                st.markdown("##### 🎨 Marker & Line Style")
+                kc1, kc2 = st.columns(2)
+                with kc1:
+                    kin_line_width = st.slider("Fit Line Width", 0.5, 6.0, 1.5, 0.5, key="pub_kin_lw")
+                with kc2:
+                    kin_marker_size = st.slider("Data Marker Size", 1, 15, 6, 1, key="pub_kin_ms")
                 
                 st.markdown("##### 🔤 Axis Typography")
                 kin_font_family = st.selectbox("Font Family ", ["Arial", "Times New Roman", "Courier New", "DejaVu Sans", "serif", "sans-serif", "monospace"], key="pub_kinfont_family")
@@ -1162,14 +1178,16 @@ with tab_pub:
                 label_name = f"{r['Temp']}\u00b0C"
 
                 if curve_style == "Continuous Lines (Raw)":
-                    ax1.plot(t_plot, g_plot, '-', linewidth=2.0, color=color, label=label_name)
+                    ax1.plot(t_plot, g_plot, '-', linewidth=rel_line_width, color=color, label=label_name)
                 elif curve_style == "Markers Only":
-                    step = max(1, len(t_plot)//300)
-                    ax1.plot(t_plot[::step], g_plot[::step], 'o', color=color, markersize=4, alpha=0.8, label=label_name)
+                    if rel_marker_density > 0:
+                        step = max(1, int(100 / rel_marker_density))
+                        ax1.plot(t_plot[::step], g_plot[::step], 'o', color=color, markersize=rel_marker_size, alpha=0.8, label=label_name)
                 elif curve_style == "Lines + Markers":
-                    step = max(1, len(t_plot)//300)
-                    ax1.plot(t_plot, g_plot, '-', linewidth=1.5, color=color)
-                    ax1.plot(t_plot[::step], g_plot[::step], 'o', color=color, markersize=3, alpha=0.8, label=label_name)
+                    ax1.plot(t_plot, g_plot, '-', linewidth=rel_line_width, color=color)
+                    if rel_marker_density > 0:
+                        step = max(1, int(100 / rel_marker_density))
+                        ax1.plot(t_plot[::step], g_plot[::step], 'o', color=color, markersize=rel_marker_size, alpha=0.8, label=label_name)
 
                 if show_fit_pub and 'Best_Model' in r:
                     fit_model_pub = r['Best_Model']
@@ -1183,7 +1201,7 @@ with tab_pub:
                     if not np.isnan(tau_star):
                         tau_star_plot = tau_star / x_factor
                         intersection_level = 1/np.e if is_normalized else G0/np.e
-                        ax1.plot(tau_star_plot, intersection_level, 'o', color=color, markersize=5, markeredgecolor='black', markeredgewidth=0.8, zorder=5)
+                        ax1.plot(tau_star_plot, intersection_level, 'o', color=color, markersize=rel_marker_size + 1, markeredgecolor='black', markeredgewidth=0.8, zorder=5)
                         if not is_normalized:
                             ax1.hlines(intersection_level, xmin=t_plot.min() * 0.8, xmax=tau_star_plot, colors=color, linestyles='--', linewidths=0.8, alpha=0.5)
                         if annotate_tau_star:
@@ -1293,7 +1311,7 @@ with tab_pub:
                         'weight': kin_label_weight,
                         'style': kin_label_style
                     }
-                    ax2.scatter(active_k['1000/T'], active_k['ln(Tau)'], s=40, alpha=0.8, edgecolors='black', linewidth=0.8, color='steelblue', zorder=3)
+                    ax2.scatter(active_k['1000/T'], active_k['ln(Tau)'], s=kin_marker_size**2, alpha=0.8, edgecolors='black', linewidth=0.8, color='steelblue', zorder=3)
 
                     label_ea = f"E\u2090 = {Ea:.1f} \u00b1 {Ea_stderr:.1f} kJ/mol\nR\u00b2 = {r_sq:.4f}" if show_ea_std else f"E\u2090 = {Ea:.1f} kJ/mol\nR\u00b2 = {r_sq:.4f}"
 
@@ -1303,14 +1321,14 @@ with tab_pub:
                         x_range = np.linspace(min_x * 0.95, max_x * 1.05, 100)
                         min_y = min(active_k['ln(Tau)'].min(), ln_tau_t); max_y = max(active_k['ln(Tau)'].max(), ln_tau_t)
                         ax2.set_xlim(min_x * 0.95, max_x * 1.05); ax2.set_ylim(min_y - 0.5, max_y + 0.5)
-                        ax2.plot([Tv_x], [ln_tau_t], marker='*', markersize=12, color='gold', markeredgecolor='black', markeredgewidth=0.8, label=f"T\u1d65 = {Tv_val:.1f}\u00b0C", zorder=4)
+                        ax2.plot([Tv_x], [ln_tau_t], marker='*', markersize=kin_marker_size * 2, color='gold', markeredgecolor='black', markeredgewidth=0.8, label=f"T\u1d65 = {Tv_val:.1f}\u00b0C", zorder=4)
                     else:
                         x_range = np.linspace(active_k['1000/T'].min() * 0.95, active_k['1000/T'].max() * 1.05, 100)
                         ax2.set_xlim(active_k['1000/T'].min() * 0.95, active_k['1000/T'].max() * 1.05)
                         ax2.set_ylim(active_k['ln(Tau)'].min() - 0.5, active_k['ln(Tau)'].max() + 0.5)
 
                     y_fit = slope * x_range + intercept
-                    ax2.plot(x_range, y_fit, '--', color='red', linewidth=1.5, label=label_ea, zorder=2)
+                    ax2.plot(x_range, y_fit, '--', color='red', linewidth=kin_line_width, label=label_ea, zorder=2)
                     ax2.set_xlabel("1000/T (K\u207b\u00b9)", fontdict=font_label_kin, labelpad=8)
                     ax2.set_ylabel("ln(\u03c4)", fontdict=font_label_kin, labelpad=8)
 
