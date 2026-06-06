@@ -981,33 +981,40 @@ with tab_comparison:
         if show_comp_legend:
             ax_mpl.legend(title="Sample Name", frameon=True, fontsize=comp_tick_size, loc='best')
         
-        plt.tight_layout()
-        
-        # Save figure to memory bytes for download
-        if comp_colorspace.startswith("CMYK"):
-            buf_rgb_png = io.BytesIO()
-            fig_mpl.savefig(buf_rgb_png, format='png', dpi=1200, bbox_inches='tight')
-            buf_rgb_png.seek(0)
-            from PIL import Image
-            img = Image.open(buf_rgb_png)
-            img_cmyk = img.convert('CMYK')
-            buf_export = io.BytesIO()
-            img_cmyk.save(buf_export, format='pdf')
-            buf_export.seek(0)
-            dl_filename = "Arrhenius_Comparison_CMYK.pdf"
-            dl_mime = "application/pdf"
-            btn_label = "⬇️ Download Comparison Figure (CMYK PDF)"
-        else:
-            buf_export = io.BytesIO()
-            fig_mpl.savefig(buf_export, format=comp_fmt.lower(), dpi=comp_dpi, bbox_inches='tight')
-            buf_export.seek(0)
-            dl_filename = f"Arrhenius_Comparison.{comp_fmt.lower()}"
-            dl_mime = f"image/{comp_fmt.lower()}" if comp_fmt.lower() != "pdf" else "application/pdf"
-            btn_label = f"⬇️ Download Comparison Figure ({comp_fmt})"
-        
-        # Add the download button to col_settings
-        with col_settings:
-            st.download_button(btn_label, buf_export, dl_filename, mime=dl_mime, key="dl_comp_plot")
+        mpl_success = False
+        try:
+            plt.tight_layout()
+            
+            # Save figure to memory bytes for download
+            if comp_colorspace.startswith("CMYK"):
+                buf_rgb_png = io.BytesIO()
+                fig_mpl.savefig(buf_rgb_png, format='png', dpi=1200, bbox_inches='tight')
+                buf_rgb_png.seek(0)
+                from PIL import Image
+                img = Image.open(buf_rgb_png)
+                img_cmyk = img.convert('CMYK')
+                buf_export = io.BytesIO()
+                img_cmyk.save(buf_export, format='pdf')
+                buf_export.seek(0)
+                dl_filename = "Arrhenius_Comparison_CMYK.pdf"
+                dl_mime = "application/pdf"
+                btn_label = "⬇️ Download Comparison Figure (CMYK PDF)"
+            else:
+                buf_export = io.BytesIO()
+                fig_mpl.savefig(buf_export, format=comp_fmt.lower(), dpi=comp_dpi, bbox_inches='tight')
+                buf_export.seek(0)
+                dl_filename = f"Arrhenius_Comparison.{comp_fmt.lower()}"
+                dl_mime = f"image/{comp_fmt.lower()}" if comp_fmt.lower() != "pdf" else "application/pdf"
+                btn_label = f"⬇️ Download Comparison Figure ({comp_fmt})"
+            
+            # Add the download button to col_settings
+            with col_settings:
+                st.download_button(btn_label, buf_export, dl_filename, mime=dl_mime, key="dl_comp_plot")
+            
+            mpl_success = True
+        except Exception as e:
+            with col_settings:
+                st.error(f"⚠️ Matplotlib export failed. Check for invalid MathText in Sample Names (e.g. unclosed '$').")
 
         # Render the plot in col_plot
         with col_plot:
@@ -1078,7 +1085,13 @@ with tab_comparison:
                 
                 st.plotly_chart(fig_comp, width='stretch')
             else:
-                st.pyplot(fig_mpl, dpi=300, bbox_inches='tight')
+                if mpl_success:
+                    try:
+                        st.pyplot(fig_mpl, dpi=300, bbox_inches='tight')
+                    except Exception as e:
+                        st.error(f"⚠️ Matplotlib render failed. Check Sample Names for invalid MathText. Error: {e}")
+                else:
+                    st.error("⚠️ Matplotlib preview unavailable due to invalid MathText in labels.")
         
         plt.close(fig_mpl)
     else:
