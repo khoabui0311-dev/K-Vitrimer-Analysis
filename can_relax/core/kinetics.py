@@ -13,7 +13,7 @@ class KineticsEngine:
         Fits ln(tau) = ln(tau0) + Ea / (R * T)
         Returns: Ea (kJ/mol), R2, and fit curve.
         """
-        if len(temps_C) < 3: return None
+        if len(temps_C) < 2: return None
 
         T_K = np.array(temps_C) + 273.15
         inv_T = 1000.0 / T_K

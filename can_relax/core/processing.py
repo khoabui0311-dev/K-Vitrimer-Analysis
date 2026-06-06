@@ -28,6 +28,9 @@ class DataProcessor:
         # 3. Smoothing (Savitzky-Golay) to find the true peak
         # Dynamic window size: smaller of 11 or 10% of data
         eff_window = max(5, int(len(t) * 0.1))
+        
+        # Ensure eff_window does not exceed data length and is odd
+        eff_window = min(eff_window, len(t) if len(t) % 2 != 0 else len(t) - 1)
         if eff_window % 2 == 0: eff_window += 1
         
         try:

@@ -18,96 +18,71 @@ import matplotlib.ticker as ticker
 # Import proper modules from can_relax
 from can_relax.core.analyzer import CurveAnalyzer
 from can_relax.io.parser import parse_wide_format_data as parser_module_func
-
-# Simple implementations for engine classes used in the app
-class SpectrumAnalyzer:
-    def compute_continuous_spectrum(self, t, g, num_modes=50, alpha=0.1):
-        """Compute relaxation time spectrum using simple Tikhonov regularization"""
-        g_norm = g / g[0] if g[0] > 0 else g
-        log_min, log_max = np.log10(max(t.min(), 1e-6)), np.log10(t.max())
-        tau_grid = np.logspace(log_min-1, log_max+1, num_modes)
-        A = np.exp(-t[:, None] / tau_grid[None, :])
-        
-        # Simple Tikhonov regularization without sklearn
-        # Solve: (A^T A + alpha*L^T L) H = A^T g
-        # where L is identity matrix for L2 regularization
-        ATA = A.T @ A
-        ATg = A.T @ g_norm
-        L = np.eye(num_modes)
-        H = np.linalg.solve(ATA + alpha * (L.T @ L), ATg)
-        H = np.maximum(H, 0)  # Non-negative constraint
-        return tau_grid, H
-
-class MaterialSimulator:
-    def simulate_curve(self, T, model_name, p):
-        """Simulate a relaxation curve at temperature T"""
-        R = 8.314
-        try:
-            tau_v = 1e6 / p['G_plateau'] 
-            term_tv = np.exp((p['Ea']*1000/R) * (1/(p['Tv']+273.15)))
-            tau0 = tau_v / term_tv
-            term_t = np.exp((p['Ea']*1000/R) * (1/(T+273.15)))
-            tau_T = tau0 * term_t
-            t = np.logspace(np.log10(tau_T)-3, np.log10(tau_T)+2, 100)
-            
-            if model_name == 'Maxwell':
-                g = p['G_plateau'] * np.exp(-t/tau_T)
-            elif model_name == 'Single_KWW':
-                g = p['G_plateau'] * np.exp(-(t/tau_T)**p['beta'])
-            else: g = t*0
-            
-            return t, g, tau_T
-        except:
-            return np.array([1]), np.array([1]), 1
-
-class TTSEngine:
-    def generate_mastercurve(self, results, ref_temp=None):
-        """Generate time-temperature superposition mastercurve"""
-        if not results: return None
-        
-        sorted_res = sorted(results, key=lambda x: x['Temp'])
-        if ref_temp is None:
-            ref_res = sorted_res[len(sorted_res)//2]
-        else:
-            ref_res = min(sorted_res, key=lambda x: abs(x['Temp'] - ref_temp))
-        
-        T_ref = ref_res['Temp']
-        
-        def get_tau(res):
-            best = res.get('Best_Model', 'Single_KWW')
-            if best not in res.get('Fits', {}): return 1.0
-            popt = res['Fits'][best]['popt']
-            if best == 'Maxwell' or best == 'Single_KWW': return popt[0]
-            if best == 'Dual_KWW': return popt[1]
-            return 1.0
-
-        tau_ref = get_tau(ref_res)
-        master_t, master_g, shift_factors = [], [], {}
-        
-        for res in sorted_res:
-            T = res['Temp']
-            tau = get_tau(res)
-            aT = tau / tau_ref
-            shift_factors[T] = aT
-            t_shifted = res['Raw']['t'] / aT
-            master_t.append(t_shifted)
-            master_g.append(res['Raw']['g'])
-        
-        full_t = np.concatenate(master_t)
-        full_g = np.concatenate(master_g)
-        sort_idx = np.argsort(full_t)
-        
-        return {
-            "T_ref": T_ref,
-            "Master_t": full_t[sort_idx],
-            "Master_g": full_g[sort_idx],
-            "Shifts": shift_factors
-        }
-
-
+from can_relax.core.spectrum import SpectrumAnalyzer
+from can_relax.core.tts import TTSEngine
+from can_relax.core.simulator import MaterialSimulator
+from can_relax.core.kinetics import KineticsEngine
 
 # ==========================================
-# 1. CORE ENGINE (INTERNALIZED FROM can_relax)
+# 1. PREMIUM UI CSS INJECTION
+# ==========================================
+def inject_custom_css():
+    st.markdown("""
+    <style>
+    /* Google Fonts */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    
+    html, body, [class*="css"] {
+        font-family: 'Inter', sans-serif;
+    }
+    
+    /* Subtle Glassmorphism for Metric Cards */
+    [data-testid="stMetric"] {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        padding: 15px;
+        border-radius: 10px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+    }
+    
+    [data-testid="stMetric"]:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+    }
+    
+    /* Buttons */
+    .stButton > button {
+        border-radius: 8px;
+        transition: all 0.3s ease;
+        font-weight: 500;
+    }
+    
+    .stButton > button:hover {
+        transform: scale(1.02);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    }
+    
+    /* Tabs styling */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
+    }
+    
+    .stTabs [data-baseweb="tab"] {
+        border-radius: 4px 4px 0 0;
+        padding: 10px 20px;
+        transition: background-color 0.2s;
+    }
+    
+    .stTabs [aria-selected="true"] {
+        background-color: rgba(255, 255, 255, 0.1);
+        border-bottom-color: #00CC96 !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+# ==========================================
+# 2. CORE ENGINE (INTERNALIZED FROM can_relax)
 # ==========================================
 
 # --- A. ROBUST PARSER (The Fix) ---
@@ -137,6 +112,7 @@ def parse_uploaded_file(uploaded_file):
 # 2. APP UI
 # ==========================================
 st.set_page_config(layout="wide", page_title="K Vitrimer Analysis", page_icon="🧪")
+inject_custom_css()
 st.sidebar.title("🧪 K Vitrimer Analysis")
 st.sidebar.caption("v1.0 | Professional Edition")
 
@@ -344,11 +320,17 @@ with tab_analysis:
                 with col_chart:
                     active = edited_df[edited_df["Include"] == True]
                     if len(active) >= 2:
-                        slope, intercept, r_sq, _, _ = linregress(active["1000/T"], active["ln(Tau)"])
-                        Ea = slope * 8.314462
-                        G_Pa = G_prime_input * 1e6; tau_target = 1e12 / G_Pa; ln_tau_t = np.log(tau_target)
-                        if slope != 0: Tv_val = (1000.0 / ((ln_tau_t - intercept)/slope)) - 273.15
-                        else: Tv_val = 0
+                        k_engine = KineticsEngine()
+                        fit_res = k_engine.fit_arrhenius(active["Temp"].tolist(), active["Tau"].tolist())
+                        if fit_res:
+                            Ea = fit_res["Ea"]
+                            r_sq = fit_res["R2"]
+                            slope = fit_res["Params"]["slope"] / 1000.0
+                            intercept = fit_res["Params"]["intercept"]
+                            
+                            G_Pa = G_prime_input * 1e6; tau_target = 1e12 / G_Pa; ln_tau_t = np.log(tau_target)
+                            if slope != 0: Tv_val = (1000.0 / ((ln_tau_t - intercept)/slope)) - 273.15
+                            else: Tv_val = 0
 
                         mc1, mc2, mc3 = st.columns(3)
                         mc1.metric("E\u2090", f"{Ea:.1f} kJ/mol")
@@ -522,9 +504,14 @@ with tab_sim:
                 if len(valid_temps) >= 3:
                     inv_T = 1000.0 / (np.array(valid_temps) + 273.15)
                     ln_tau = np.log(np.array(fitted_taus))
-                    slope, intercept, _, _, _ = linregress(inv_T, ln_tau)
-                    G_Pa = G_modulus * 1e6; tau_Tv = 1e12 / G_Pa; ln_tau_target = np.log(tau_Tv)
-                    Tv_rec = (1000.0 / ((ln_tau_target - intercept)/slope)) - 273.15 if slope!=0 else 0
+                    k_engine = KineticsEngine()
+                    fit_res = k_engine.fit_arrhenius(valid_temps, fitted_taus)
+                    if fit_res:
+                        slope = fit_res['Params']['slope'] / 1000.0
+                        intercept = fit_res['Params']['intercept']
+                        
+                        G_Pa = G_modulus * 1e6; tau_Tv = 1e12 / G_Pa; ln_tau_target = np.log(tau_Tv)
+                        Tv_rec = (1000.0 / ((ln_tau_target - intercept)/slope)) - 273.15 if slope!=0 else 0
                     
                     fig_k = go.Figure()
                     fig_k.add_trace(go.Scatter(x=inv_T, y=ln_tau, mode='markers'))
@@ -581,11 +568,16 @@ with tab_sim:
                     if 'sim_fig_kinetics' in st.session_state and len(valid_temps) >= 3:
                         inv_T = 1000.0 / (np.array(valid_temps) + 273.15)
                         ln_tau = np.log(np.array(fitted_taus))
-                        slope, intercept, r_val, _, _ = linregress(inv_T, ln_tau)
-                        r_sq = r_val**2
-                        Ea_rec = slope * 8.314462
-                        G_Pa = G_modulus * 1e6; tau_Tv = 1e12 / G_Pa; ln_tau_target = np.log(tau_Tv)
-                        Tv_rec = (1000.0 / ((ln_tau_target - intercept)/slope)) - 273.15 if slope!=0 else 0
+                        k_engine = KineticsEngine()
+                        fit_res = k_engine.fit_arrhenius(valid_temps, fitted_taus)
+                        if fit_res:
+                            slope = fit_res['Params']['slope'] / 1000.0
+                            intercept = fit_res['Params']['intercept']
+                            r_sq = fit_res['R2']
+                            Ea_rec = fit_res['Ea']
+                            
+                            G_Pa = G_modulus * 1e6; tau_Tv = 1e12 / G_Pa; ln_tau_target = np.log(tau_Tv)
+                            Tv_rec = (1000.0 / ((ln_tau_target - intercept)/slope)) - 273.15 if slope!=0 else 0
                         
                         fig_arr = plt.figure(figsize=(sim_fig_width, sim_fig_height))
                         ax_arr = fig_arr.add_subplot(111)
@@ -741,9 +733,13 @@ with tab_comparison:
                     ln_tau = np.log(taus_arr)
                     
                     # Fit Arrhenius
-                    slope, intercept, r_val, _, _ = linregress(inv_T, ln_tau)
-                    r_sq = r_val**2
-                    Ea = slope * 8.314462  # kJ/mol
+                    k_engine = KineticsEngine()
+                    fit_res = k_engine.fit_arrhenius(temps, taus)
+                    if fit_res:
+                        slope = fit_res['Params']['slope'] / 1000.0
+                        intercept = fit_res['Params']['intercept']
+                        r_sq = fit_res['R2']
+                        Ea = fit_res['Ea']
                     
                     # Validate: Ea should be positive (tau decreases with increasing T)
                     warning_msg = ""
