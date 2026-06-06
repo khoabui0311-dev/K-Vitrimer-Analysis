@@ -556,7 +556,14 @@ with tab_sim:
                         plt.tight_layout()
                         
                         buf = io.BytesIO()
-                        fig_mpl.savefig(buf, format=sim_fig_fmt, dpi=sim_fig_dpi, bbox_inches='tight')
+                        if sim_fig_fmt.lower() in ['bmp', 'tiff']:
+                            buf_tmp = io.BytesIO()
+                            fig_mpl.savefig(buf_tmp, format='png', dpi=sim_fig_dpi, bbox_inches='tight')
+                            buf_tmp.seek(0)
+                            from PIL import Image
+                            Image.open(buf_tmp).save(buf, format=sim_fig_fmt.upper())
+                        else:
+                            fig_mpl.savefig(buf, format=sim_fig_fmt, dpi=sim_fig_dpi, bbox_inches='tight')
                         buf.seek(0)
                         st.download_button("⬇️ Download Relaxation", buf, f"Simulation_Relaxation.{sim_fig_fmt}", key="dl_sim_relax")
                         plt.close(fig_mpl)
@@ -602,7 +609,14 @@ with tab_sim:
                         plt.tight_layout()
                         
                         buf = io.BytesIO()
-                        fig_arr.savefig(buf, format=sim_fig_fmt, dpi=sim_fig_dpi, bbox_inches='tight')
+                        if sim_fig_fmt.lower() in ['bmp', 'tiff']:
+                            buf_tmp = io.BytesIO()
+                            fig_arr.savefig(buf_tmp, format='png', dpi=sim_fig_dpi, bbox_inches='tight')
+                            buf_tmp.seek(0)
+                            from PIL import Image
+                            Image.open(buf_tmp).save(buf, format=sim_fig_fmt.upper())
+                        else:
+                            fig_arr.savefig(buf, format=sim_fig_fmt, dpi=sim_fig_dpi, bbox_inches='tight')
                         buf.seek(0)
                         st.download_button("⬇️ Download Arrhenius", buf, f"Simulation_Arrhenius.{sim_fig_fmt}", key="dl_sim_arr")
                         plt.close(fig_arr)
@@ -1020,10 +1034,18 @@ with tab_comparison:
                 btn_label = "⬇️ Download Comparison Figure (CMYK PDF)"
             else:
                 buf_export = io.BytesIO()
-                fig_mpl.savefig(buf_export, format=comp_fmt.lower(), dpi=comp_dpi, bbox_inches='tight')
+                fmt_lower = comp_fmt.lower()
+                if fmt_lower in ['bmp', 'tiff']:
+                    buf_tmp = io.BytesIO()
+                    fig_mpl.savefig(buf_tmp, format='png', dpi=comp_dpi, bbox_inches='tight')
+                    buf_tmp.seek(0)
+                    from PIL import Image
+                    Image.open(buf_tmp).save(buf_export, format=fmt_lower.upper())
+                else:
+                    fig_mpl.savefig(buf_export, format=fmt_lower, dpi=comp_dpi, bbox_inches='tight')
                 buf_export.seek(0)
-                dl_filename = f"Arrhenius_Comparison.{comp_fmt.lower()}"
-                dl_mime = f"image/{comp_fmt.lower()}" if comp_fmt.lower() != "pdf" else "application/pdf"
+                dl_filename = f"Arrhenius_Comparison.{fmt_lower}"
+                dl_mime = f"image/{fmt_lower}" if fmt_lower != "pdf" else "application/pdf"
                 btn_label = f"⬇️ Download Comparison Figure ({comp_fmt})"
             
             # Add the download button to col_settings
@@ -1597,8 +1619,10 @@ with tab_pub:
                 buf_pdf1 = io.BytesIO(); fig1.savefig(buf_pdf1, format='pdf', bbox_inches='tight'); buf_pdf1.seek(0)
                 buf_svg1 = io.BytesIO(); fig1.savefig(buf_svg1, format='svg', bbox_inches='tight'); buf_svg1.seek(0)
                 buf_png1 = io.BytesIO(); fig1.savefig(buf_png1, format='png', dpi=1200, bbox_inches='tight'); buf_png1.seek(0)
-                buf_bmp1 = io.BytesIO(); fig1.savefig(buf_bmp1, format='bmp', dpi=1200, bbox_inches='tight'); buf_bmp1.seek(0)
-                buf_tiff1_rgb = io.BytesIO(); fig1.savefig(buf_tiff1_rgb, format='tiff', dpi=1200, bbox_inches='tight'); buf_tiff1_rgb.seek(0)
+                from PIL import Image
+                img1_rgb = Image.open(buf_png1)
+                buf_bmp1 = io.BytesIO(); img1_rgb.save(buf_bmp1, format='BMP'); buf_bmp1.seek(0)
+                buf_tiff1_rgb = io.BytesIO(); img1_rgb.save(buf_tiff1_rgb, format='TIFF', dpi=(1200, 1200)); buf_tiff1_rgb.seek(0)
                 dc1, dc2, dc3, dc4, dc5 = st.columns(5)
                 with dc1: st.download_button("📥 PDF (Vector)", buf_pdf1, "Relaxation_Curves.pdf", key="dl_pdf_rel")
                 with dc2: st.download_button("📥 SVG (Vector)", buf_svg1, "Relaxation_Curves.svg", key="dl_svg_rel")
@@ -1781,8 +1805,10 @@ with tab_pub:
                         buf_pdf2 = io.BytesIO(); fig2.savefig(buf_pdf2, format='pdf', bbox_inches='tight'); buf_pdf2.seek(0)
                         buf_svg2 = io.BytesIO(); fig2.savefig(buf_svg2, format='svg', bbox_inches='tight'); buf_svg2.seek(0)
                         buf_png2 = io.BytesIO(); fig2.savefig(buf_png2, format='png', dpi=1200, bbox_inches='tight'); buf_png2.seek(0)
-                        buf_bmp2 = io.BytesIO(); fig2.savefig(buf_bmp2, format='bmp', dpi=1200, bbox_inches='tight'); buf_bmp2.seek(0)
-                        buf_tiff2_rgb = io.BytesIO(); fig2.savefig(buf_tiff2_rgb, format='tiff', dpi=1200, bbox_inches='tight'); buf_tiff2_rgb.seek(0)
+                        from PIL import Image
+                        img2_rgb = Image.open(buf_png2)
+                        buf_bmp2 = io.BytesIO(); img2_rgb.save(buf_bmp2, format='BMP'); buf_bmp2.seek(0)
+                        buf_tiff2_rgb = io.BytesIO(); img2_rgb.save(buf_tiff2_rgb, format='TIFF', dpi=(1200, 1200)); buf_tiff2_rgb.seek(0)
                         da1, da2, da3, da4, da5 = st.columns(5)
                         with da1: st.download_button("\U0001f4e5 PDF (Vector)", buf_pdf2, "Arrhenius_Plot.pdf", key="dl_pdf_arr")
                         with da2: st.download_button("\U0001f4e5 SVG (Vector)", buf_svg2, "Arrhenius_Plot.svg", key="dl_svg_arr")
