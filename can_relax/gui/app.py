@@ -653,7 +653,7 @@ with tab_comparison:
                 
                 # Get existing data as text
                 existing_data = st.session_state.comparison_samples.get(sample_key, {}).get('data', [])
-                text_data = '\n'.join([f"{row.get('Temperature (°C)', 0)}, {row.get('τ (s)', 0)}" for row in existing_data]) if existing_data else "100, 1.0\n110, 0.5\n120, 0.2"
+                text_data = '\n'.join([f"{row.get('Temperature (°C)', 0)}, {row.get('τ (s)', 0)}" for row in existing_data]) if existing_data else ""
                 
                 data_input = st.text_area(
                     "Data pairs",
@@ -689,6 +689,11 @@ with tab_comparison:
                 if st.button("🗑️", key=f"delete_{sample_idx}", help="Clear sample"):
                     if sample_key in st.session_state.comparison_samples:
                         del st.session_state.comparison_samples[sample_key]
+                    for k in [f"name_{sample_idx}", f"tg_{sample_idx}", f"gp_{sample_idx}", f"data_{sample_idx}"]:
+                        if k in st.session_state:
+                            del st.session_state[k]
+                    if 'comparison_results' in st.session_state:
+                        del st.session_state['comparison_results']
                     st.rerun()
     
     # Analysis button
