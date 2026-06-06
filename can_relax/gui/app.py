@@ -784,6 +784,7 @@ with tab_comparison:
                         'Tg (°C)': tg,
                         "G' (MPa)": g_prime,
                         'Ea (kJ/mol)': Ea,
+                        'Ea_std (kJ/mol)': fit_res.get('Ea_std', 0),
                         'Tv (°C)': Tv_val,
                         'R²': r_sq,
                         'N_points': len(temps),
@@ -845,10 +846,16 @@ with tab_comparison:
         
         with col_settings:
             st.markdown("**Export Settings:**")
-            comp_fmt = st.selectbox("Format", ["png", "bmp", "tiff", "pdf", "svg"], key="comp_fmt")
+            comp_fmt = st.selectbox("Format", ["png", "jpeg", "bmp", "tiff", "pdf", "svg"], key="comp_fmt")
             comp_dpi = st.number_input("DPI", 72, 1200, 300, 50, key="comp_dpi")
             comp_colorspace = st.selectbox("Color Space Mode", ["RGB", "CMYK (for Print/Publication)"], key="comp_colorspace")
-            show_comp_legend = st.checkbox("Legend", value=True, key="comp_legend")
+            
+            with st.expander("📝 Legend Settings", expanded=False):
+                show_comp_legend = st.checkbox("Show Legend", value=True, key="comp_legend")
+                comp_leg_pos = st.selectbox("Position", ["best", "upper right", "upper left", "lower left", "lower right", "right (outside)"], key="comp_leg_pos")
+                comp_leg_fontsize = st.slider("Font Size", 4, 20, 10, key="comp_leg_fontsize")
+                comp_leg_box = st.checkbox("Box Border", value=True, key="comp_leg_box")
+                comp_show_ea = st.checkbox("Show Ea ± std", value=False, key="comp_show_ea")
 
             with st.expander("📐 Figure Dimensions", expanded=True):
                 comp_preset = st.selectbox("Journal Preset", [
@@ -961,6 +968,10 @@ with tab_comparison:
             tau_target = r['tau_target']
             ln_tau_target = r['ln_tau_target']
             
+            if comp_show_ea:
+                ea_std = r.get('Ea_std (kJ/mol)', 0)
+                name = f"{name} (Ea = {Ea:.1f} ± {ea_std:.1f} kJ/mol)"
+            
             color = colors_mpl[idx % len(colors_mpl)]
             
             # Plot data
@@ -1012,7 +1023,10 @@ with tab_comparison:
             label.set_style(comp_tick_style)
         
         if show_comp_legend:
-            ax_mpl.legend(title="Sample Name", frameon=True, fontsize=comp_tick_size, loc='best')
+            if comp_leg_pos == "right (outside)":
+                ax_mpl.legend(frameon=comp_leg_box, fontsize=comp_leg_fontsize, bbox_to_anchor=(1.05, 1), loc='upper left')
+            else:
+                ax_mpl.legend(frameon=comp_leg_box, fontsize=comp_leg_fontsize, loc=comp_leg_pos)
         
         mpl_success = False
         try:
@@ -1113,6 +1127,21 @@ with tab_comparison:
                         hovertemplate=f"<b>{name} Tv</b><br>1000/T: %{{x:.3f}}<br>ln(τ): %{{y:.2f}}<extra></extra>"
                     ))
                 
+                pos_map = {
+                    "upper right": dict(x=0.98, y=0.98, xanchor="right", yanchor="top"),
+                    "upper left": dict(x=0.02, y=0.98, xanchor="left", yanchor="top"),
+                    "lower left": dict(x=0.02, y=0.02, xanchor="left", yanchor="bottom"),
+                    "lower right": dict(x=0.98, y=0.02, xanchor="right", yanchor="bottom"),
+                    "right (outside)": dict(x=1.05, y=1, xanchor="left", yanchor="top"),
+                    "best": dict(x=0.02, y=0.98, xanchor="left", yanchor="top")
+                }
+                plotly_leg = dict(
+                    bgcolor='rgba(255,255,255,0.8)' if comp_leg_box else 'rgba(0,0,0,0)',
+                    borderwidth=1 if comp_leg_box else 0,
+                    font=dict(size=comp_leg_fontsize)
+                )
+                plotly_leg.update(pos_map.get(comp_leg_pos, pos_map["best"]))
+                
                 fig_comp.update_layout(
                     title="Arrhenius Comparison: Multiple Samples",
                     xaxis_title="1000/T (K<sup>-1</sup>)",
@@ -1120,7 +1149,7 @@ with tab_comparison:
                     height=500,
                     hovermode='closest',
                     showlegend=show_comp_legend,
-                    legend=dict(title="Sample Name", x=0.02, y=0.98, bgcolor='rgba(255,255,255,0.8)', borderwidth=1),
+                    legend=plotly_leg,
                     margin=dict(l=60, r=20, t=50, b=50)
                 )
                 
