@@ -703,7 +703,9 @@ with tab_comparison:
         valid_samples = []
         for key, sample_data in st.session_state.comparison_samples.items():
             if sample_data.get('data') and len(sample_data['data']) >= 2:
-                valid_samples.append(sample_data)
+                sd_copy = dict(sample_data)
+                sd_copy['key'] = key
+                valid_samples.append(sd_copy)
         
         if valid_samples:
             # Calculate Arrhenius for each sample
@@ -764,6 +766,7 @@ with tab_comparison:
                     
                     results_list.append({
                         'Sample Name': name,
+                        'sample_key': sample['key'],
                         'Tg (°C)': tg,
                         "G' (MPa)": g_prime,
                         'Ea (kJ/mol)': Ea,
@@ -794,14 +797,17 @@ with tab_comparison:
         # Show warnings first
         for r in results:
             if r.get('warning'):
-                st.warning(r['warning'])
+                orig_name = r['Sample Name']
+                live_name = st.session_state.comparison_samples.get(r.get('sample_key'), {}).get('name', orig_name)
+                warning_text = r['warning'].replace(orig_name, live_name)
+                st.warning(warning_text)
         
         # Results table
         st.subheader("📊 Results Summary")
         gp_key = "G' (MPa)"
         results_df = pd.DataFrame([
             {
-                'Sample Name': r['Sample Name'],
+                'Sample Name': st.session_state.comparison_samples.get(r.get('sample_key'), {}).get('name', r['Sample Name']),
                 "Tg (°C)": f"{r['Tg (°C)']:.1f}",
                 "G' (MPa)": f"{r.get(gp_key, 0):.2f}",
                 'Ea (kJ/mol)': f"{r['Ea (kJ/mol)']:.1f}",
@@ -915,7 +921,7 @@ with tab_comparison:
         for idx, r in enumerate(results):
             inv_T = r['inv_T']
             ln_tau = r['ln_tau']
-            name = r['Sample Name']
+            name = st.session_state.comparison_samples.get(r.get('sample_key'), {}).get('name', r['Sample Name'])
             slope = r['slope']
             intercept = r['intercept']
             Ea = r['Ea (kJ/mol)']
@@ -1015,7 +1021,7 @@ with tab_comparison:
                 for idx, r in enumerate(results):
                     inv_T = r['inv_T']
                     ln_tau = r['ln_tau']
-                    name = r['Sample Name']
+                    name = st.session_state.comparison_samples.get(r.get('sample_key'), {}).get('name', r['Sample Name'])
                     Ea = r['Ea (kJ/mol)']
                     slope = r['slope']
                     intercept = r['intercept']
