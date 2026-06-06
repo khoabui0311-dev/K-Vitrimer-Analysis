@@ -970,7 +970,7 @@ with tab_comparison:
             
             if comp_show_ea:
                 ea_std = r.get('Ea_std (kJ/mol)', 0)
-                name = f"{name} (Ea = {Ea:.1f} +/- {ea_std:.1f} kJ/mol)"
+                name = f"{name} ({Ea:.1f} +/- {ea_std:.1f} kJ/mol)"
             
             color = colors_mpl[idx % len(colors_mpl)]
             
