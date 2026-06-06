@@ -16,12 +16,10 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 
 # Import proper modules from can_relax
-from can_relax.core.analyzer import CurveAnalyzer
 from can_relax.io.parser import parse_wide_format_data as parser_module_func
-from can_relax.core.spectrum import SpectrumAnalyzer
-from can_relax.core.tts import TTSEngine
 from can_relax.core.simulator import MaterialSimulator
 from can_relax.core.kinetics import KineticsEngine
+from can_relax.core.tts import TTSEngine
 
 # ==========================================
 # 1. PREMIUM UI CSS INJECTION
@@ -117,8 +115,6 @@ st.sidebar.title("🧪 K Vitrimer Analysis")
 st.sidebar.caption("v1.0 | Professional Edition")
 
 # Init Modules
-analyzer = CurveAnalyzer()
-spectrum_engine = SpectrumAnalyzer()
 sim = MaterialSimulator()
 tts_engine = TTSEngine()
 
