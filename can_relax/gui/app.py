@@ -1010,7 +1010,7 @@ with tab_comparison:
             'style': comp_lbl_sty
         }
         ax_mpl.set_xlabel(r"$1000/T$ ($\mathrm{K}^{-1}$)", fontdict=font_label_comp, labelpad=8)
-        ax_mpl.set_ylabel(r"$\ln(\tau)$ ($\mathrm{s}$)", fontdict=font_label_comp, labelpad=8)
+        ax_mpl.set_ylabel(r"$\ln(\tau)$", fontdict=font_label_comp, labelpad=8)
         
         # Apply axis limits
         if comp_custom_lims:
@@ -1164,7 +1164,7 @@ with tab_comparison:
                 fig_comp.update_layout(
                     title="Arrhenius Comparison: Multiple Samples",
                     xaxis_title="1000/T (K<sup>-1</sup>)",
-                    yaxis_title="ln(tau) (s)",
+                    yaxis_title="ln(τ)",
                     height=500,
                     hovermode='closest',
                     showlegend=show_comp_legend,
