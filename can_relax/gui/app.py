@@ -827,8 +827,8 @@ with tab_comparison:
             st.markdown("**Export Settings:**")
             comp_fmt = st.selectbox("Format", ["png", "pdf", "svg"], key="comp_fmt")
             comp_dpi = st.number_input("DPI", 72, 1200, 300, 50, key="comp_dpi")
-            comp_width = st.number_input("Width (in)", 2.0, 12.0, 5.0, 0.1, key="comp_width")
-            comp_height = st.number_input("Height (in)", 2.0, 10.0, 4.0, 0.1, key="comp_height")
+            comp_width = st.number_input("Width (cm)", 5.0, 30.0, 12.7, 0.5, key="comp_width")
+            comp_height = st.number_input("Height (cm)", 5.0, 30.0, 10.0, 0.5, key="comp_height")
             comp_colorspace = st.selectbox("Color Space Mode", ["RGB", "CMYK (for Print/Publication)"], key="comp_colorspace")
             show_comp_legend = st.checkbox("Legend", value=True, key="comp_legend")
 
@@ -875,7 +875,7 @@ with tab_comparison:
                     comp_ymax = st.number_input("Y Max (ln(\u03c4))", value=comp_auto_ymax, format="%.4f", key="comp_ymax")
         
         # --- Pre-generate Matplotlib comparison figure ---
-        fig_mpl = plt.figure(figsize=(comp_width, comp_height), facecolor='white')
+        fig_mpl = plt.figure(figsize=(comp_width / 2.54, comp_height / 2.54), facecolor='white')
         ax_mpl = fig_mpl.add_subplot(111)
         ax_mpl.set_facecolor('white')
         ax_mpl.grid(False)
@@ -973,7 +973,7 @@ with tab_comparison:
             label.set_style(comp_tick_style)
         
         if show_comp_legend:
-            ax_mpl.legend(frameon=True, fontsize=comp_tick_size, loc='best')
+            ax_mpl.legend(title="Sample Name", frameon=True, fontsize=comp_tick_size, loc='best')
         
         plt.tight_layout()
         
@@ -1066,7 +1066,7 @@ with tab_comparison:
                     height=500,
                     hovermode='closest',
                     showlegend=show_comp_legend,
-                    legend=dict(x=0.02, y=0.98, bgcolor='rgba(255,255,255,0.8)', borderwidth=1),
+                    legend=dict(title="Sample Name", x=0.02, y=0.98, bgcolor='rgba(255,255,255,0.8)', borderwidth=1),
                     margin=dict(l=60, r=20, t=50, b=50)
                 )
                 
