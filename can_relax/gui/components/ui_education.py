@@ -192,9 +192,14 @@ def render_education_tab(tab_education):
                 ax_comp.grid(True, alpha=0.3, which='both')
                 ax_comp.legend(fontsize=11, loc='upper left')
                 ax_comp.set_ylim([1e-8, 1e4])
-                plt.tight_layout()
-                st.pyplot(fig_comp)
-                plt.close(fig_comp)
+                try:
+                    plt.tight_layout()
+                    st.pyplot(fig_comp)
+                except Exception as e:
+                    st.error(f"Matplotlib error rendering Arrhenius vs VFT: {e}")
+                    st.pyplot(fig_comp) # Attempt without tight_layout
+                finally:
+                    plt.close(fig_comp)
 
                 st.markdown("""
                 **Key Observations:**
@@ -333,13 +338,18 @@ def render_education_tab(tab_education):
                 ax_models.loglog(t, g_kww, 's-', linewidth=2.5, markersize=4, alpha=0.8, label=r'Single-KWW ($\tau=15$ s, $\beta=0.85$)')
                 ax_models.loglog(t, g_dual, '^-', linewidth=2.5, markersize=4, alpha=0.8, label=r'Dual-KWW ($\tau_1=5$, $\tau_2=100$ s)')
                 ax_models.set_xlabel('Time (s)', fontsize=12, fontweight='bold')
-                ax_models.set_ylabel('G(t) / G₀', fontsize=12, fontweight='bold')
+                ax_models.set_ylabel('G(t) / $G_0$', fontsize=12, fontweight='bold')
                 ax_models.set_title('Comparison of Relaxation Models', fontsize=13, fontweight='bold')
                 ax_models.grid(True, alpha=0.3, which='both')
                 ax_models.legend(fontsize=11, loc='upper right')
-                plt.tight_layout()
-                st.pyplot(fig_models)
-                plt.close(fig_models)
+                try:
+                    plt.tight_layout()
+                    st.pyplot(fig_models)
+                except Exception as e:
+                    st.error(f"Matplotlib error rendering Models Comparison: {e}")
+                    st.pyplot(fig_models) # Attempt without tight_layout
+                finally:
+                    plt.close(fig_models)
 
                 st.markdown("""
                 **Observations from Example:**
