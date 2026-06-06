@@ -877,6 +877,23 @@ with tab_comparison:
                     comp_width = st.number_input("Width (cm)", 1.0, 40.0, float(default_width_cm), 0.1, disabled=disable_comp_size, key="comp_w")
                 with sz2:
                     comp_height = st.number_input("Height (cm)", 1.0, 40.0, float(default_height_cm), 0.1, disabled=disable_comp_size, key="comp_h")
+                
+                comp_panel_letter = st.text_input("Panel Letter", "", key="comp_panel")
+                
+                comp_panel_font_family = "Arial"
+                comp_panel_font_size = 12
+                comp_panel_font_weight = "bold"
+                comp_panel_font_style = "normal"
+                
+                if comp_panel_letter:
+                    st.markdown("**Panel Letter Font**")
+                    pl1, pl2 = st.columns(2)
+                    with pl1:
+                        comp_panel_font_family = st.selectbox("Panel Font Family", ["Arial", "Times New Roman", "Courier New", "DejaVu Sans", "serif", "sans-serif", "monospace"], key="comp_panel_font_family")
+                        comp_panel_font_weight = st.selectbox("Panel Font Weight", ["bold", "normal"], key="comp_panel_weight")
+                    with pl2:
+                        comp_panel_font_size = st.number_input("Panel Font Size", 4, 30, 12, key="comp_panel_size")
+                        comp_panel_font_style = st.selectbox("Panel Font Style", ["normal", "italic"], key="comp_panel_style")
 
             # Style & Axes Settings
             with st.expander("🎨 Marker & Line Style", expanded=False):
@@ -1027,6 +1044,12 @@ with tab_comparison:
                 ax_mpl.legend(frameon=comp_leg_box, fontsize=comp_leg_fontsize, bbox_to_anchor=(1.05, 1), loc='upper left')
             else:
                 ax_mpl.legend(frameon=comp_leg_box, fontsize=comp_leg_fontsize, loc=comp_leg_pos)
+
+        if comp_panel_letter:
+            ax_mpl.text(-0.12, 1.02, f"({comp_panel_letter})", transform=ax_mpl.transAxes,
+                     fontfamily=comp_panel_font_family, fontsize=comp_panel_font_size,
+                     fontweight=comp_panel_font_weight, fontstyle=comp_panel_font_style,
+                     va='bottom', ha='right')
         
         mpl_success = False
         try:
@@ -1152,6 +1175,23 @@ with tab_comparison:
                     legend=plotly_leg,
                     margin=dict(l=60, r=20, t=50, b=50)
                 )
+                
+                if comp_panel_letter:
+                    p_text = f"({comp_panel_letter})"
+                    if comp_panel_font_weight == "bold": p_text = f"<b>{p_text}</b>"
+                    if comp_panel_font_style == "italic": p_text = f"<i>{p_text}</i>"
+                    fig_comp.add_annotation(
+                        x=-0.12, y=1.02,
+                        xref="paper", yref="paper",
+                        text=p_text,
+                        showarrow=False,
+                        font=dict(
+                            family=comp_panel_font_family,
+                            size=comp_panel_font_size,
+                            color="black"
+                        ),
+                        xanchor="right", yanchor="bottom"
+                    )
                 
                 st.plotly_chart(fig_comp, width='stretch')
             else:
