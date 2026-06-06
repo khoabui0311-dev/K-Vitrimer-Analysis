@@ -528,7 +528,7 @@ with tab_sim:
             st.subheader("📥 Export Simulation Plots")
             exp_c1, exp_c2, exp_c3, exp_c4 = st.columns(4)
             with exp_c1:
-                sim_fig_fmt = st.selectbox("Format", ["png", "pdf", "svg"], key="sim_fmt")
+                sim_fig_fmt = st.selectbox("Format", ["png", "bmp", "tiff", "pdf", "svg"], key="sim_fmt")
                 sim_fig_dpi = st.number_input("DPI", 72, 1200, 300, 50, key="sim_dpi")
             with exp_c2:
                 sim_fig_width = st.number_input("Width (in)", 2.0, 10.0, 3.5, 0.1, key="sim_width")
@@ -831,7 +831,7 @@ with tab_comparison:
         
         with col_settings:
             st.markdown("**Export Settings:**")
-            comp_fmt = st.selectbox("Format", ["png", "pdf", "svg"], key="comp_fmt")
+            comp_fmt = st.selectbox("Format", ["png", "bmp", "tiff", "pdf", "svg"], key="comp_fmt")
             comp_dpi = st.number_input("DPI", 72, 1200, 300, 50, key="comp_dpi")
             comp_colorspace = st.selectbox("Color Space Mode", ["RGB", "CMYK (for Print/Publication)"], key="comp_colorspace")
             show_comp_legend = st.checkbox("Legend", value=True, key="comp_legend")
@@ -1597,10 +1597,14 @@ with tab_pub:
                 buf_pdf1 = io.BytesIO(); fig1.savefig(buf_pdf1, format='pdf', bbox_inches='tight'); buf_pdf1.seek(0)
                 buf_svg1 = io.BytesIO(); fig1.savefig(buf_svg1, format='svg', bbox_inches='tight'); buf_svg1.seek(0)
                 buf_png1 = io.BytesIO(); fig1.savefig(buf_png1, format='png', dpi=1200, bbox_inches='tight'); buf_png1.seek(0)
-                dc1, dc2, dc3 = st.columns(3)
-                with dc1: st.download_button("\U0001f4e5 PDF (Vector)", buf_pdf1, "Relaxation_Curves.pdf", key="dl_pdf_rel")
-                with dc2: st.download_button("\U0001f4e5 SVG (Vector)", buf_svg1, "Relaxation_Curves.svg", key="dl_svg_rel")
-                with dc3: st.download_button("\U0001f4e5 PNG (1200 DPI)", buf_png1, "Relaxation_Curves.png", key="dl_png_rel")
+                buf_bmp1 = io.BytesIO(); fig1.savefig(buf_bmp1, format='bmp', dpi=1200, bbox_inches='tight'); buf_bmp1.seek(0)
+                buf_tiff1_rgb = io.BytesIO(); fig1.savefig(buf_tiff1_rgb, format='tiff', dpi=1200, bbox_inches='tight'); buf_tiff1_rgb.seek(0)
+                dc1, dc2, dc3, dc4, dc5 = st.columns(5)
+                with dc1: st.download_button("📥 PDF (Vector)", buf_pdf1, "Relaxation_Curves.pdf", key="dl_pdf_rel")
+                with dc2: st.download_button("📥 SVG (Vector)", buf_svg1, "Relaxation_Curves.svg", key="dl_svg_rel")
+                with dc3: st.download_button("📥 PNG (1200 DPI)", buf_png1, "Relaxation_Curves.png", key="dl_png_rel")
+                with dc4: st.download_button("📥 BMP (1200 DPI)", buf_bmp1, "Relaxation_Curves.bmp", key="dl_bmp_rel")
+                with dc5: st.download_button("📥 TIFF (1200 DPI)", buf_tiff1_rgb, "Relaxation_Curves.tiff", key="dl_tiff_rel_rgb")
             plt.close(fig1)
 
             # ════ FIGURE 2: ARRHENIUS PLOT ════
@@ -1777,10 +1781,14 @@ with tab_pub:
                         buf_pdf2 = io.BytesIO(); fig2.savefig(buf_pdf2, format='pdf', bbox_inches='tight'); buf_pdf2.seek(0)
                         buf_svg2 = io.BytesIO(); fig2.savefig(buf_svg2, format='svg', bbox_inches='tight'); buf_svg2.seek(0)
                         buf_png2 = io.BytesIO(); fig2.savefig(buf_png2, format='png', dpi=1200, bbox_inches='tight'); buf_png2.seek(0)
-                        da1, da2, da3 = st.columns(3)
+                        buf_bmp2 = io.BytesIO(); fig2.savefig(buf_bmp2, format='bmp', dpi=1200, bbox_inches='tight'); buf_bmp2.seek(0)
+                        buf_tiff2_rgb = io.BytesIO(); fig2.savefig(buf_tiff2_rgb, format='tiff', dpi=1200, bbox_inches='tight'); buf_tiff2_rgb.seek(0)
+                        da1, da2, da3, da4, da5 = st.columns(5)
                         with da1: st.download_button("\U0001f4e5 PDF (Vector)", buf_pdf2, "Arrhenius_Plot.pdf", key="dl_pdf_arr")
                         with da2: st.download_button("\U0001f4e5 SVG (Vector)", buf_svg2, "Arrhenius_Plot.svg", key="dl_svg_arr")
                         with da3: st.download_button("\U0001f4e5 PNG (1200 DPI)", buf_png2, "Arrhenius_Plot.png", key="dl_png_arr")
+                        with da4: st.download_button("\U0001f4e5 BMP (1200 DPI)", buf_bmp2, "Arrhenius_Plot.bmp", key="dl_bmp_arr")
+                        with da5: st.download_button("\U0001f4e5 TIFF (1200 DPI)", buf_tiff2_rgb, "Arrhenius_Plot.tiff", key="dl_tiff_arr_rgb")
                     plt.close(fig2)
                 else:
                     st.warning("\u26a0\ufe0f Need at least 2 data points with 'Include' checked in the Analysis tab \u2192 Kinetics")
