@@ -833,10 +833,29 @@ with tab_comparison:
             st.markdown("**Export Settings:**")
             comp_fmt = st.selectbox("Format", ["png", "pdf", "svg"], key="comp_fmt")
             comp_dpi = st.number_input("DPI", 72, 1200, 300, 50, key="comp_dpi")
-            comp_width = st.number_input("Width (cm)", 5.0, 30.0, 12.7, 0.5, key="comp_width")
-            comp_height = st.number_input("Height (cm)", 5.0, 30.0, 10.0, 0.5, key="comp_height")
             comp_colorspace = st.selectbox("Color Space Mode", ["RGB", "CMYK (for Print/Publication)"], key="comp_colorspace")
             show_comp_legend = st.checkbox("Legend", value=True, key="comp_legend")
+
+            with st.expander("📐 Figure Dimensions", expanded=True):
+                comp_preset = st.selectbox("Journal Preset", [
+                    "ACS/RSC Single-Column (85 x 75 mm)",
+                    "ACS/RSC Double-Column (170 x 140 mm)",
+                    "Custom"
+                ], key="comp_preset")
+                
+                # Convert mm presets directly to cm
+                if comp_preset == "ACS/RSC Single-Column (85 x 75 mm)":
+                    default_width_cm, default_height_cm, disable_comp_size = 8.5, 7.5, True
+                elif comp_preset == "ACS/RSC Double-Column (170 x 140 mm)":
+                    default_width_cm, default_height_cm, disable_comp_size = 17.0, 14.0, True
+                else:
+                    default_width_cm, default_height_cm, disable_comp_size = 12.7, 10.0, False
+
+                sz1, sz2 = st.columns(2)
+                with sz1:
+                    comp_width = st.number_input("Width (cm)", 1.0, 40.0, float(default_width_cm), 0.1, disabled=disable_comp_size, key="comp_w")
+                with sz2:
+                    comp_height = st.number_input("Height (cm)", 1.0, 40.0, float(default_height_cm), 0.1, disabled=disable_comp_size, key="comp_h")
 
             # Style & Axes Settings
             with st.expander("🎨 Marker & Line Style", expanded=False):
@@ -1157,17 +1176,17 @@ with tab_pub:
                     "Custom"
                 ], key="pub_preset")
                 if fig_preset == "ACS/RSC Single-Column (85 x 75 mm)":
-                    default_width, default_height, disable_size = 3.35, 2.95, True
+                    default_width, default_height, disable_size = 8.5, 7.5, True
                 elif fig_preset == "ACS/RSC Double-Column (170 x 140 mm)":
-                    default_width, default_height, disable_size = 6.69, 5.51, True
+                    default_width, default_height, disable_size = 17.0, 14.0, True
                 else:
-                    default_width, default_height, disable_size = 3.5, 3.0, False
+                    default_width, default_height, disable_size = 12.7, 10.0, False
 
                 sz1, sz2 = st.columns(2)
                 with sz1:
-                    fig_width = st.number_input("Width (in)", 1.0, 15.0, default_width, 0.1, disabled=disable_size, key="pub_w")
+                    fig_width = st.number_input("Width (cm)", 1.0, 40.0, float(default_width), 0.1, disabled=disable_size, key="pub_w")
                 with sz2:
-                    fig_height = st.number_input("Height (in)", 1.0, 15.0, default_height, 0.1, disabled=disable_size, key="pub_h")
+                    fig_height = st.number_input("Height (cm)", 1.0, 40.0, float(default_height), 0.1, disabled=disable_size, key="pub_h")
                 panel_letter = st.text_input("First Panel Letter", "a", key="pub_panel")
                 
                 # Panel Letter Font Settings
@@ -1385,7 +1404,7 @@ with tab_pub:
 
             # ════ FIGURE 1: RELAXATION CURVES ════
             st.subheader("\U0001f4ca Relaxation Curves")
-            fig1, ax1 = plt.subplots(figsize=(fig_width, fig_height), facecolor='white')
+            fig1, ax1 = plt.subplots(figsize=(fig_width / 2.54, fig_height / 2.54), facecolor='white')
             ax1.set_facecolor('white')
             ax1.grid(False)
             for spine in ['top', 'bottom', 'left', 'right']:
@@ -1611,7 +1630,7 @@ with tab_pub:
                             st.metric("E\u2090", f"{Ea:.1f} \u00b1 {Ea_stderr:.1f} kJ/mol" if show_ea_std else f"{Ea:.1f} kJ/mol")
                         with cm2: st.metric("R\u00b2", f"{r_sq:.4f}")
 
-                    fig2, ax2 = plt.subplots(figsize=(fig_width, fig_height), facecolor='white')
+                    fig2, ax2 = plt.subplots(figsize=(fig_width / 2.54, fig_height / 2.54), facecolor='white')
                     ax2.set_facecolor('white'); ax2.grid(False)
                     for spine in ['top', 'bottom', 'left', 'right']:
                         ax2.spines[spine].set_linewidth(1.0); ax2.spines[spine].set_color('black')
