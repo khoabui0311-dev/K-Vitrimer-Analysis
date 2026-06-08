@@ -20,6 +20,8 @@ from can_relax.io.parser import parse_wide_format_data as parser_module_func
 from can_relax.core.simulator import MaterialSimulator
 from can_relax.core.kinetics import KineticsEngine
 from can_relax.core.tts import TTSEngine
+from can_relax.core.analyzer import CurveAnalyzer
+from can_relax.core.spectrum import SpectrumAnalyzer
 
 # ==========================================
 # 1. PREMIUM UI CSS INJECTION
@@ -117,6 +119,8 @@ st.sidebar.caption("v1.0 | Professional Edition")
 # Init Modules
 sim = MaterialSimulator()
 tts_engine = TTSEngine()
+analyzer = CurveAnalyzer()
+spectrum_engine = SpectrumAnalyzer()
 
 # Helper
 def get_tau_1_over_e(t, g):
