@@ -131,8 +131,8 @@ def get_tau_1_over_e(t, g):
     return np.nan
 
 # TABS
-tab_analysis, tab_sim, tab_pub, tab_comparison, tab_education, tab_credits = st.tabs([
-    "🚀 Analysis", "🧪 Virtual Lab", "📝 Publish", "📊 Compare", "📚 Education", "©️ Credits"
+tab_analysis, tab_sim, tab_pub, tab_comparison, tab_plotting, tab_education, tab_credits = st.tabs([
+    "🚀 Analysis", "🧪 Virtual Lab", "📝 Publish", "📊 Compare", "📈 Plotting", "📚 Education", "©️ Credits"
 ])
 
 # ------------------------------------------------------------------
@@ -1896,7 +1896,8 @@ with tab_pub:
 # TAB 6: EDUCATION & THEORY
 
 # --- MODULAR TABS ---
-from can_relax.gui.components import render_education_tab, render_credits_tab
+from can_relax.gui.components import render_education_tab, render_credits_tab, render_plotting_tab
 
+render_plotting_tab(tab_plotting)
 render_education_tab(tab_education)
 render_credits_tab(tab_credits)
