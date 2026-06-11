@@ -3,8 +3,6 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 import matplotlib.pyplot as plt
-import matplotlib.ticker as ticker
-from matplotlib.ticker import LogFormatterMathtext
 import io
 from PIL import Image
 
@@ -352,11 +350,8 @@ def render_plotting_tab(tab_plotting):
                         zorder=3
                     )
                     
-                    # Set axis scales and limits
                     if y_axis_scale == "Log":
                         ax_mpl.set_yscale("log")
-                        # Format ticks nicely in scientific notation for log scale
-                        ax_mpl.yaxis.set_major_formatter(LogFormatterMathtext())
                     
                     ax_mpl.set_ylim(ymin_input, ymax_input)
 
@@ -512,7 +507,6 @@ def render_plotting_tab(tab_plotting):
                     
                     if y_axis_scale == "Log":
                         ax_exp.set_yscale("log")
-                        ax_exp.yaxis.set_major_formatter(LogFormatterMathtext())
                     ax_exp.set_ylim(ymin_input, ymax_input)
 
                     # Frame styling
