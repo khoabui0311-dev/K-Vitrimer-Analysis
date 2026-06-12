@@ -9,7 +9,7 @@ def render_credits_tab(tab_credits):
             ### 🔬 K Vitrimer Analysis
             **Kinetic Analysis of Vitrimer Relaxation & Kinetics**
 
-            v1.0 | Professional Edition | December 2025
+            v2.0 | Professional Edition | June 2026
 
             ---
 
@@ -34,6 +34,7 @@ def render_credits_tab(tab_credits):
             ### 🤖 Coding Assistance
 
             Development supported by AI-assisted coding tools:
+            - **Antigravity** (Google DeepMind)
             - **Microsoft Copilot**
             - **OpenAI ChatGPT**
             - **Google Gemini**
@@ -48,9 +49,12 @@ def render_credits_tab(tab_credits):
 
             - **Maxwell Model**: Single exponential relaxation
             - **Kohlrausch-Williams-Watts (KWW)**: Stretched exponential for complex systems
-            - **Arrhenius & VFT Kinetics**: Temperature-dependent relaxation time analysis
+            - **Arrhenius & Eyring Kinetics**: Temperature-dependent relaxation time and activation enthalpy/entropy analysis
+            - **Van 't Hoff Kinetics**: Temperature-dependent plateau modulus decrosslinking thermodynamics (in **MPa**)
+            - **VFT & Coupled WLF-Arrhenius Kinetics**: Glass transition dynamics and dual glassy-to-chemical transition relaxation
             - **Time-Temperature Superposition (TTS)**: Mastercurve generation
-            - **Relaxation Spectrum**: Continuous distribution of relaxation times
+            - **Tikhonov Relaxation Spectrum**: Continuous distribution of relaxation times $H(\tau)$ using positive-constrained Ridge Regression with Hansen's L-curve corner detection and equilibration modulus ($G_{eq}$) baseline subtraction
+            - **Statistical Model Selection**: Automated BIC and AICc selection for kinetics fits
 
             ---
 
@@ -60,19 +64,19 @@ def render_credits_tab(tab_credits):
             - **Scientific Computing**: NumPy, SciPy, Pandas
             - **Visualization**: Plotly, Matplotlib
             - **Machine Learning**: Scikit-learn
-            - **Data Processing**: Openpyxl
+            - **Data Processing**: Openpyxl, Pypdf
             - **Language**: Python 3.13+
 
             ---
 
             ### 📖 Application Features
 
-            ✅ **Analysis Tab**: Import & fit relaxation curves with physics-based models  
+            ✅ **Analysis Tab**: Import & fit relaxation curves with support for MPa and Pa modulus types  
             ✅ **Virtual Lab**: Simulate synthetic curves with custom parameters  
-            ✅ **Publish**: Export publication-ready figures (PNG/PDF/SVG)  
-            ✅ **Kinetics**: Temperature-dependent analysis with Arrhenius/VFT fitting  
+            ✅ **Publish**: Export publication-ready figures (PNG/PDF/SVG) for all 5 temperature kinetics models  
+            ✅ **Kinetics**: Temperature-dependent analysis with Arrhenius, Eyring, VFT, Van 't Hoff, and Coupled WLF-Arrhenius fitting  
             ✅ **Mastercurve**: Time-Temperature Superposition for multi-temperature data  
-            ✅ **Spectrum**: Continuous relaxation time distribution analysis  
+            ✅ **Spectrum**: Continuous relaxation time distribution analysis with L-curve corner optimization and $G_{eq}$ subtraction  
 
             ---
 

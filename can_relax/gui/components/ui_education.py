@@ -105,7 +105,38 @@ def render_education_tab(tab_education):
                 - Physically meaningful separation of processes
                 """)
 
-                st.info("✅ **CAN-Relax Implements**: Maxwell, Single-KWW, and Dual-KWW models with automatic model selection")
+                # Continuous spectrum & Tikhonov regularization
+                st.markdown("#### 4️⃣ Continuous Relaxation Spectrum & Regularization")
+                st.markdown(r"""
+                Instead of assuming discrete relaxation times, complex polymer networks are often best described by a **continuous relaxation spectrum** $H(\tau)$, representing the density of relaxation processes at scale $\tau$:
+                
+                $$G(t) = G_{eq} + \int_{-\infty}^{\infty} H(\tau) \exp\left(-\frac{t}{\tau}\right) d\ln\tau$$
+                
+                Solving for $H(\tau)$ from experimental stress relaxation data $G(t)$ is a mathematically **ill-posed inverse problem** (equivalent to an inverse Laplace transform). Small noise in $G(t)$ can cause wild, unphysical oscillations in $H(\tau)$.
+                
+                To solve this robustly, **CAN-Relax** implements **Tikhonov Regularization (Ridge Regression)** with a non-negativity constraint:
+                
+                $$\min_H \|A H - g\|_2^2 + \alpha \|H\|_2^2 \quad \text{subject to } H \ge 0$$
+                
+                Where:
+                - $A_{ij} = \exp(-t_i / \tau_j)$ is the kernel matrix.
+                - $g$ is the target modulus vector.
+                - $\alpha$ is the regularization parameter controlling the trade-off between fitting error and spectrum smoothness.
+                
+                **L-Curve Corner Optimization:**
+                To determine the optimal $\alpha$, we employ the **L-curve method** (Hansen et al.). By plotting the solution norm ($\|H\|_2$) versus the residual norm ($\|A H - g\|_2$) on a log-log scale for a wide range of $\alpha$, a characteristic L-shaped curve is obtained. The optimal $\alpha$ corresponds to the **corner of maximum curvature**, which represents the ideal balance between overfitting (too small $\alpha$, leading to noise artifacts) and underfitting (too large $\alpha$, over-smoothing the spectrum).
+                
+                **Equilibration Modulus ($G_{eq}$) Subtraction:**
+                A critical requirement for regularization is that the modulus decays to zero at infinite time. In networks containing permanent cross-links, or in incomplete experiments, the modulus decays to a non-zero plateau ($G_{eq} > 0$). Failing to subtract this baseline violates the kernel assumptions, causing massive baseline artifacts at long relaxation times in the spectrum. 
+                
+                **Our strategy**: We automatically calculate the mean of the last 5% of data points as $G_{eq}$ and subtract it prior to the regularized inversion:
+                
+                $$g_{target}(t) = G(t) - G_{eq}$$
+                
+                This aligns directly with the methodology described in *Wink et al., ACS Polym. Au 2026*.
+                """)
+
+                st.info("✅ **CAN-Relax Implements**: Maxwell, Single-KWW, Dual-KWW, and Continuous Tikhonov Relaxation Spectrum with L-curve optimization and G_eq subtraction.")
 
             # ====== TAB 2: TEMPERATURE KINETICS ======
             with edu_tabs[1]:
@@ -165,47 +196,105 @@ def render_education_tab(tab_education):
                 - Data spanning across and near $T_g$
                 - Curved Arrhenius plot
                 - Strongly temperature-sensitive materials (vitrimers, polymer blends)
-
-                **Comparison:**
-                | Property | Arrhenius | VFT |
-                |---|---|---|
-                | **Valid range** | $T \\gg T_g$ | $T_0 < T < T_g + 100°C$ |
-                | **Shape** | Linear in semi-log | Curved |
-                | **Parameters** | 2 ($E_a$, $\\tau_0$) | 3 ($B$, $T_0$, $\\tau_0$) |
-                | **Physics** | Simple activation | Complex cooperative motion |
                 """)
 
-                st.markdown("#### 🎯 Comparison Plot: Arrhenius vs VFT")
+                # Eyring
+                st.markdown("#### 🟢 Eyring Model (Transition State Theory)")
+                st.latex(r"\ln(\tau \cdot T) = \ln\left(\frac{h}{k_B}\right) - \frac{\Delta S^{\ddagger}}{R} + \frac{\Delta H^{\ddagger}}{R T}")
+                st.markdown(r"""
+                **Physical Interpretation:**
+                - Based on **Transition State Theory** (TST), assuming that stress relaxation rate ($1/\tau$) is governed by the chemical exchange rate.
+                - Relates relaxation kinetics directly to thermodynamic activation parameters.
+
+                **Parameters:**
+                - $\Delta H^{\ddagger}$: Activation enthalpy (kJ/mol) — the energy barrier required to reach the transition state.
+                - $\Delta S^{\ddagger}$: Activation entropy (J/mol·K) — measures structural changes (ordering/disordering) when forming the transition state.
+                - $h = 6.626 \times 10^{-34}$ J·s: Planck constant.
+                - $k_B = 1.381 \times 10^{-23}$ J/K: Boltzmann constant.
+                - $R = 8.314$ J/(mol·K): Gas constant.
+
+                **Mechanism Diagnosis via Activation Entropy ($\Delta S^{\ddagger}$):**
+                - **$\Delta S^{\ddagger} < 0$ (Negative)**: Indicates an **associative mechanism** (e.g., transesterification, transamination). The transition state involves coordination of active groups, leading to a more ordered, structurally constrained state.
+                - **$\Delta S^{\ddagger} > 0$ (Positive)**: Indicates a **dissociative mechanism** (e.g., Diels-Alder, boronic ester cleavage). The transition state is more disordered due to bond-breaking before bond-reforming.
+                """)
+
+                # Van 't Hoff
+                st.markdown("#### 🟣 Van 't Hoff Model (Decrosslinking Thermodynamics)")
+                st.latex(r"G_0(T) = \frac{G_{0,\max}}{1 + \exp\left(-\frac{\Delta H_d}{R T} + \frac{\Delta S_d}{R}\right)}")
+                st.markdown(r"""
+                **Physical Interpretation:**
+                - Describes the **thermal dissociation of cross-links** in dissociative CANs (e.g., Diels-Alder networks).
+                - Models the decrease of the rubbery plateau modulus ($G_0$ or $E_0$) in **MPa** as a function of temperature due to network decrosslinking.
+
+                **Parameters:**
+                - $G_{0,\max}$: Maximum plateau modulus (MPa) at low temperatures where all dynamic cross-links are intact.
+                - $\Delta H_d$: Enthalpy of bond dissociation (kJ/mol).
+                - $\Delta S_d$: Entropy of bond dissociation (J/mol·K).
+                """)
+
+                # Coupled WLF-Arrhenius
+                st.markdown("#### 🟤 Coupled WLF-Arrhenius Model")
+                st.latex(r"\tau(T) = A \exp\left(\frac{E_{a,chem}}{R T}\right) + C \exp\left(\frac{B}{T - T_0}\right)")
+                st.markdown(r"""
+                **Physical Interpretation:**
+                - Captures **both regimes** in covalent adaptable networks:
+                  1. Glass transition dynamics at low temperatures (cooperative motion described by the VFT/WLF term).
+                  2. Chemical bond exchange dynamics at high temperatures (Arrhenius term).
+                - Fits the complete temperature range, avoiding the typical overestimation of relaxation times when using pure Arrhenius near $T_g$.
+
+                **Parameters:**
+                - $E_{a,chem}$: Activation energy of the chemical bond exchange (kJ/mol).
+                - $B, T_0$: Vogel-Fulcher-Tammann parameters describing glass dynamics.
+                - $A, C$: Pre-exponential scaling constants.
+                """)
+
+                st.markdown("#### 🎯 Comparison Plot: Temperature Kinetics Models")
 
                 # Generate comparison plot
-                T_range = np.linspace(300, 450, 100)
-                tau_arr = np.exp(np.log(1e-6) + (80000/8.314) * (1/T_range - 1/373.15))
-                tau_vft = np.exp(np.clip(np.log(1e-6) + 2000/(T_range - 323.15), -50, 50))
+                T_range = np.linspace(40 + 273.15, 200 + 273.15, 200) # 40 to 200 °C
+                T_C = T_range - 273.15
+                
+                # 1. Arrhenius: Ea = 90 kJ/mol, ln(tau0) = -30
+                tau_arr = np.exp(-30.0 + 90000.0 / (8.314 * T_range))
+                
+                # 2. Eyring: dH = 85 kJ/mol, dS = -20 J/mol*K
+                h = 6.626e-34
+                kB = 1.381e-23
+                tau_eyring = (h / (kB * T_range)) * np.exp(85000.0 / (8.314 * T_range) - (-20.0 / 8.314))
+                
+                # 3. VFT: A = -16, B = 2000 K, T0 = 240 K (Tg ~ 50 °C)
+                tau_vft = np.exp(-16.0 + 2000.0 / (T_range - 240.0))
+                
+                # 4. Coupled: Ea_chem = 80 kJ/mol, VFT B = 1000 K, T0 = 260 K
+                tau_coupled = 1e-11 * np.exp(80000.0 / (8.314 * T_range)) + 1e-4 * np.exp(1000.0 / (T_range - 260.0))
 
                 fig_comp, ax_comp = plt.subplots(figsize=(8, 5))
-                ax_comp.semilogy(T_range - 273.15, tau_arr, 'o-', linewidth=2.5, markersize=4, label=r'Arrhenius ($E_{a} = 80$ kJ/mol)', color='#EF553B')
-                ax_comp.semilogy(T_range - 273.15, tau_vft, 's-', linewidth=2.5, markersize=4, label=r'VFT ($B = 2000$ K)', color='#636EFA')
-                ax_comp.axvline(x=50, color='gray', linestyle='--', alpha=0.6, label=r'Approximate $T_{g}$')
+                ax_comp.semilogy(T_C, tau_arr, '-', linewidth=2.5, label=r'Arrhenius ($E_a = 90$ kJ/mol)', color='#EF553B')
+                ax_comp.semilogy(T_C, tau_eyring, '--', linewidth=2.5, label=r'Eyring ($\Delta H^{\ddagger} = 85$ kJ/mol)', color='#00CC96')
+                ax_comp.semilogy(T_C, tau_vft, ':', linewidth=2.5, label=r'VFT ($B = 2000$ K)', color='#636EFA')
+                ax_comp.semilogy(T_C, tau_coupled, '-.', linewidth=2.5, label=r'Coupled WLF-Arrhenius', color='#AB63FA')
+                ax_comp.axvline(x=50, color='gray', linestyle='--', alpha=0.6, label=r'Approximate $T_{g}$ (50 °C)')
+                
                 ax_comp.set_xlabel('Temperature (°C)', fontsize=12, fontweight='bold')
                 ax_comp.set_ylabel(r'Relaxation Time $\tau$ (s)', fontsize=12, fontweight='bold')
-                ax_comp.set_title('Temperature Dependence: Arrhenius vs VFT', fontsize=13, fontweight='bold')
+                ax_comp.set_title('Comparison of Temperature Kinetics Models', fontsize=13, fontweight='bold')
                 ax_comp.grid(True, alpha=0.3, which='both')
-                ax_comp.legend(fontsize=11, loc='upper left')
-                ax_comp.set_ylim([1e-8, 1e4])
+                ax_comp.legend(fontsize=10, loc='upper right')
+                ax_comp.set_ylim([1e-3, 1e6])
                 try:
                     plt.tight_layout()
                     st.pyplot(fig_comp)
                 except Exception as e:
-                    st.error(f"Matplotlib error rendering Arrhenius vs VFT: {e}")
-                    st.pyplot(fig_comp) # Attempt without tight_layout
+                    st.error(f"Matplotlib error rendering models comparison: {e}")
+                    st.pyplot(fig_comp)
                 finally:
                     plt.close(fig_comp)
 
                 st.markdown("""
                 **Key Observations:**
-                - VFT shows **stronger curvature** near $T_g$ (50°C in this example)
-                - Arrhenius remains linear across the entire range
-                - For **vitrimers near exchange threshold**, VFT is more appropriate
+                - **Arrhenius & Eyring**: Linear behavior in semi-log plots, representing single active barrier kinetics. Excellent at high temperatures ($T \gg T_g$).
+                - **VFT**: Exhibits strong upward curvature as the temperature approaches $T_g$ due to cooperative glassy dynamics.
+                - **Coupled WLF-Arrhenius**: Combines both regimes. It matches the VFT curve near $T_g$ and transitions smoothly into the linear Arrhenius regime at high temperatures.
                 """)
 
             # ====== TAB 3: VITRIMER CHEMISTRY ======
@@ -278,6 +367,41 @@ def render_education_tab(tab_education):
                 - **Low T** ($T < T_{exchange}$): Exchange frozen, behaves like thermoset
                 - **Mid T** ($T_{exchange} < T < T_g + 50°C$): Slow exchange, plastic behavior
                 - **High T** ($T > T_g + 50°C$): Fast exchange, liquid-like behavior
+                """)
+
+                # CAN Characterization Strategy
+                st.markdown("### 🧭 CAN Characterization Strategy in CAN-Relax")
+                st.markdown(r"""
+                Our software implements the recommended characterization workflow detailed in the scientific literature (*Berne et al., ACS Polym. Au 2025*):
+                
+                ```
+                [Raw Stress Relaxation G(t) in MPa]
+                               │
+                               ▼
+               [Pre-processing: G_eq Subtraction]
+                               │
+                               ▼
+              [Model Fitting & Spectrum Extraction]
+                 (Maxwell, KWW, Dual-KWW, or 
+                Tikhonov Continuous Spectrum H(τ))
+                               │
+                               ▼
+               [Characteristic Scale τ* Extraction]
+                               │
+                               ▼
+                   [Kinetics Model Fitting]
+             (Arrhenius, Eyring, VFT, or Coupled)
+                               │
+                               ▼
+               [Parameter Estimation & Selection]
+                  (Ea, ΔH‡, ΔS‡, and BIC selection)
+                ```
+                
+                1. **Linear Viscoelastic Region (LVE) & MPa Modulus**: Stress relaxation tests are conducted under constant small strain. Initial plateau modulus values ($G_0$/$E_0$) are processed and reported in **MPa**.
+                2. **G_eq Subtraction**: If dynamic networks contain permanent cross-links or measurements are truncated, the stress decays to a non-zero equilibration plateau ($G_{eq}$). We subtract this tail value before inverting the spectrum to avoid long-time spectral baseline artifacts.
+                3. **Model Fitting**: Users can fit discrete models (Maxwell, Single-KWW, or Dual-KWW) or extract the continuous relaxation spectrum $H(\tau)$ via Ridge regression with Hansen's L-curve corner optimization.
+                4. **Temperature-dependent Kinetics**: The relaxation times $\tau(T)$ are analyzed using Arrhenius or Eyring (Transition State Theory) models to diagnose chemical mechanisms, or Vogel-Fulcher-Tammann (VFT) / Coupled WLF-Arrhenius models to study glass dynamics.
+                5. **Decrosslinking analysis**: The temperature-dependent modulus $G_0(T)$ is analyzed using the Van 't Hoff equation to model network dissociation thermodynamics.
                 """)
 
             # ====== TAB 4: MODEL COMPARISON ======
@@ -363,6 +487,27 @@ def render_education_tab(tab_education):
                 - **β value interpretation**: β < 0.8 suggests significant polydispersity
                 """)
 
+                st.markdown("#### ⚖️ Automated Kinetics Model Selection (BIC & AICc)")
+                st.markdown(r"""
+                When analyzing temperature-dependent kinetics, more complex models with more parameters (e.g., VFT with 3 parameters or Coupled WLF-Arrhenius with 5 parameters) will always give lower residuals than simpler models (e.g., Arrhenius or Eyring with 2 parameters). However, this can lead to **overfitting**.
+                
+                To balance goodness-of-fit with model complexity, **CAN-Relax** computes two statistical criteria:
+                
+                * **Bayesian Information Criterion (BIC)**:
+                  $$BIC = n \ln\left(\frac{\text{RSS}}{n}\right) + k \ln(n)$$
+                
+                * **Akaike Information Criterion with Correction for Small Sample Sizes (AICc)**:
+                  $$AICc = n \ln\left(\frac{\text{RSS}}{n}\right) + 2k + \frac{2k(k+1)}{n-k-1}$$
+                
+                Where:
+                - $n$: Number of experimental temperature points.
+                - $k$: Number of model parameters (Arrhenius = 2, Eyring = 2, VFT = 3, Van 't Hoff = 3, Coupled = 5).
+                - $RSS$: Residual Sum of Squares of the fit.
+                
+                **Decision Strategy**:
+                The model that minimizes the BIC (or AICc) is identified as the statistically optimal choice. This ensures that the 5-parameter Coupled model is only recommended if it provides a massive improvement in fit quality compared to the 2-parameter Arrhenius or Eyring models.
+                """)
+
             # ====== TAB 5: REFERENCES ======
             with edu_tabs[4]:
                 st.subheader("Scientific References & Literature")
@@ -417,16 +562,22 @@ def render_education_tab(tab_education):
                 13. Larson, R. G. (1999). *The Structure and Rheology of Complex Fluids*. Oxford University Press.
                     - Comprehensive theory
 
-                ### 🔍 Time-Temperature Superposition
-
-                14. Williams, M. L., et al. (1955). "The temperature dependence of relaxation mechanisms in amorphous polymers and other glass-forming liquids." *J. Am. Chem. Soc.* 77(14), 3701-3707.
-                    - WLF equation and TTS principle
-
                 ### 🧬 Advanced Topics: Vitrimer Dynamics
 
                 15. Zheng, N., et al. (2017). "Catalyst-free thermoset polyurethane with permanent shape reconfigurability and highly tunable triple-shape memory performance." *ACS Macro Lett.* 6(3), 326-330.
 
                 16. Stukalin, E. B., et al. (2013). "Self-healing of unentangled polymer networks with reversible bonds." *Macromolecules* 46(18), 7525-7541.
+
+                ### 📘 Key Reference Guidelines for CAN Characterization
+
+                17. **Berne, D., Laviéville, S., Leclerc, E., Caillol, S., Ladmiral, V., & Bakkali-Hassani, C. (2025).** "How to Characterize Covalent Adaptable Networks: A User Guide." *ACS Polym. Au* 5, 214-240.
+                    - Detailed guidelines on DMA, stress relaxation, Arrhenius, and Eyring analysis.
+
+                18. **Wink, R., Geerars, O. B., Heuts, J. P. A., & Sijbesma, R. P. (2026).** "A Practical User Guide to Stress Relaxation Spectra of Dynamic Covalent Networks." *ACS Polym. Au* 6(2), 107-116.
+                    - Practical tutorial on Tikhonov regularization, Hansen's L-curve, and equilibration modulus (G_eq) baseline correction.
+
+                19. **Lin, Y., et al. (2025).** "A Coupled Glassy-to-Rubbery Relaxation Model for Covalent Adaptable Networks." *Macromolecules* 58, 2341-2350.
+                    - Proposing the coupled VFT-Arrhenius model for wide temperature range analysis.
 
                 ---
 
@@ -441,10 +592,8 @@ def render_education_tab(tab_education):
                 ✅ **Maxwell model** = baseline (single time scale)  
                 ✅ **KWW model** = stretching exponent captures polydispersity  
                 ✅ **Dual-KWW model** = multiple concurrent processes  
-                ✅ **Arrhenius** = simple, works far above $T_g$  
-                ✅ **VFT** = better near $T_g$ (dynamic/vitrimer systems)  
-                ✅ **Vitrimers** = exchangeable bonds enable reprocessing  
-
+                ✅ **Arrhenius & Eyring** = simple, works far above $T_g$; Eyring yields activation enthalpy/entropy  
+                ✅ **VFT & Coupled** = better near $T_g$ (captures cooperative glassy dynamics)  
+                ✅ **Van 't Hoff** = describes thermal dissociation of plateau modulus in MPa  
+                ✅ **Tikhonov regularization** = extracts continuous relaxation spectrum $H(\tau)$ with L-curve corner detection and $G_{eq}$ subtraction  
                 """)
-
-
