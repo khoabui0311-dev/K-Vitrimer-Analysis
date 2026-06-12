@@ -687,10 +687,10 @@ with tab_sim:
                             g_norm = g / g[0] if g[0] > 0 else g
                             ax_mpl.plot(t, g_norm, linewidth=2, label=f"{T}°C", color=colors[i])
                         ax_mpl.set_xscale('log')
-                        ax_mpl.set_xlabel("Time (s)", fontsize=11, fontweight='bold')
-                        ax_mpl.set_ylabel("G(t) / G₀", fontsize=11, fontweight='bold')
+                        ax_mpl.set_xlabel("Time (s)", fontsize=12, fontweight='normal')
+                        ax_mpl.set_ylabel("G(t) / G₀", fontsize=12, fontweight='normal')
                         ax_mpl.grid(True, alpha=0.3, linestyle='--')
-                        ax_mpl.legend(frameon=True, fontsize=10)
+                        ax_mpl.legend(frameon=True, fontsize=8)
                         ax_mpl.tick_params(labelsize=10)
                         plt.tight_layout()
                         
@@ -740,10 +740,10 @@ with tab_sim:
                         Tv_x = (ln_tau_target - intercept) / slope
                         ax_arr.plot([Tv_x], [ln_tau_target], marker='*', markersize=18, color='gold', markeredgecolor='black', markeredgewidth=1.5, label=f'Tᵥ = {Tv_rec:.1f}°C', zorder=4)
                         
-                        ax_arr.set_xlabel("1000/T (K⁻¹)", fontsize=11, fontweight='bold')
-                        ax_arr.set_ylabel("ln(τ)", fontsize=11, fontweight='bold')
+                        ax_arr.set_xlabel("1000/T (K⁻¹)", fontsize=12, fontweight='normal')
+                        ax_arr.set_ylabel("ln(τ)", fontsize=12, fontweight='normal')
                         ax_arr.grid(True, alpha=0.3, linestyle='--')
-                        ax_arr.legend(frameon=True, fontsize=10)
+                        ax_arr.legend(frameon=True, fontsize=8)
                         ax_arr.tick_params(labelsize=10)
                         plt.tight_layout()
                         
@@ -992,7 +992,7 @@ with tab_comparison:
             with st.expander("📝 Legend Settings", expanded=False):
                 show_comp_legend = st.checkbox("Show Legend", value=True, key="comp_legend")
                 comp_leg_pos = st.selectbox("Position", ["best", "upper right", "upper left", "lower left", "lower right", "right (outside)"], key="comp_leg_pos")
-                comp_leg_fontsize = st.slider("Font Size", 4, 20, 10, key="comp_leg_fontsize")
+                comp_leg_fontsize = st.slider("Font Size", 4, 20, 8, key="comp_leg_fontsize")
                 comp_leg_box = st.checkbox("Box Border", value=True, key="comp_leg_box")
                 comp_show_ea = st.checkbox("Show Ea ± std", value=False, key="comp_show_ea")
 

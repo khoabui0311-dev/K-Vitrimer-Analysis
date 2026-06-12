@@ -219,7 +219,7 @@ def render_plotting_tab(tab_plotting):
                     f_cols = st.columns(2)
                     with f_cols[0]:
                         lbl_size = st.number_input("Axis Label Font Size", 4, 30, 12, key="lbl_size")
-                        lbl_weight = st.selectbox("Axis Label Weight", ["bold", "normal"], key="lbl_weight")
+                        lbl_weight = st.selectbox("Axis Label Weight", ["normal", "bold"], key="lbl_weight")
                     with f_cols[1]:
                         tick_lbl_size = st.number_input("Tick Label Font Size", 4, 30, 10, key="tick_lbl_size")
                         tick_lbl_weight = st.selectbox("Tick Label Weight", ["normal", "bold"], key="tick_lbl_weight")
