@@ -315,7 +315,7 @@ def render_plotting_tab(tab_plotting):
                         template="plotly_white"
                     )
                     
-                    st.plotly_chart(fig_pl, use_container_width=True)
+                    st.plotly_chart(fig_pl, width='stretch')
 
                 # ── Tab 2: Matplotlib Publication Preview ──
                 with t_matplotlib:
@@ -474,7 +474,7 @@ def render_plotting_tab(tab_plotting):
                 st.subheader("📥 Export Figure")
                 
                 # Check target file download setup
-                btn_export = st.button("Generate Downloadable Files", type="primary", use_container_width=True, key="btn_export_figs")
+                btn_export = st.button("Generate Downloadable Files", type="primary", width='stretch', key="btn_export_figs")
                 
                 if btn_export:
                     # Rerender figure with export-level specifications
@@ -658,7 +658,7 @@ def render_plotting_tab(tab_plotting):
                         data=buf,
                         file_name=filename,
                         mime=mime_type,
-                        use_container_width=True
+                        width='stretch'
                     )
                     st.success(f"🎉 Plot successfully generated! Click above to download `{filename}`.")
                 else:

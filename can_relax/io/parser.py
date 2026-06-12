@@ -37,11 +37,11 @@ def parse_wide_format_data(file_path):
             df_raw = pd.read_excel(file_path)
 
     except Exception as e:
-        logger.error(f"❌ [PARSER] Critical failure opening file: {e}")
+        logger.error(f"[ERROR] [PARSER] Critical failure opening file: {e}")
         return {}
 
     if df_raw is None:
-        logger.error("❌ [PARSER] Could not read file. Checked UTF-8, Latin-1, and Excel formats.")
+        logger.error("[ERROR] [PARSER] Could not read file. Checked UTF-8, Latin-1, and Excel formats.")
         return {}
 
     # 2. Identify Columns via Regex
@@ -61,7 +61,7 @@ def parse_wide_format_data(file_path):
     curves = {}
 
     # 3. Group Columns into Triplets
-    print(f"🔍 [PARSER] Scanning {len(cols)} columns...")
+    print(f"[PARSER] Scanning {len(cols)} columns...")
     for i, c in enumerate(cols):
         if col_type[c] != 'temp': continue
         
@@ -118,11 +118,11 @@ def parse_wide_format_data(file_path):
                     
                     if not final_df.empty:
                         curves[temp_val] = final_df
-                        print(f"  ✅ Found curve: {temp_val}°C")
+                        print(f"  [OK] Found curve: {temp_val}C")
             except Exception:
                 continue
     
     if not curves:
-        print(f"❌ [PARSER] No curves found. Columns detected: {cols}")
+        print(f"[ERROR] [PARSER] No curves found. Columns detected: {cols}")
         
     return curves

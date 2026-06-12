@@ -173,7 +173,7 @@ with tab_analysis:
 
     # ── Always-visible Run button ─────────────────────────────────
     st.sidebar.markdown("---")
-    run_btn = st.sidebar.button("▶ Run Analysis", type="primary", use_container_width=True)
+    run_btn = st.sidebar.button("▶ Run Analysis", type="primary", width='stretch')
 
     # PROCESS
     if uploaded_file and run_btn:
@@ -221,41 +221,48 @@ with tab_analysis:
         # 1. CURVES
         with t1:
             # ── Compact control row above chart ──
-            ctl1, ctl2, _ctl3 = st.columns([1, 1, 4])
+            ctl1, ctl2, ctl3, ctl4, _ctl5 = st.columns([1.2, 1.2, 1.2, 1.0, 2.4])
             with ctl1:
-                time_axis_type = st.radio("Time Scale", ["Log", "Linear"], horizontal=True)
+                time_axis_type = st.radio("Time Scale", ["Log", "Linear"], horizontal=True, key="time_axis_type")
             with ctl2:
-                show_fits = st.checkbox("Show Fits", True)
+                curves_y_axis_scale = st.radio("Y Scale", ["Linear", "Log"], horizontal=True, key="curves_y_axis_scale")
+            with ctl3:
+                mod_plot_type = st.radio("Modulus Type", ["Normalized", "Absolute"], horizontal=True, key="mod_plot_type")
+            with ctl4:
+                show_fits = st.checkbox("Show Fits", True, key="show_fits")
 
             fig = go.Figure()
             for r in active_results:
                 t_raw = r['Raw']['t']
                 g_raw = r['Raw']['g']
-                g_norm = g_raw
+                G0 = r['Raw'].get('G0', 1.0)
+                g_plot = g_raw if mod_plot_type == "Normalized" else g_raw * G0
                 step = max(1, len(t_raw)//300)
                 fig.add_trace(go.Scatter(
                     x=t_raw[::step],
-                    y=g_norm[::step],
+                    y=g_plot[::step],
                     mode='markers',
                     name=f"{r['Temp']}C",
                     marker=dict(size=6, opacity=0.8)
                 ))
                 if show_fits and fit_model in r['Fits']:
                     g_fit_raw = r['Fits'][fit_model].get('curve', r['Raw']['g'])
-                    g_fit_norm = g_fit_raw
+                    g_fit_plot = g_fit_raw if mod_plot_type == "Normalized" else g_fit_raw * G0
                     fig.add_trace(go.Scatter(
                         x=t_raw,
-                        y=g_fit_norm,
+                        y=g_fit_plot,
                         mode='lines',
                         name=f"Fit",
                         line=dict(width=2, dash='dash', color='black')
                     ))
 
             t_type = "log" if time_axis_type == "Log" else "linear"
+            y_type = "log" if curves_y_axis_scale == "Log" else "linear"
+            y_title = "G(t)/G₀" if mod_plot_type == "Normalized" else "G(t) (MPa)"
             fig.update_xaxes(type=t_type, title="Time (s)")
-            fig.update_yaxes(title="G(t)/G\u2080")
+            fig.update_yaxes(type=y_type, title=y_title)
             fig.update_layout(height=500, margin=dict(l=20,r=20,t=20,b=20))
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
 
             # ── Fitting parameters: collapsible ──
             with st.expander("\U0001f4ca Fitting Parameters", expanded=False):
@@ -265,17 +272,21 @@ with tab_analysis:
                     if fit_model in r['Fits']:
                         p = r['Fits'][fit_model]['popt']
                         r2 = r['Fits'][fit_model]['r2']
+                        aic = r['Fits'][fit_model].get('aic', np.inf)
+                        bic = r['Fits'][fit_model].get('bic', np.inf)
                         if fit_model == "Maxwell":
-                            fit_details.append({"Temperature (\u00b0C)": temp, "Tau (s)": p[0], "R\u00b2": r2})
+                            fit_details.append({"Temperature (\u00b0C)": temp, "Tau (s)": p[0], "R\u00b2": r2, "AICc": aic, "BIC": bic})
                         elif fit_model == "Single_KWW":
-                            fit_details.append({"Temperature (\u00b0C)": temp, "Tau (s)": p[0], "Beta (\u03b2)": p[1], "R\u00b2": r2})
+                            fit_details.append({"Temperature (\u00b0C)": temp, "Tau (s)": p[0], "Beta (\u03b2)": p[1], "R\u00b2": r2, "AICc": aic, "BIC": bic})
                         elif fit_model == "Dual_KWW":
-                            fit_details.append({"Temperature (\u00b0C)": temp, "Fraction A": p[0], "Tau 1 (s)": p[1], "Beta 1 (\u03b21)": p[2], "Tau 2 (s)": p[3], "Beta 2 (\u03b22)": p[4], "R\u00b2": r2})
+                            fit_details.append({"Temperature (\u00b0C)": temp, "Fraction A": p[0], "Tau 1 (s)": p[1], "Beta 1 (\u03b21)": p[2], "Tau 2 (s)": p[3], "Beta 2 (\u03b22)": p[4], "R\u00b2": r2, "AICc": aic, "BIC": bic})
                 if fit_details:
                     df_details = pd.DataFrame(fit_details)
                     col_config = {
                         "Temperature (\u00b0C)": st.column_config.NumberColumn(format="%.1f"),
-                        "R\u00b2": st.column_config.NumberColumn(format="%.4f")
+                        "R\u00b2": st.column_config.NumberColumn(format="%.4f"),
+                        "AICc": st.column_config.NumberColumn(format="%.2f"),
+                        "BIC": st.column_config.NumberColumn(format="%.2f")
                     }
                     if fit_model == "Maxwell":
                         col_config["Tau (s)"] = st.column_config.NumberColumn(format="%.3e")
@@ -288,7 +299,7 @@ with tab_analysis:
                         col_config["Beta 1 (\u03b21)"] = st.column_config.NumberColumn(format="%.3f")
                         col_config["Tau 2 (s)"] = st.column_config.NumberColumn(format="%.3e")
                         col_config["Beta 2 (\u03b22)"] = st.column_config.NumberColumn(format="%.3f")
-                    st.dataframe(df_details, column_config=col_config, hide_index=True, use_container_width=True)
+                    st.dataframe(df_details, column_config=col_config, hide_index=True, width='stretch')
                     csv_details = df_details.to_csv(index=False)
                     st.download_button("\U0001f4e5 Download Fit Parameters CSV", csv_details, "fit_parameters.csv", key="dl_fit_params")
 
@@ -313,37 +324,143 @@ with tab_analysis:
                 col_edit, col_chart = st.columns([1, 2])
                 with col_edit:
                     st.markdown("##### Outlier Rejection")
-                    st.caption("Uncheck rows to exclude them from the Arrhenius fit.")
-                    edited_df = st.data_editor(df_k, column_config={"Include": st.column_config.CheckboxColumn("Fit?", default=True)}, hide_index=True, height=380, use_container_width=True)
+                    st.caption("Uncheck rows to exclude them from the fit.")
+                    edited_df = st.data_editor(df_k, column_config={"Include": st.column_config.CheckboxColumn("Fit?", default=True)}, hide_index=True, height=280, width='stretch')
                     st.session_state.kinetics_df = edited_df
+                    
+                    st.markdown("---")
+                    kinetics_model_type = st.selectbox(
+                        "Kinetics Model", 
+                        ["Arrhenius", "VFT", "Eyring (Transition State)", "Van 't Hoff (Decrosslinking)", "Coupled WLF-Arrhenius"],
+                        key="kinetics_model_type"
+                    )
 
                 with col_chart:
                     active = edited_df[edited_df["Include"] == True]
                     if len(active) >= 2:
                         k_engine = KineticsEngine()
-                        fit_res = k_engine.fit_arrhenius(active["Temp"].tolist(), active["Tau"].tolist())
-                        if fit_res:
-                            Ea = fit_res["Ea"]
-                            r_sq = fit_res["R2"]
-                            slope = fit_res["Params"]["slope"] / 1000.0
-                            intercept = fit_res["Params"]["intercept"]
+                        fit_res = None
+                        
+                        if kinetics_model_type == "Arrhenius":
+                            fit_res = k_engine.fit_arrhenius(active["Temp"].tolist(), active["Tau"].tolist())
+                        elif kinetics_model_type == "VFT":
+                            fit_res = k_engine.fit_vft(active["Temp"].tolist(), active["Tau"].tolist())
+                        elif kinetics_model_type == "Eyring (Transition State)":
+                            fit_res = k_engine.fit_eyring(active["Temp"].tolist(), active["Tau"].tolist())
+                        elif kinetics_model_type == "Van 't Hoff (Decrosslinking)":
+                            g0_map = {r['Temp']: r['Raw']['G0'] for r in active_results}
+                            active_G0s = [g0_map[t_val] for t_val in active["Temp"].tolist()]
+                            fit_res = k_engine.fit_van_t_hoff(active["Temp"].tolist(), active_G0s)
+                        elif kinetics_model_type == "Coupled WLF-Arrhenius":
+                            fit_res = k_engine.fit_coupled_kinetics(active["Temp"].tolist(), active["Tau"].tolist(), Tg=Tg_input)
                             
-                            G_Pa = G_prime_input * 1e6; tau_target = 1e12 / G_Pa; ln_tau_t = np.log(tau_target)
-                            if slope != 0: Tv_val = (1000.0 / ((ln_tau_t - intercept)/slope)) - 273.15
-                            else: Tv_val = 0
+                        if fit_res:
+                            r_sq = fit_res.get("R2", 0.0)
+                            
+                            if fit_res["Type"] == "Arrhenius":
+                                Ea = fit_res["Ea"]
+                                Ea_std = fit_res["Ea_std"]
+                                slope = fit_res["Params"]["slope"]
+                                intercept = fit_res["Params"]["intercept"]
+                                
+                                G_Pa = G_prime_input * 1e6
+                                tau_target = 1e12 / G_Pa
+                                ln_tau_target = np.log(tau_target)
+                                Tv_val = (1.0 / ((ln_tau_target - intercept)/slope)) - 273.15 if slope != 0 else 0.0
+                                
+                                mc1, mc2, mc3 = st.columns(3)
+                                mc1.metric("E\u2090", f"{Ea:.1f} \u00b1 {Ea_std:.1f} kJ/mol")
+                                mc2.metric("T\u1d65", f"{Tv_val:.1f} \u00b0C")
+                                mc3.metric("R\u00b2", f"{r_sq:.4f}")
+                                
+                            elif fit_res["Type"] == "VFT":
+                                B = fit_res["Params"]["B"]
+                                T0_C = fit_res["Params"]["T0"] - 273.15
+                                
+                                mc1, mc2, mc3 = st.columns(3)
+                                mc1.metric("VFT B", f"{B:.1f} K")
+                                mc2.metric("T\u2080 (VFT)", f"{T0_C:.1f} \u00b0C")
+                                mc3.metric("R\u00b2", f"{r_sq:.4f}")
+                                
+                            elif fit_res["Type"] == "Eyring":
+                                dH = fit_res["dH"]
+                                dH_std = fit_res["dH_std"]
+                                dS = fit_res["dS"]
+                                
+                                mc1, mc2, mc3 = st.columns(3)
+                                mc1.metric("\u0394H\u2021 (Enthalpy)", f"{dH:.1f} \u00b1 {dH_std:.1f} kJ/mol")
+                                mc2.metric("\u0394S\u2021 (Entropy)", f"{dS:.1f} J/mol\u00b7K")
+                                mc3.metric("R\u00b2", f"{r_sq:.4f}")
+                                
+                            elif fit_res["Type"] == "Van_t_Hoff":
+                                dH_diss = fit_res["dH_diss"]
+                                dS_diss = fit_res["dS_diss"]
+                                G0_max = fit_res["G0_max"]
+                                
+                                mc1, mc2, mc3 = st.columns(3)
+                                mc1.metric("\u0394H_diss", f"{dH_diss:.1f} kJ/mol")
+                                mc2.metric("\u0394S_diss", f"{dS_diss:.1f} J/mol\u00b7K")
+                                mc3.metric("R\u00b2", f"{r_sq:.4f}")
+                                st.caption(f"Estimated G₀,max: {G0_max:.3f} MPa")
+                                
+                            elif fit_res["Type"] == "Coupled":
+                                Ea_chem = fit_res["Ea_chem"]
+                                B_glass = fit_res["B_glass"]
+                                T0_glass = fit_res["T0_glass"]
+                                
+                                mc1, mc2, mc3 = st.columns(3)
+                                mc1.metric("Ea_chem", f"{Ea_chem:.1f} kJ/mol")
+                                mc2.metric("T\u2080 (Glass)", f"{T0_glass:.1f} \u00b0C")
+                                mc3.metric("R\u00b2", f"{r_sq:.4f}")
 
-                        mc1, mc2, mc3 = st.columns(3)
-                        mc1.metric("E\u2090", f"{Ea:.1f} kJ/mol")
-                        mc2.metric("T\u1d65", f"{Tv_val:.1f} \u00b0C")
-                        mc3.metric("R\u00b2", f"{r_sq:.4f}")
-
-                        fig_k = go.Figure()
-                        fig_k.add_trace(go.Scatter(x=active["1000/T"], y=active["ln(Tau)"], mode='markers', name="Data"))
-                        xr = np.linspace(active["1000/T"].min()*0.95, active["1000/T"].max()*1.05, 10)
-                        fig_k.add_trace(go.Scatter(x=xr, y=slope*xr+intercept, mode='lines', name=f"Ea={Ea:.1f} kJ", line=dict(dash='dash', color='red')))
-                        fig_k.add_trace(go.Scatter(x=[(ln_tau_t - intercept)/slope], y=[ln_tau_t], mode='markers', marker=dict(symbol='star', size=14, color='gold'), name=f"Tv={Tv_val:.1f}C"))
-                        fig_k.update_layout(xaxis_title="1000/T (K\u207b\u00b9)", yaxis_title="ln(\u03c4)", height=420, margin=dict(l=10, r=10, t=20, b=20))
-                        st.plotly_chart(fig_k, use_container_width=True)
+                            fig_k = go.Figure()
+                            
+                            if fit_res["Type"] == "Arrhenius":
+                                fig_k.add_trace(go.Scatter(x=fit_res["Plot"]["x"], y=fit_res["Plot"]["y"], mode='markers', name="Data"))
+                                xr = np.linspace(fit_res["Plot"]["x"].min()*0.95, fit_res["Plot"]["x"].max()*1.05, 50)
+                                yr = fit_res["Params"]["slope"] * xr + fit_res["Params"]["intercept"]
+                                fig_k.add_trace(go.Scatter(x=xr, y=yr, mode='lines', name=f"Ea={Ea:.1f} kJ/mol", line=dict(dash='dash', color='red')))
+                                Tv_invT = 1.0 / (Tv_val + 273.15)
+                                fig_k.add_trace(go.Scatter(x=[Tv_invT], y=[ln_tau_target], mode='markers', marker=dict(symbol='star', size=14, color='gold'), name=f"Tv={Tv_val:.1f}C"))
+                                fig_k.update_layout(xaxis_title="1/T (K\u207b\u00b9)", yaxis_title="ln(\u03c4)")
+                                
+                            elif fit_res["Type"] == "VFT":
+                                fig_k.add_trace(go.Scatter(x=fit_res["Plot"]["x"], y=fit_res["Plot"]["y"], mode='markers', name="Data"))
+                                T_K_grid = np.linspace(273.15 + min(active["Temp"]), 273.15 + max(active["Temp"]), 50)
+                                pred_grid = fit_res["Params"]["A"] + fit_res["Params"]["B"] / (T_K_grid - fit_res["Params"]["T0"])
+                                fig_k.add_trace(go.Scatter(x=1.0/T_K_grid, y=pred_grid, mode='lines', name="VFT Fit", line=dict(dash='dash', color='red')))
+                                fig_k.update_layout(xaxis_title="1/T (K\u207b\u00b9)", yaxis_title="ln(\u03c4)")
+                                
+                            elif fit_res["Type"] == "Eyring":
+                                fig_k.add_trace(go.Scatter(x=fit_res["Plot"]["x"], y=fit_res["Plot"]["y"], mode='markers', name="Data"))
+                                xr = np.linspace(fit_res["Plot"]["x"].min()*0.95, fit_res["Plot"]["x"].max()*1.05, 50)
+                                yr = fit_res["Params"]["slope"] * xr + fit_res["Params"]["intercept"]
+                                fig_k.add_trace(go.Scatter(x=xr, y=yr, mode='lines', name=f"\u0394H\u2021={dH:.1f} kJ/mol", line=dict(dash='dash', color='red')))
+                                fig_k.update_layout(xaxis_title="1/T (K\u207b\u00b9)", yaxis_title="ln(\u03c4 \u00b7 T)")
+                                
+                            elif fit_res["Type"] == "Van_t_Hoff":
+                                fig_k.add_trace(go.Scatter(x=fit_res["Plot"]["x"], y=fit_res["Plot"]["y"], mode='markers', name="Data"))
+                                T_K_grid = np.linspace(273.15 + min(active["Temp"]), 273.15 + max(active["Temp"]), 50)
+                                R_GAS_VAL = 8.314462
+                                pred_grid = fit_res["Params"]["G0_max"] / (1.0 + np.exp(np.clip(-fit_res["Params"]["dH_diss"] / (R_GAS_VAL * T_K_grid) + fit_res["Params"]["dS_diss"] / R_GAS_VAL, -50.0, 50.0)))
+                                fig_k.add_trace(go.Scatter(x=1000.0/T_K_grid, y=pred_grid, mode='lines', name="Van 't Hoff Fit", line=dict(dash='dash', color='red')))
+                                fig_k.update_layout(xaxis_title="1000/T (K\u207b\u00b9)", yaxis_title="G\u2080 (MPa)")
+                                
+                            elif fit_res["Type"] == "Coupled":
+                                fig_k.add_trace(go.Scatter(x=fit_res["Plot"]["x"], y=fit_res["Plot"]["y"], mode='markers', name="Data"))
+                                T_K_grid = np.linspace(273.15 + min(active["Temp"]), 273.15 + max(active["Temp"]), 50)
+                                T0_val = fit_res["Params"]["T0"]
+                                R_GAS_VAL = 8.314462
+                                term1 = np.exp(fit_res["Params"]["ln_A"] + fit_res["Params"]["Ea"] / (R_GAS_VAL * T_K_grid))
+                                term2 = np.exp(np.clip(fit_res["Params"]["ln_C"] + fit_res["Params"]["B"] / (T_K_grid - T0_val), -50, 50))
+                                pred_grid = np.log(term1 + term2)
+                                fig_k.add_trace(go.Scatter(x=1.0/T_K_grid, y=pred_grid, mode='lines', name="Coupled Fit", line=dict(dash='dash', color='red')))
+                                fig_k.update_layout(xaxis_title="1/T (K\u207b\u00b9)", yaxis_title="ln(\u03c4)")
+                                
+                            fig_k.update_layout(height=420, margin=dict(l=10, r=10, t=20, b=20))
+                            st.plotly_chart(fig_k, width='stretch')
+                        else:
+                            st.error("Kinetics fitting failed.")
                     else:
                         st.warning("Need at least 2 data points with Include checked.")
 
@@ -385,7 +502,7 @@ with tab_analysis:
                         ))
                         
                         fig_mc.update_xaxes(type="log", title=f"Shifted Time (s) @ Tref={master['T_ref']}°C")
-                        fig_mc.update_yaxes(title="G(t) (Pa)")
+                        fig_mc.update_yaxes(title="G(t) (MPa)")
                         fig_mc.update_layout(height=500, title="Time-Temperature Superposition Mastercurve")
                         st.plotly_chart(fig_mc, width='stretch')
                         
@@ -405,13 +522,35 @@ with tab_analysis:
         with t4:
             c_spec, c_ctrl = st.columns([3, 1])
             with c_ctrl:
-                alpha_reg = st.slider("Smoothness", 0.0, 1.0, 0.1)
-                n_modes = st.slider("Bins", 20, 200, 50)
+                opt_alpha = st.checkbox("Auto-optimize Smoothness (L-curve)", value=True, key="opt_alpha")
+                if not opt_alpha:
+                    alpha_reg = st.slider("Smoothness (\u03b1)", 1e-5, 10.0, 0.1, step=0.01, format="%.5f", key="alpha_reg")
+                else:
+                    alpha_reg = 0.1  # ignored
+                sub_G_eq = st.checkbox("Subtract G_eq (Tail Modulus)", value=True, key="sub_G_eq")
+                n_modes = st.slider("Bins", 20, 200, 50, key="n_modes")
+                
+                # We will display the L-curve details below the settings
+                st.markdown("---")
+                st.markdown("**Optimized Fit Details:**")
+                
             with c_spec:
                 fig_h = go.Figure()
                 for i, r in enumerate(active_results):
-                    t = r['Raw']['t']; g = r['Raw']['g']
-                    tau_grid, H = spectrum_engine.compute_continuous_spectrum(t, g, num_modes=n_modes, alpha=alpha_reg)
+                    t = r['Raw']['t']
+                    g = r['Raw']['g']
+                    if mod_plot_type == "Absolute":
+                        g = g * r['Raw']['G0']
+                    
+                    tau_grid, H = spectrum_engine.compute_continuous_spectrum(
+                        t, g, num_modes=n_modes, alpha=alpha_reg, 
+                        optimize_alpha=opt_alpha, subtract_G_eq=sub_G_eq
+                    )
+                    
+                    # Display L-curve corner alpha and G_eq details
+                    with c_ctrl:
+                        st.caption(f"{r['Temp']}\u00b0C: \u03b1={spectrum_engine.last_alpha:.2e} (G_eq: {spectrum_engine.last_G_eq:.2e})")
+                        
                     fig_h.add_trace(go.Scatter(x=tau_grid, y=H, mode='lines', name=f"{r['Temp']}C", fill='tozeroy'))
                 fig_h.update_xaxes(type="log", title="Tau (s)"); fig_h.update_yaxes(title="H(τ)")
                 st.plotly_chart(fig_h, width="stretch")
@@ -1241,6 +1380,7 @@ with tab_pub:
             auto_rel_ymax = float(max_y_temp * 1.05)
 
         # Pre-calculate auto bounds for Kinetics Plot
+        # These are model-agnostic (always derived from 1000/T, updated per-model below)
         if not kinetics_df.empty:
             active_k_temp = kinetics_df[kinetics_df['Include']==True]
             if not active_k_temp.empty and len(active_k_temp) >= 2:
@@ -1301,7 +1441,7 @@ with tab_pub:
             # ── 2. Relaxation Plot: Style & Axes ─────────────────────────
             with st.expander("📈 Relaxation Plot: Style & Axes", expanded=False):
                 y_label_select = st.selectbox("Modulus Notation", ["G (Shear Modulus)", "E (Tensile Modulus)"], key="pub_ylabel")
-                y_norm_select = st.selectbox("Normalization", ["Normalized (G/G\u2080 or E/E\u2080)", "Non-Normalized (G or E)"], key="pub_ynorm")
+                y_norm_select = st.selectbox("Normalization", ["Normalized (G/G₀ or E/E₀)", "Non-Normalized (G or E)"], key="pub_ynorm")
                 curve_style = st.selectbox("Data Style", ["Continuous Lines (Raw)", "Markers Only", "Lines + Markers"], key="pub_style")
 
                 st.markdown("---")
@@ -1373,11 +1513,27 @@ with tab_pub:
 
             # ── 3. Kinetics Plot: Style & Axes ───────────────────────────
             with st.expander("🔥 Kinetics Plot: Style & Axes", expanded=False):
+                # Model selector — mirrors the Analysis tab choice
+                default_kin_model = st.session_state.get('kinetics_model_type', 'Arrhenius')
+                pub_kin_model = st.selectbox(
+                    "Kinetics Model",
+                    ["Arrhenius", "VFT", "Eyring (Transition State)",
+                     "Van 't Hoff (Decrosslinking)", "Coupled WLF-Arrhenius"],
+                    index=["Arrhenius", "VFT", "Eyring (Transition State)",
+                           "Van 't Hoff (Decrosslinking)", "Coupled WLF-Arrhenius"].index(default_kin_model)
+                    if default_kin_model in ["Arrhenius", "VFT", "Eyring (Transition State)",
+                                             "Van 't Hoff (Decrosslinking)", "Coupled WLF-Arrhenius"]
+                    else 0,
+                    key="pub_kin_model"
+                )
+
                 chk4, chk5 = st.columns(2)
                 with chk4:
-                    show_tv = st.checkbox("Show T\u1d65", value=True, key="pub_showtv")
+                    show_tv = st.checkbox("Show T\u1d65", value=True, key="pub_showtv",
+                                         disabled=(pub_kin_model != "Arrhenius"))
                 with chk5:
-                    show_ea_std = st.checkbox("Ea \u00b1 std", value=True, key="pub_eastd")
+                    show_ea_std = st.checkbox("Ea \u00b1 std", value=True, key="pub_eastd",
+                                             disabled=(pub_kin_model not in ["Arrhenius", "Eyring (Transition State)"]))
                 
                 st.markdown("##### 🎨 Marker & Line Style")
                 kc1, kc2 = st.columns(2)
@@ -1538,7 +1694,7 @@ with tab_pub:
             if is_normalized:
                 y_label_text = r"$G(t) / G_0$" if y_label_select.startswith("G") else r"$E(t) / E_0$"
             else:
-                y_label_text = r"$G(t)$" if y_label_select.startswith("G") else r"$E(t)$"
+                y_label_text = r"$G(t)$ (MPa)" if y_label_select.startswith("G") else r"$E(t)$ (MPa)"
 
             for idx, r in enumerate(active_res):
                 t_raw = r['Raw']['t']
@@ -1700,197 +1856,319 @@ with tab_pub:
                 with dc5: st.download_button("📥 TIFF (1200 DPI)", buf_tiff1_rgb, "Relaxation_Curves.tiff", key="dl_tiff_rel_rgb")
             plt.close(fig1)
 
-            # ════ FIGURE 2: ARRHENIUS PLOT ════
+            # ════ FIGURE 2: KINETICS PLOT (model-aware) ════
             st.markdown("---")
-            st.subheader("\U0001f525 Arrhenius Plot")
+            st.subheader(f"\U0001f525 {pub_kin_model} Plot")
             if not kinetics_df.empty:
                 active_k = kinetics_df[kinetics_df['Include']==True]
                 if not active_k.empty and len(active_k) >= 2:
-                    slope, intercept, r_val, p_val, stderr = linregress(active_k['1000/T'], active_k['ln(Tau)'])
-                    r_sq = r_val**2
-                    Ea = slope * 8.314462
-                    Ea_stderr = stderr * 8.314462 if stderr is not None else 0.0
-                    G_Pa = G_prime_input * 1e6
-                    tau_target = 1e12 / G_Pa
-                    ln_tau_t = np.log(tau_target)
-                    Tv_val = (1000.0 / ((ln_tau_t - intercept)/slope)) - 273.15 if slope != 0 else 0
+                    k_engine_pub = KineticsEngine()
+                    temps_list = active_k['Temp'].tolist()
+                    taus_list  = active_k['Tau'].tolist()
 
-                    if show_tv:
-                        cm1, cm2, cm3 = st.columns(3)
-                        with cm1:
-                            st.metric("E\u2090", f"{Ea:.1f} \u00b1 {Ea_stderr:.1f} kJ/mol" if show_ea_std else f"{Ea:.1f} kJ/mol")
-                        with cm2: st.metric("T\u1d65", f"{Tv_val:.1f} \u00b0C")
-                        with cm3: st.metric("R\u00b2", f"{r_sq:.4f}")
-                    else:
-                        cm1, cm2 = st.columns(2)
-                        with cm1:
-                            st.metric("E\u2090", f"{Ea:.1f} \u00b1 {Ea_stderr:.1f} kJ/mol" if show_ea_std else f"{Ea:.1f} kJ/mol")
-                        with cm2: st.metric("R\u00b2", f"{r_sq:.4f}")
+                    # --- Run the selected fit ---
+                    fit_res_pub = None
+                    if pub_kin_model == "Arrhenius":
+                        fit_res_pub = k_engine_pub.fit_arrhenius(temps_list, taus_list)
+                    elif pub_kin_model == "VFT":
+                        fit_res_pub = k_engine_pub.fit_vft(temps_list, taus_list)
+                    elif pub_kin_model == "Eyring (Transition State)":
+                        fit_res_pub = k_engine_pub.fit_eyring(temps_list, taus_list)
+                    elif pub_kin_model == "Van 't Hoff (Decrosslinking)":
+                        g0_map = {r['Temp']: r['Raw']['G0'] for r in active_res}
+                        active_g0s = [g0_map.get(t, 1.0) for t in temps_list]
+                        fit_res_pub = k_engine_pub.fit_van_t_hoff(temps_list, active_g0s)
+                    elif pub_kin_model == "Coupled WLF-Arrhenius":
+                        fit_res_pub = k_engine_pub.fit_coupled_kinetics(temps_list, taus_list, Tg=Tg_input)
 
-                    fig2, ax2 = plt.subplots(figsize=(fig_width / 2.54, fig_height / 2.54), facecolor='white')
-                    ax2.set_facecolor('white'); ax2.grid(False)
-                    for spine in ['top', 'bottom', 'left', 'right']:
-                        ax2.spines[spine].set_linewidth(1.0); ax2.spines[spine].set_color('black')
-                    ax2.tick_params(axis='both', which='major', labelsize=kin_tick_size, width=1.0, length=4, direction='in', color='black', top=kin_mirror, right=kin_mirror)
-                    ax2.tick_params(axis='both', which='minor', width=0.8, length=2.5, direction='in', color='black', top=kin_mirror, right=kin_mirror)
+                    if fit_res_pub:
+                        r_sq_pub = fit_res_pub.get('R2', 0.0)
+                        R_GAS_PUB = 8.314462
 
-                    # Apply tick locator settings
-                    # X-Axis Ticks
-                    if kin_x_major != "Auto":
-                        ax2.xaxis.set_major_locator(ticker.MaxNLocator(nbins=int(kin_x_major), prune=None))
-                    if kin_x_minor != "Auto":
-                        n_minor = int(kin_x_minor)
-                        if n_minor == 0:
-                            ax2.xaxis.set_minor_locator(ticker.NullLocator())
+                        # --- Metrics row ---
+                        if fit_res_pub['Type'] == 'Arrhenius':
+                            Ea_pub = fit_res_pub['Ea']
+                            Ea_std_pub = fit_res_pub['Ea_std']
+                            slope_pub = fit_res_pub['Params']['slope']
+                            intercept_pub = fit_res_pub['Params']['intercept']
+                            G_Pa_pub = G_prime_input * 1e6
+                            tau_target_pub = 1e12 / G_Pa_pub
+                            ln_tau_t_pub = np.log(tau_target_pub)
+                            Tv_pub = (1000.0 / ((ln_tau_t_pub - intercept_pub)/slope_pub)) - 273.15 if slope_pub != 0 else 0
+                            if show_tv:
+                                cm1, cm2, cm3 = st.columns(3)
+                                cm1.metric("E\u2090", f"{Ea_pub:.1f} \u00b1 {Ea_std_pub:.1f} kJ/mol" if show_ea_std else f"{Ea_pub:.1f} kJ/mol")
+                                cm2.metric("T\u1d65", f"{Tv_pub:.1f} \u00b0C")
+                                cm3.metric("R\u00b2", f"{r_sq_pub:.4f}")
+                            else:
+                                cm1, cm2 = st.columns(2)
+                                cm1.metric("E\u2090", f"{Ea_pub:.1f} \u00b1 {Ea_std_pub:.1f} kJ/mol" if show_ea_std else f"{Ea_pub:.1f} kJ/mol")
+                                cm2.metric("R\u00b2", f"{r_sq_pub:.4f}")
+
+                        elif fit_res_pub['Type'] == 'VFT':
+                            B_pub  = fit_res_pub['Params']['B']
+                            T0_pub = fit_res_pub['Params']['T0'] - 273.15
+                            cm1, cm2, cm3 = st.columns(3)
+                            cm1.metric("B (VFT)", f"{B_pub:.1f} K")
+                            cm2.metric("T\u2080", f"{T0_pub:.1f} \u00b0C")
+                            cm3.metric("R\u00b2", f"{r_sq_pub:.4f}")
+
+                        elif fit_res_pub['Type'] == 'Eyring':
+                            dH_pub  = fit_res_pub['dH']
+                            dH_std_pub = fit_res_pub['dH_std']
+                            dS_pub  = fit_res_pub['dS']
+                            cm1, cm2, cm3 = st.columns(3)
+                            cm1.metric("\u0394H\u2021", f"{dH_pub:.1f} \u00b1 {dH_std_pub:.1f} kJ/mol" if show_ea_std else f"{dH_pub:.1f} kJ/mol")
+                            cm2.metric("\u0394S\u2021", f"{dS_pub:.1f} J/mol\u00b7K")
+                            cm3.metric("R\u00b2", f"{r_sq_pub:.4f}")
+
+                        elif fit_res_pub['Type'] == 'Van_t_Hoff':
+                            dH_d = fit_res_pub['dH_diss']
+                            dS_d = fit_res_pub['dS_diss']
+                            G0mx = fit_res_pub['G0_max']
+                            cm1, cm2, cm3 = st.columns(3)
+                            cm1.metric("\u0394H_diss", f"{dH_d:.1f} kJ/mol")
+                            cm2.metric("\u0394S_diss", f"{dS_d:.1f} J/mol\u00b7K")
+                            cm3.metric("R\u00b2", f"{r_sq_pub:.4f}")
+                            st.caption(f"G₀,max = {G0mx:.3f} MPa")
+
+                        elif fit_res_pub['Type'] == 'Coupled':
+                            Ea_c = fit_res_pub['Ea_chem']
+                            B_g  = fit_res_pub['B_glass']
+                            T0_g = fit_res_pub['T0_glass']
+                            cm1, cm2, cm3 = st.columns(3)
+                            cm1.metric("Ea,chem", f"{Ea_c:.1f} kJ/mol")
+                            cm2.metric("T\u2080 (glass)", f"{T0_g:.1f} \u00b0C")
+                            cm3.metric("R\u00b2", f"{r_sq_pub:.4f}")
+
+                        # --- Build matplotlib figure ---
+                        fig2, ax2 = plt.subplots(figsize=(fig_width / 2.54, fig_height / 2.54), facecolor='white')
+                        ax2.set_facecolor('white'); ax2.grid(False)
+                        for spine in ['top', 'bottom', 'left', 'right']:
+                            ax2.spines[spine].set_linewidth(1.0); ax2.spines[spine].set_color('black')
+                        ax2.tick_params(axis='both', which='major', labelsize=kin_tick_size, width=1.0, length=4, direction='in', color='black', top=kin_mirror, right=kin_mirror)
+                        ax2.tick_params(axis='both', which='minor', width=0.8, length=2.5, direction='in', color='black', top=kin_mirror, right=kin_mirror)
+
+                        if kin_x_major != "Auto":
+                            ax2.xaxis.set_major_locator(ticker.MaxNLocator(nbins=int(kin_x_major), prune=None))
+                        if kin_x_minor != "Auto":
+                            n_minor = int(kin_x_minor)
+                            ax2.xaxis.set_minor_locator(ticker.NullLocator() if n_minor == 0 else ticker.AutoMinorLocator(n=n_minor + 1))
                         else:
-                            ax2.xaxis.set_minor_locator(ticker.AutoMinorLocator(n=n_minor + 1))
-                    else:
-                        ax2.xaxis.set_minor_locator(ticker.AutoMinorLocator())
-                    
-                    # Y-Axis Ticks
-                    if kin_y_major != "Auto":
-                        ax2.yaxis.set_major_locator(ticker.MaxNLocator(nbins=int(kin_y_major), prune=None))
-                    if kin_y_minor != "Auto":
-                        n_minor = int(kin_y_minor)
-                        if n_minor == 0:
-                            ax2.yaxis.set_minor_locator(ticker.NullLocator())
+                            ax2.xaxis.set_minor_locator(ticker.AutoMinorLocator())
+                        if kin_y_major != "Auto":
+                            ax2.yaxis.set_major_locator(ticker.MaxNLocator(nbins=int(kin_y_major), prune=None))
+                        if kin_y_minor != "Auto":
+                            n_minor = int(kin_y_minor)
+                            ax2.yaxis.set_minor_locator(ticker.NullLocator() if n_minor == 0 else ticker.AutoMinorLocator(n=n_minor + 1))
                         else:
-                            ax2.yaxis.set_minor_locator(ticker.AutoMinorLocator(n=n_minor + 1))
-                    else:
-                        ax2.yaxis.set_minor_locator(ticker.AutoMinorLocator())
+                            ax2.yaxis.set_minor_locator(ticker.AutoMinorLocator())
 
+                        font_label_kin = {
+                            'family': kin_font_family,
+                            'size': kin_label_size,
+                            'weight': kin_label_weight,
+                            'style': kin_label_style
+                        }
 
-                    font_label_kin = {
-                        'family': kin_font_family,
-                        'size': kin_label_size,
-                        'weight': kin_label_weight,
-                        'style': kin_label_style
-                    }
-                    ax2.scatter(active_k['1000/T'], active_k['ln(Tau)'], s=kin_marker_size**2, alpha=0.8, edgecolors='black', linewidth=0.8, color='steelblue', zorder=3)
+                        T_K_all = np.array(temps_list) + 273.15
 
-                    label_ea = (r"$E_\mathrm{a} = %.1f \pm %.1f\ \mathrm{kJ\ mol}^{-1}$" + "\n" + r"$R^2 = %.4f$") % (Ea, Ea_stderr, r_sq) if show_ea_std else (r"$E_\mathrm{a} = %.1f\ \mathrm{kJ\ mol}^{-1}$" + "\n" + r"$R^2 = %.4f$") % (Ea, r_sq)
+                        # ── Model-specific plot data ──
+                        if fit_res_pub['Type'] == 'Arrhenius':
+                            x_data = fit_res_pub['Plot']['x']          # 1/T
+                            y_data = fit_res_pub['Plot']['y']          # ln(tau)
+                            x_label_kin = r"$1000/T\ (\mathrm{K}^{-1})$"
+                            y_label_kin = r"$\ln(\tau)$"
+                            # scatter: plot as 1000/T
+                            ax2.scatter(x_data * 1000, y_data, s=kin_marker_size**2, alpha=0.8,
+                                        edgecolors='black', linewidth=0.8, color='steelblue', zorder=3)
+                            x_range = np.linspace(x_data.min() * 0.95, x_data.max() * 1.05, 100)
+                            y_fit = slope_pub * x_range + intercept_pub
+                            label_fit = (r"$E_\mathrm{a} = %.1f \pm %.1f\ \mathrm{kJ\ mol}^{-1}$" % (Ea_pub, Ea_std_pub)
+                                         if show_ea_std else r"$E_\mathrm{a} = %.1f\ \mathrm{kJ\ mol}^{-1}$" % Ea_pub)
+                            label_fit += "\n" + r"$R^2 = %.4f$" % r_sq_pub
+                            ax2.plot(x_range * 1000, y_fit, '--', color='red', linewidth=kin_line_width, label=label_fit, zorder=2)
+                            ax2.set_xlabel(x_label_kin, fontdict=font_label_kin, labelpad=8)
+                            ax2.set_ylabel(y_label_kin, fontdict=font_label_kin, labelpad=8)
+                            if show_tv:
+                                Tv_x_1000 = (ln_tau_t_pub - intercept_pub) / slope_pub * 1000
+                                ax2.plot([Tv_x_1000], [ln_tau_t_pub], marker='*', markersize=kin_marker_size * 2,
+                                         color='gold', markeredgecolor='black', markeredgewidth=0.8,
+                                         label=r"$T_\mathrm{v} = %.1f^\circ\mathrm{C}$" % Tv_pub, zorder=4)
+                                min_x_plot = min(x_data.min() * 0.95, (ln_tau_t_pub - intercept_pub) / slope_pub) * 1000
+                                max_x_plot = max(x_data.max() * 1.05, (ln_tau_t_pub - intercept_pub) / slope_pub) * 1000
+                                min_y_plot = min(y_data.min(), ln_tau_t_pub) - 0.5
+                                max_y_plot = max(y_data.max(), ln_tau_t_pub) + 0.5
+                            else:
+                                min_x_plot = x_data.min() * 0.95 * 1000
+                                max_x_plot = x_data.max() * 1.05 * 1000
+                                min_y_plot = y_data.min() - 0.5
+                                max_y_plot = y_data.max() + 0.5
 
-                    if show_tv:
-                        Tv_x = (ln_tau_t - intercept) / slope
-                        min_x = min(active_k['1000/T'].min(), Tv_x); max_x = max(active_k['1000/T'].max(), Tv_x)
-                        x_range = np.linspace(min_x * 0.95, max_x * 1.05, 100)
-                        min_y = min(active_k['ln(Tau)'].min(), ln_tau_t); max_y = max(active_k['ln(Tau)'].max(), ln_tau_t)
+                        elif fit_res_pub['Type'] == 'VFT':
+                            inv_T = 1.0 / T_K_all
+                            ln_tau = np.log(np.array(taus_list))
+                            ax2.scatter(inv_T * 1000, ln_tau, s=kin_marker_size**2, alpha=0.8,
+                                        edgecolors='black', linewidth=0.8, color='steelblue', zorder=3)
+                            T_K_grid = np.linspace(T_K_all.min() * 0.97, T_K_all.max() * 1.03, 150)
+                            A_p = fit_res_pub['Params']['A']; B_p = fit_res_pub['Params']['B']; T0_p = fit_res_pub['Params']['T0']
+                            y_fit = A_p + B_p / (T_K_grid - T0_p)
+                            label_fit = r"VFT: $B = %.0f\ \mathrm{K},\ T_0 = %.1f^\circ\mathrm{C}$" % (B_p, T0_p - 273.15)
+                            label_fit += "\n" + r"$R^2 = %.4f$" % r_sq_pub
+                            ax2.plot(1000 / T_K_grid, y_fit, '--', color='red', linewidth=kin_line_width, label=label_fit, zorder=2)
+                            ax2.set_xlabel(r"$1000/T\ (\mathrm{K}^{-1})$", fontdict=font_label_kin, labelpad=8)
+                            ax2.set_ylabel(r"$\ln(\tau)$", fontdict=font_label_kin, labelpad=8)
+                            min_x_plot = (1000 / T_K_all).min() * 0.95
+                            max_x_plot = (1000 / T_K_all).max() * 1.05
+                            min_y_plot = ln_tau.min() - 0.5
+                            max_y_plot = ln_tau.max() + 0.5
+
+                        elif fit_res_pub['Type'] == 'Eyring':
+                            x_data = fit_res_pub['Plot']['x']          # 1/T
+                            y_data = fit_res_pub['Plot']['y']          # ln(tau*T)
+                            ax2.scatter(x_data * 1000, y_data, s=kin_marker_size**2, alpha=0.8,
+                                        edgecolors='black', linewidth=0.8, color='steelblue', zorder=3)
+                            x_range = np.linspace(x_data.min() * 0.95, x_data.max() * 1.05, 100)
+                            y_fit = fit_res_pub['Params']['slope'] * x_range + fit_res_pub['Params']['intercept']
+                            label_fit = (r"$\Delta H^\ddagger = %.1f \pm %.1f\ \mathrm{kJ\ mol}^{-1}$" % (dH_pub, dH_std_pub)
+                                         if show_ea_std else r"$\Delta H^\ddagger = %.1f\ \mathrm{kJ\ mol}^{-1}$" % dH_pub)
+                            label_fit += "\n" + r"$\Delta S^\ddagger = %.1f\ \mathrm{J\ mol}^{-1}\mathrm{K}^{-1}$" % dS_pub
+                            label_fit += "\n" + r"$R^2 = %.4f$" % r_sq_pub
+                            ax2.plot(x_range * 1000, y_fit, '--', color='red', linewidth=kin_line_width, label=label_fit, zorder=2)
+                            ax2.set_xlabel(r"$1000/T\ (\mathrm{K}^{-1})$", fontdict=font_label_kin, labelpad=8)
+                            ax2.set_ylabel(r"$\ln(\tau \cdot T)$", fontdict=font_label_kin, labelpad=8)
+                            min_x_plot = x_data.min() * 0.95 * 1000
+                            max_x_plot = x_data.max() * 1.05 * 1000
+                            min_y_plot = y_data.min() - 0.5
+                            max_y_plot = y_data.max() + 0.5
+
+                        elif fit_res_pub['Type'] == 'Van_t_Hoff':
+                            x_data = fit_res_pub['Plot']['x']          # 1000/T
+                            y_data = fit_res_pub['Plot']['y']          # G0 values
+                            ax2.scatter(x_data, y_data, s=kin_marker_size**2, alpha=0.8,
+                                        edgecolors='black', linewidth=0.8, color='steelblue', zorder=3)
+                            T_K_grid = np.linspace(T_K_all.min() * 0.97, T_K_all.max() * 1.03, 150)
+                            G0mx_p = fit_res_pub['Params']['G0_max']
+                            dH_p   = fit_res_pub['Params']['dH_diss']
+                            dS_p   = fit_res_pub['Params']['dS_diss']
+                            y_fit  = G0mx_p / (1.0 + np.exp(np.clip(-dH_p / (R_GAS_PUB * T_K_grid) + dS_p / R_GAS_PUB, -50, 50)))
+                            label_fit = (r"$\Delta H_\mathrm{diss} = %.1f\ \mathrm{kJ\ mol}^{-1}$" % dH_d +
+                                         "\n" + r"$\Delta S_\mathrm{diss} = %.1f\ \mathrm{J\ mol}^{-1}\mathrm{K}^{-1}$" % dS_d +
+                                         "\n" + r"$R^2 = %.4f$" % r_sq_pub)
+                            ax2.plot(1000.0 / T_K_grid, y_fit, '--', color='red', linewidth=kin_line_width, label=label_fit, zorder=2)
+                            ax2.set_xlabel(r"$1000/T\ (\mathrm{K}^{-1})$", fontdict=font_label_kin, labelpad=8)
+                            ax2.set_ylabel(r"$G_0$ (MPa)", fontdict=font_label_kin, labelpad=8)
+                            min_x_plot = x_data.min() * 0.95
+                            max_x_plot = x_data.max() * 1.05
+                            min_y_plot = float(np.min(y_data)) * 0.9
+                            max_y_plot = float(np.max(y_data)) * 1.1
+
+                        elif fit_res_pub['Type'] == 'Coupled':
+                            inv_T = 1.0 / T_K_all
+                            ln_tau = np.log(np.array(taus_list))
+                            ax2.scatter(inv_T * 1000, ln_tau, s=kin_marker_size**2, alpha=0.8,
+                                        edgecolors='black', linewidth=0.8, color='steelblue', zorder=3)
+                            T_K_grid = np.linspace(T_K_all.min() * 0.97, T_K_all.max() * 1.03, 150)
+                            T0_p = fit_res_pub['Params']['T0']
+                            term1 = np.exp(fit_res_pub['Params']['ln_A'] + fit_res_pub['Params']['Ea'] / (R_GAS_PUB * T_K_grid))
+                            term2 = np.exp(np.clip(fit_res_pub['Params']['ln_C'] + fit_res_pub['Params']['B'] / (T_K_grid - T0_p), -50, 50))
+                            y_fit = np.log(term1 + term2)
+                            label_fit = (r"Coupled: $E_{a,\mathrm{chem}} = %.1f\ \mathrm{kJ\ mol}^{-1}$" % Ea_c +
+                                         "\n" + r"$T_0 = %.1f^\circ\mathrm{C}$" % T0_g +
+                                         "\n" + r"$R^2 = %.4f$" % r_sq_pub)
+                            ax2.plot(1000 / T_K_grid, y_fit, '--', color='red', linewidth=kin_line_width, label=label_fit, zorder=2)
+                            ax2.set_xlabel(r"$1000/T\ (\mathrm{K}^{-1})$", fontdict=font_label_kin, labelpad=8)
+                            ax2.set_ylabel(r"$\ln(\tau)$", fontdict=font_label_kin, labelpad=8)
+                            min_x_plot = (1000 / T_K_all).min() * 0.95
+                            max_x_plot = (1000 / T_K_all).max() * 1.05
+                            min_y_plot = ln_tau.min() - 0.5
+                            max_y_plot = ln_tau.max() + 0.5
+
+                        # --- Axis limits ---
                         if kin_custom_lims:
                             ax2.set_xlim(kin_xmin, kin_xmax)
                             ax2.set_ylim(kin_ymin, kin_ymax)
                         else:
-                            ax2.set_xlim(min_x * 0.95, max_x * 1.05)
-                            ax2.set_ylim(min_y - 0.5, max_y + 0.5)
-                        ax2.plot([Tv_x], [ln_tau_t], marker='*', markersize=kin_marker_size * 2, color='gold', markeredgecolor='black', markeredgewidth=0.8, label=r"$T_\mathrm{v} = %.1f^\circ\mathrm{C}$" % Tv_val, zorder=4)
-                    else:
-                        x_range = np.linspace(active_k['1000/T'].min() * 0.95, active_k['1000/T'].max() * 1.05, 100)
-                        if kin_custom_lims:
-                            ax2.set_xlim(kin_xmin, kin_xmax)
-                            ax2.set_ylim(kin_ymin, kin_ymax)
+                            ax2.set_xlim(min_x_plot, max_x_plot)
+                            ax2.set_ylim(min_y_plot, max_y_plot)
+
+                        # --- Legend ---
+                        if show_kin_leg:
+                            l_pos = 'best'; l_anchor = None
+                            if kin_leg_pos == "Upper Right": l_pos = 'upper right'
+                            elif kin_leg_pos == "Upper Left": l_pos = 'upper left'
+                            elif kin_leg_pos == "Lower Left": l_pos = 'lower left'
+                            elif kin_leg_pos == "Lower Right": l_pos = 'lower right'
+                            elif kin_leg_pos == "Right (Outside)": l_pos = 'upper left'; l_anchor = (1.02, 1.0)
+                            elif kin_leg_pos == "Above the Plot (Horizontal)": l_pos = 'lower center'; l_anchor = (0.5, 1.05)
+                            elif kin_leg_pos == "Below the Plot (Horizontal)": l_pos = 'upper center'; l_anchor = (0.5, -0.22)
+                            elif kin_leg_pos == "Custom (Coords)": l_pos = kin_leg_anchor; l_anchor = (kin_leg_x, kin_leg_y)
+                            ax2.legend(frameon=kin_leg_box, loc=l_pos, bbox_to_anchor=l_anchor,
+                                       fontsize=kin_leg_font_size, ncol=kin_leg_ncol,
+                                       columnspacing=1.0, handletextpad=0.5)
+
+                        # --- Panel letter ---
+                        if panel_letter and len(panel_letter) == 1 and panel_letter.isalpha():
+                            next_letter = chr(ord(panel_letter) + 1)
+                            ax2.text(-0.12, 1.02, f"({next_letter})", transform=ax2.transAxes,
+                                     fontfamily=panel_font_family, fontsize=panel_font_size,
+                                     fontweight=panel_font_weight, fontstyle=panel_font_style,
+                                     va='bottom', ha='right')
+
+                        try:
+                            fig2.canvas.draw()
+                        except Exception as e:
+                            st.error(f"Matplotlib canvas draw failed for kinetics figure! Error: {e}")
+                            raise e
+
+                        kin_num_family = kin_font_family if kin_tick_font == "Same as Label" else kin_tick_font
+                        for lbl in ax2.get_xticklabels():
+                            lbl.set_family(kin_num_family); lbl.set_size(kin_tick_size)
+                            lbl.set_weight(kin_tick_weight); lbl.set_style(kin_tick_style)
+                        for lbl in ax2.get_yticklabels():
+                            lbl.set_family(kin_num_family); lbl.set_size(kin_tick_size)
+                            lbl.set_weight(kin_tick_weight); lbl.set_style(kin_tick_style)
+
+                        plt.tight_layout()
+                        st.pyplot(fig2, dpi=300, bbox_inches='tight')
+
+                        # --- Download buttons ---
+                        model_slug = pub_kin_model.replace(" ", "_").replace("'", "").replace("(", "").replace(")", "")
+                        if pub_colorspace.startswith("CMYK"):
+                            buf_rgb_png = io.BytesIO()
+                            fig2.savefig(buf_rgb_png, format='png', dpi=1200, bbox_inches='tight')
+                            buf_rgb_png.seek(0)
+                            from PIL import Image
+                            img = Image.open(buf_rgb_png)
+                            img_cmyk = img.convert('CMYK')
+                            buf_pdf2 = io.BytesIO(); img_cmyk.save(buf_pdf2, format='PDF', dpi=(1200, 1200)); buf_pdf2.seek(0)
+                            buf_tiff2 = io.BytesIO(); img_cmyk.save(buf_tiff2, format='TIFF', dpi=(1200, 1200), compression='tiff_lzw'); buf_tiff2.seek(0)
+                            buf_jpg2 = io.BytesIO(); img_cmyk.save(buf_jpg2, format='JPEG', dpi=(300, 300), quality=95); buf_jpg2.seek(0)
+                            da1, da2, da3 = st.columns(3)
+                            with da1: st.download_button("\U0001f4e5 PDF (1200 DPI CMYK)", buf_pdf2, f"{model_slug}_CMYK.pdf", key="dl_pdf_arr")
+                            with da2: st.download_button("\U0001f4e5 TIFF (1200 DPI CMYK)", buf_tiff2, f"{model_slug}_CMYK.tiff", key="dl_tiff_arr")
+                            with da3: st.download_button("\U0001f4e5 JPEG (300 DPI CMYK)", buf_jpg2, f"{model_slug}_CMYK.jpg", key="dl_jpg_arr")
                         else:
-                            ax2.set_xlim(active_k['1000/T'].min() * 0.95, active_k['1000/T'].max() * 1.05)
-                            ax2.set_ylim(active_k['ln(Tau)'].min() - 0.5, active_k['ln(Tau)'].max() + 0.5)
-
-                    y_fit = slope * x_range + intercept
-                    ax2.plot(x_range, y_fit, '--', color='red', linewidth=kin_line_width, label=label_ea, zorder=2)
-                    ax2.set_xlabel(r"$1000/T$ ($\mathrm{K}^{-1}$)", fontdict=font_label_kin, labelpad=8)
-                    ax2.set_ylabel(r"$\ln(\tau)$", fontdict=font_label_kin, labelpad=8)
-
-                    if show_kin_leg:
-                        l_pos = 'best'; l_anchor = None
-                        if kin_leg_pos == "Upper Right": l_pos = 'upper right'
-                        elif kin_leg_pos == "Upper Left": l_pos = 'upper left'
-                        elif kin_leg_pos == "Lower Left": l_pos = 'lower left'
-                        elif kin_leg_pos == "Lower Right": l_pos = 'lower right'
-                        elif kin_leg_pos == "Right (Outside)": l_pos = 'upper left'; l_anchor = (1.02, 1.0)
-                        elif kin_leg_pos == "Above the Plot (Horizontal)": l_pos = 'lower center'; l_anchor = (0.5, 1.05)
-                        elif kin_leg_pos == "Below the Plot (Horizontal)": l_pos = 'upper center'; l_anchor = (0.5, -0.22)
-                        elif kin_leg_pos == "Custom (Coords)": l_pos = kin_leg_anchor; l_anchor = (kin_leg_x, kin_leg_y)
-                        ax2.legend(frameon=kin_leg_box, loc=l_pos, bbox_to_anchor=l_anchor, fontsize=kin_leg_font_size, ncol=kin_leg_ncol, columnspacing=1.0, handletextpad=0.5)
-
-                    if panel_letter and len(panel_letter) == 1 and panel_letter.isalpha():
-                        next_letter = chr(ord(panel_letter) + 1)
-                        ax2.text(-0.12, 1.02, f"({next_letter})", transform=ax2.transAxes,
-                                 fontfamily=panel_font_family, fontsize=panel_font_size,
-                                 fontweight=panel_font_weight, fontstyle=panel_font_style,
-                                 va='bottom', ha='right')
-
-                    try:
-                        fig2.canvas.draw()
-                    except Exception as e:
-                        st.error(f"Matplotlib canvas draw failed for Figure 2! Error: {e}")
-                        st.write("**X-Axis Label:**", ax2.get_xlabel())
-                        st.write("**Y-Axis Label:**", ax2.get_ylabel())
-                        st.write("**Text Elements:**")
-                        for txt in ax2.texts:
-                            st.write(f"- Text: `{txt.get_text()}` | Family: {txt.get_fontfamily()} | Size: {txt.get_fontsize()} | Weight: {txt.get_fontweight()} | Style: {txt.get_fontstyle()}")
-                        raise e
-                    kin_num_family = kin_font_family if kin_tick_font == "Same as Label" else kin_tick_font
-                    for label in ax2.get_xticklabels():
-                        label.set_family(kin_num_family)
-                        label.set_size(kin_tick_size)
-                        label.set_weight(kin_tick_weight)
-                        label.set_style(kin_tick_style)
-                    for label in ax2.get_yticklabels():
-                        label.set_family(kin_num_family)
-                        label.set_size(kin_tick_size)
-                        label.set_weight(kin_tick_weight)
-                        label.set_style(kin_tick_style)
-
-                    plt.tight_layout()
-                    st.pyplot(fig2, dpi=300, bbox_inches='tight')
-
-                    if pub_colorspace.startswith("CMYK"):
-                        # Save figure as RGB PNG bytes first
-                        buf_rgb_png = io.BytesIO()
-                        fig2.savefig(buf_rgb_png, format='png', dpi=1200, bbox_inches='tight')
-                        buf_rgb_png.seek(0)
-                        
-                        # Convert to CMYK using Pillow
-                        from PIL import Image
-                        img = Image.open(buf_rgb_png)
-                        img_cmyk = img.convert('CMYK')
-                        
-                        # Save as CMYK PDF
-                        buf_pdf2 = io.BytesIO()
-                        img_cmyk.save(buf_pdf2, format='PDF', dpi=(1200, 1200))
-                        buf_pdf2.seek(0)
-                        
-                        # Save as CMYK TIFF (lossless LZW compression)
-                        buf_tiff2 = io.BytesIO()
-                        img_cmyk.save(buf_tiff2, format='TIFF', dpi=(1200, 1200), compression='tiff_lzw')
-                        buf_tiff2.seek(0)
-                        
-                        # Save as CMYK JPEG (high quality)
-                        buf_jpg2 = io.BytesIO()
-                        img_cmyk.save(buf_jpg2, format='JPEG', dpi=(300, 300), quality=95)
-                        buf_jpg2.seek(0)
-                        
-                        da1, da2, da3 = st.columns(3)
-                        with da1: st.download_button("\U0001f4e5 PDF (1200 DPI CMYK)", buf_pdf2, "Arrhenius_Plot_CMYK.pdf", key="dl_pdf_arr")
-                        with da2: st.download_button("\U0001f4e5 TIFF (1200 DPI CMYK)", buf_tiff2, "Arrhenius_Plot_CMYK.tiff", key="dl_tiff_arr")
-                        with da3: st.download_button("\U0001f4e5 JPEG (300 DPI CMYK)", buf_jpg2, "Arrhenius_Plot_CMYK.jpg", key="dl_jpg_arr")
+                            buf_pdf2 = io.BytesIO(); fig2.savefig(buf_pdf2, format='pdf', bbox_inches='tight'); buf_pdf2.seek(0)
+                            buf_svg2 = io.BytesIO(); fig2.savefig(buf_svg2, format='svg', bbox_inches='tight'); buf_svg2.seek(0)
+                            buf_png2 = io.BytesIO(); fig2.savefig(buf_png2, format='png', dpi=1200, bbox_inches='tight'); buf_png2.seek(0)
+                            from PIL import Image
+                            img2_rgb = Image.open(buf_png2)
+                            buf_bmp2 = io.BytesIO(); img2_rgb.save(buf_bmp2, format='BMP'); buf_bmp2.seek(0)
+                            buf_tiff2_rgb = io.BytesIO(); img2_rgb.save(buf_tiff2_rgb, format='TIFF', dpi=(1200, 1200)); buf_tiff2_rgb.seek(0)
+                            da1, da2, da3, da4, da5 = st.columns(5)
+                            with da1: st.download_button("\U0001f4e5 PDF (Vector)", buf_pdf2, f"{model_slug}.pdf", key="dl_pdf_arr")
+                            with da2: st.download_button("\U0001f4e5 SVG (Vector)", buf_svg2, f"{model_slug}.svg", key="dl_svg_arr")
+                            with da3: st.download_button("\U0001f4e5 PNG (1200 DPI)", buf_png2, f"{model_slug}.png", key="dl_png_arr")
+                            with da4: st.download_button("\U0001f4e5 BMP (1200 DPI)", buf_bmp2, f"{model_slug}.bmp", key="dl_bmp_arr")
+                            with da5: st.download_button("\U0001f4e5 TIFF (1200 DPI)", buf_tiff2_rgb, f"{model_slug}.tiff", key="dl_tiff_arr_rgb")
+                        plt.close(fig2)
                     else:
-                        buf_pdf2 = io.BytesIO(); fig2.savefig(buf_pdf2, format='pdf', bbox_inches='tight'); buf_pdf2.seek(0)
-                        buf_svg2 = io.BytesIO(); fig2.savefig(buf_svg2, format='svg', bbox_inches='tight'); buf_svg2.seek(0)
-                        buf_png2 = io.BytesIO(); fig2.savefig(buf_png2, format='png', dpi=1200, bbox_inches='tight'); buf_png2.seek(0)
-                        from PIL import Image
-                        img2_rgb = Image.open(buf_png2)
-                        buf_bmp2 = io.BytesIO(); img2_rgb.save(buf_bmp2, format='BMP'); buf_bmp2.seek(0)
-                        buf_tiff2_rgb = io.BytesIO(); img2_rgb.save(buf_tiff2_rgb, format='TIFF', dpi=(1200, 1200)); buf_tiff2_rgb.seek(0)
-                        da1, da2, da3, da4, da5 = st.columns(5)
-                        with da1: st.download_button("\U0001f4e5 PDF (Vector)", buf_pdf2, "Arrhenius_Plot.pdf", key="dl_pdf_arr")
-                        with da2: st.download_button("\U0001f4e5 SVG (Vector)", buf_svg2, "Arrhenius_Plot.svg", key="dl_svg_arr")
-                        with da3: st.download_button("\U0001f4e5 PNG (1200 DPI)", buf_png2, "Arrhenius_Plot.png", key="dl_png_arr")
-                        with da4: st.download_button("\U0001f4e5 BMP (1200 DPI)", buf_bmp2, "Arrhenius_Plot.bmp", key="dl_bmp_arr")
-                        with da5: st.download_button("\U0001f4e5 TIFF (1200 DPI)", buf_tiff2_rgb, "Arrhenius_Plot.tiff", key="dl_tiff_arr_rgb")
-                    plt.close(fig2)
+                        st.error(f"{pub_kin_model} fitting failed. Try a different model or check your data.")
                 else:
                     st.warning("\u26a0\ufe0f Need at least 2 data points with 'Include' checked in the Analysis tab \u2192 Kinetics")
             else:
                 st.info("\U0001f4ca Run kinetics analysis in the Analysis tab first, then return here.")
-    else:
-        st.info("\U0001f680 Run analysis first to generate publication figures")
 
 # ==========================
 # TAB 6: EDUCATION & THEORY
