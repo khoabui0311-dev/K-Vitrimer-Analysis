@@ -167,6 +167,7 @@ with tab_analysis:
     with st.sidebar.expander("⚙️ Physics & Fitting", expanded=True):
         G_prime_input = st.number_input("Rubbery G' (MPa)", 0.01, 5000.0, 1.0, help="Used for Tv calculation")
         Tg_input = st.number_input("Tg (°C)", value=50.0, help="Curves below this temperature are skipped")
+        time_cutoff = st.number_input("Short-Time Cutoff (s)", 0.0, 1000.0, 0.0, step=0.1, help="Discard data points where time < this threshold to remove loading transients/machinery artifacts")
         st.markdown("---")
         fit_model = st.selectbox("Model", ["Maxwell", "Single_KWW", "Dual_KWW"])
         kinetics_mode = st.radio("Kinetics Base:", ["Fit Parameter", "Raw 1/e"])
@@ -189,6 +190,10 @@ with tab_analysis:
 
         idx = 0
         for temp, df in curves.items():
+            # Apply short-time cutoff if set
+            if time_cutoff > 0.0:
+                df = df[df['Time'] >= time_cutoff].copy()
+            
             # Pass Tg for filtering
             out = analyzer.fit_one_temp(temp, df, Tg=Tg_input)
             if out.get('Valid', False):
@@ -196,13 +201,14 @@ with tab_analysis:
                 out['Tau_1e'] = get_tau_1_over_e(out['Raw']['t'], out['Raw']['g'])
                 res.append(out)
             else:
-                skipped.append(f"{temp}C")
+                reason = out.get('Reason', 'Below Tg')
+                skipped.append(f"{temp}°C ({reason})")
             idx += 1
             bar.progress(idx/len(curves))
             
         st.session_state.results = res
         if res: st.success(f"Processed {len(res)} curves.")
-        if skipped: st.warning(f"Skipped (Below Tg): {', '.join(skipped)}")
+        if skipped: st.warning(f"Skipped curves: {', '.join(skipped)}")
 
     # DISPLAY
     if 'results' in st.session_state and st.session_state.results:
