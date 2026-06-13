@@ -312,164 +312,148 @@ def render(tab_pub, PLOTLY_STYLE: dict, Tg_input: float, G_prime_input: float):
     
                 # ════ FIGURE 1: RELAXATION CURVES ════
                 st.subheader("\U0001f4ca Relaxation Curves")
-                fig1, ax1 = plt.subplots(figsize=(fig_width / 2.54, fig_height / 2.54), facecolor='white')
-                ax1.set_facecolor('white')
-                ax1.grid(False)
-                for spine in ['top', 'bottom', 'left', 'right']:
-                    ax1.spines[spine].set_linewidth(1.0)
-                    ax1.spines[spine].set_color('black')
-                ax1.tick_params(axis='both', which='major', labelsize=rel_tick_size, width=1.0, length=4, direction='in', color='black', top=rel_mirror, right=rel_mirror)
-                ax1.tick_params(axis='both', which='minor', width=0.8, length=2.5, direction='in', color='black', top=rel_mirror, right=rel_mirror)
-    
-                # Apply tick locator settings
-                # X-Axis Ticks
-                if pub_time_axis != "Log":
-                    ax1.xaxis.set_minor_locator(ticker.AutoMinorLocator())
-                else: # Log scale
-                    ax1.xaxis.set_major_locator(ticker.LogLocator(base=10.0))
-                    ax1.xaxis.set_minor_locator(ticker.LogLocator(base=10.0, subs=(2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0)))
-                
-                # Y-Axis Ticks
-                if pub_y_scale != "Log":
-                    ax1.yaxis.set_minor_locator(ticker.AutoMinorLocator())
-                else: # Log scale
-                    ax1.yaxis.set_major_locator(ticker.LogLocator(base=10.0))
-                    ax1.yaxis.set_minor_locator(ticker.LogLocator(base=10.0, subs=(2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0)))
-    
-    
-                font_label_rel = {
-                    'family': rel_font_family,
-                    'size': rel_label_size,
-                    'weight': rel_label_weight,
-                    'style': rel_label_style
-                }
-    
-                if x_unit_select == "Minutes (min)":
-                    x_factor, x_label = 60.0, "min"
-                elif x_unit_select == "Hours (h)":
-                    x_factor, x_label = 3600.0, "h"
-                else:
-                    x_factor, x_label = 1.0, "s"
-    
-                is_normalized = y_norm_select.startswith("Normal")
-                if is_normalized:
-                    y_label_text = r"$G(t) / G_0$" if y_label_select.startswith("G") else r"$E(t) / E_0$"
-                else:
-                    y_label_text = r"$G(t)$ (MPa)" if y_label_select.startswith("G") else r"$E(t)$ (MPa)"
-    
-                for idx, r in enumerate(active_res):
-                    t_raw = r['Raw']['t']
-                    g_norm = r['Raw']['g']
-                    G0 = r['Raw'].get('G0', 1.0)
-                    t_plot = t_raw / x_factor
-                    g_plot = g_norm if is_normalized else g_norm * G0
-                    color = color_palette[idx % len(color_palette)]
-                    label_name = f"{r['Temp']}\u00b0C"
-    
-                    if curve_style == "Continuous Lines (Raw)":
-                        ax1.plot(t_plot, g_plot, '-', linewidth=rel_line_width, color=color, label=label_name)
-                    elif curve_style == "Markers Only":
-                        if rel_marker_density > 0:
-                            step = max(1, int(100 / rel_marker_density))
-                            ax1.plot(t_plot[::step], g_plot[::step], 'o', color=color, markersize=rel_marker_size, alpha=0.8, label=label_name)
-                    elif curve_style == "Lines + Markers":
-                        ax1.plot(t_plot, g_plot, '-', linewidth=rel_line_width, color=color)
-                        if rel_marker_density > 0:
-                            step = max(1, int(100 / rel_marker_density))
-                            ax1.plot(t_plot[::step], g_plot[::step], 'o', color=color, markersize=rel_marker_size, alpha=0.8, label=label_name)
-    
-                    if show_fit_pub and 'Best_Model' in r:
-                        fit_model_pub = r['Best_Model']
-                        if fit_model_pub in r['Fits']:
-                            g_fit_norm = r['Fits'][fit_model_pub].get('curve', r['Raw']['g'])
-                            g_fit_plot = g_fit_norm if is_normalized else g_fit_norm * G0
-                            ax1.plot(t_plot, g_fit_plot, ':', color='black', linewidth=1.0, alpha=0.7)
-    
-                    if show_tau_star:
-                        tau_star = r.get('Tau_1e', np.nan)
-                        if not np.isnan(tau_star):
-                            tau_star_plot = tau_star / x_factor
-                            intersection_level = 1/np.e if is_normalized else G0/np.e
-                            ax1.plot(tau_star_plot, intersection_level, 'o', color=color, markersize=rel_marker_size + 1, markeredgecolor='black', markeredgewidth=0.8, zorder=5)
-                            if not is_normalized:
-                                ax1.hlines(intersection_level, xmin=t_plot.min() * 0.8, xmax=tau_star_plot, colors=color, linestyles='--', linewidths=0.8, alpha=0.5)
-                            if annotate_tau_star:
-                                ax1.text(tau_star_plot * 1.15, intersection_level + (0.02 if is_normalized else intersection_level * 0.02), r"$\tau^* = %.1f\ \mathrm{%s}$" % (tau_star_plot, x_label), fontsize=7, color=color)
-    
-                if show_tau_star and is_normalized:
-                    ax1.axhline(1/np.e, color='gray', linestyle='--', linewidth=1.0)
-                if pub_time_axis == "Log":
-                    ax1.set_xscale('log')
-                if pub_y_scale == "Log":
-                    ax1.set_yscale('log')
-    
-                ax1.set_xlabel(r"Time, $t$ ({})".format(x_label), fontdict=font_label_rel, labelpad=8)
-                ax1.set_ylabel(y_label_text, fontdict=font_label_rel, labelpad=8)
-    
-                if rel_custom_lims:
-                    ax1.set_xlim(rel_xmin, rel_xmax)
-                    ax1.set_ylim(rel_ymin, rel_ymax)
-                else:
-                    if is_normalized:
-                        if pub_y_scale == "Log":
-                            ax1.set_ylim(1e-3, 1.05)
-                        else:
-                            ax1.set_ylim(0, 1.05)
-                    else:
-                        max_y = max([np.max(r['Raw']['g'] * r['Raw'].get('G0', 1.0)) for r in active_res])
-                        if pub_y_scale == "Log":
-                            min_y = min([np.min(r['Raw']['g'] * r['Raw'].get('G0', 1.0)) for r in active_res])
-                            if min_y <= 0:
-                                min_y = max_y * 1e-4
-                            ax1.set_ylim(min_y * 0.8, max_y * 1.2)
-                        else:
-                            ax1.set_ylim(0, max_y * 1.05)
-    
-                    all_times = np.concatenate([r['Raw']['t'] / x_factor for r in active_res])
-                    ax1.set_xlim(all_times.min() * 0.8, all_times.max() * 1.2)
-    
-                if show_rel_leg:
-                    l_pos = 'best'; l_anchor = None
-                    if rel_leg_pos == "Upper Right": l_pos = 'upper right'
-                    elif rel_leg_pos == "Upper Left": l_pos = 'upper left'
-                    elif rel_leg_pos == "Lower Left": l_pos = 'lower left'
-                    elif rel_leg_pos == "Lower Right": l_pos = 'lower right'
-                    elif rel_leg_pos == "Right (Outside)": l_pos = 'upper left'; l_anchor = (1.02, 1.0)
-                    elif rel_leg_pos == "Above the Plot (Horizontal)": l_pos = 'lower center'; l_anchor = (0.5, 1.05)
-                    elif rel_leg_pos == "Below the Plot (Horizontal)": l_pos = 'upper center'; l_anchor = (0.5, -0.22)
-                    elif rel_leg_pos == "Custom (Coords)": l_pos = rel_leg_anchor; l_anchor = (rel_leg_x, rel_leg_y)
-                    ax1.legend(frameon=rel_leg_box, loc=l_pos, bbox_to_anchor=l_anchor, fontsize=rel_leg_font_size, ncol=rel_leg_ncol, columnspacing=1.0, handletextpad=0.5)
-    
-                if panel_letter:
-                    ax1.text(-0.12, 1.02, f"({panel_letter})", transform=ax1.transAxes,
-                             fontfamily=panel_font_family, fontsize=panel_font_size,
-                             fontweight=panel_font_weight, fontstyle=panel_font_style,
-                             va='bottom', ha='right')
-    
-                try:
-                    fig1.canvas.draw()
-                except Exception as e:
-                    st.error(f"Matplotlib canvas draw failed for Figure 1! Error: {e}")
-                    st.write("**X-Axis Label:**", ax1.get_xlabel())
-                    st.write("**Y-Axis Label:**", ax1.get_ylabel())
-                    st.write("**Text Elements:**")
-                    for txt in ax1.texts:
-                        st.write(f"- Text: `{txt.get_text()}` | Family: {txt.get_fontfamily()} | Size: {txt.get_fontsize()} | Weight: {txt.get_fontweight()} | Style: {txt.get_fontstyle()}")
-                    raise e
                 rel_num_family = rel_font_family if rel_tick_font == "Same as Label" else rel_tick_font
-                for label in ax1.get_xticklabels():
-                    label.set_family(rel_num_family)
-                    label.set_size(rel_tick_size)
-                    label.set_weight(rel_tick_weight)
-                    label.set_style(rel_tick_style)
-                for label in ax1.get_yticklabels():
-                    label.set_family(rel_num_family)
-                    label.set_size(rel_tick_size)
-                    label.set_weight(rel_tick_weight)
-                    label.set_style(rel_tick_style)
+                with plt.rc_context({
+                    'font.family': rel_num_family,
+                    'xtick.labelsize': rel_tick_size,
+                    'ytick.labelsize': rel_tick_size,
+                }):
+                    fig1, ax1 = plt.subplots(figsize=(fig_width / 2.54, fig_height / 2.54), facecolor='white')
+                    ax1.set_facecolor('white')
+                    ax1.grid(False)
+                    for spine in ['top', 'bottom', 'left', 'right']:
+                        ax1.spines[spine].set_linewidth(1.0)
+                        ax1.spines[spine].set_color('black')
+                    ax1.tick_params(axis='both', which='major', width=1.0, length=4, direction='in', color='black', top=rel_mirror, right=rel_mirror)
+                    ax1.tick_params(axis='both', which='minor', width=0.8, length=2.5, direction='in', color='black', top=rel_mirror, right=rel_mirror)
     
-                plt.tight_layout()
-                st.pyplot(fig1, dpi=300, bbox_inches='tight')
+                    # Apply tick locator settings
+                    # X-Axis Ticks
+                    if pub_time_axis != "Log":
+                        ax1.xaxis.set_minor_locator(ticker.AutoMinorLocator())
+                    else: # Log scale
+                        ax1.xaxis.set_major_locator(ticker.LogLocator(base=10.0))
+                        ax1.xaxis.set_minor_locator(ticker.LogLocator(base=10.0, subs=(2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0)))
+                    
+                    # Y-Axis Ticks
+                    if pub_y_scale != "Log":
+                        ax1.yaxis.set_minor_locator(ticker.AutoMinorLocator())
+                    else: # Log scale
+                        ax1.yaxis.set_major_locator(ticker.LogLocator(base=10.0))
+                        ax1.yaxis.set_minor_locator(ticker.LogLocator(base=10.0, subs=(2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0)))
+    
+    
+                    font_label_rel = {
+                        'family': rel_font_family,
+                        'size': rel_label_size,
+                        'weight': rel_label_weight,
+                        'style': rel_label_style
+                    }
+    
+                    if x_unit_select == "Minutes (min)":
+                        x_factor, x_label = 60.0, "min"
+                    elif x_unit_select == "Hours (h)":
+                        x_factor, x_label = 3600.0, "h"
+                    else:
+                        x_factor, x_label = 1.0, "s"
+    
+                    is_normalized = y_norm_select.startswith("Normal")
+                    if is_normalized:
+                        y_label_text = r"$G(t) / G_0$" if y_label_select.startswith("G") else r"$E(t) / E_0$"
+                    else:
+                        y_label_text = r"$G(t)$ (MPa)" if y_label_select.startswith("G") else r"$E(t)$ (MPa)"
+    
+                    for idx, r in enumerate(active_res):
+                        t_raw = r['Raw']['t']
+                        g_norm = r['Raw']['g']
+                        G0 = r['Raw'].get('G0', 1.0)
+                        t_plot = t_raw / x_factor
+                        g_plot = g_norm if is_normalized else g_norm * G0
+                        color = color_palette[idx % len(color_palette)]
+                        label_name = f"{r['Temp']}\u00b0C"
+    
+                        if curve_style == "Continuous Lines (Raw)":
+                            ax1.plot(t_plot, g_plot, '-', linewidth=rel_line_width, color=color, label=label_name)
+                        elif curve_style == "Markers Only":
+                            if rel_marker_density > 0:
+                                step = max(1, int(100 / rel_marker_density))
+                                ax1.plot(t_plot[::step], g_plot[::step], 'o', color=color, markersize=rel_marker_size, alpha=0.8, label=label_name)
+                        elif curve_style == "Lines + Markers":
+                            ax1.plot(t_plot, g_plot, '-', linewidth=rel_line_width, color=color)
+                            if rel_marker_density > 0:
+                                step = max(1, int(100 / rel_marker_density))
+                                ax1.plot(t_plot[::step], g_plot[::step], 'o', color=color, markersize=rel_marker_size, alpha=0.8, label=label_name)
+    
+                        if show_fit_pub and 'Best_Model' in r:
+                            fit_model_pub = r['Best_Model']
+                            if fit_model_pub in r['Fits']:
+                                g_fit_norm = r['Fits'][fit_model_pub].get('curve', r['Raw']['g'])
+                                g_fit_plot = g_fit_norm if is_normalized else g_fit_norm * G0
+                                ax1.plot(t_plot, g_fit_plot, ':', color='black', linewidth=1.0, alpha=0.7)
+    
+                        if show_tau_star:
+                            tau_star = r.get('Tau_1e', np.nan)
+                            if not np.isnan(tau_star):
+                                tau_star_plot = tau_star / x_factor
+                                intersection_level = 1/np.e if is_normalized else G0/np.e
+                                ax1.plot(tau_star_plot, intersection_level, 'o', color=color, markersize=rel_marker_size + 1, markeredgecolor='black', markeredgewidth=0.8, zorder=5)
+                                if not is_normalized:
+                                    ax1.hlines(intersection_level, xmin=t_plot.min() * 0.8, xmax=tau_star_plot, colors=color, linestyles='--', linewidths=0.8, alpha=0.5)
+                                if annotate_tau_star:
+                                    ax1.text(tau_star_plot * 1.15, intersection_level + (0.02 if is_normalized else intersection_level * 0.02), r"$\tau^* = %.1f\ \mathrm{%s}$" % (tau_star_plot, x_label), fontsize=7, color=color)
+    
+                    if show_tau_star and is_normalized:
+                        ax1.axhline(1/np.e, color='gray', linestyle='--', linewidth=1.0)
+                    if pub_time_axis == "Log":
+                        ax1.set_xscale('log')
+                    if pub_y_scale == "Log":
+                        ax1.set_yscale('log')
+    
+                    ax1.set_xlabel(r"Time, $t$ ({})".format(x_label), fontdict=font_label_rel, labelpad=8)
+                    ax1.set_ylabel(y_label_text, fontdict=font_label_rel, labelpad=8)
+    
+                    if rel_custom_lims:
+                        ax1.set_xlim(rel_xmin, rel_xmax)
+                        ax1.set_ylim(rel_ymin, rel_ymax)
+                    else:
+                        if is_normalized:
+                            if pub_y_scale == "Log":
+                                ax1.set_ylim(1e-3, 1.05)
+                            else:
+                                ax1.set_ylim(0, 1.05)
+                        else:
+                            max_y = max([np.max(r['Raw']['g'] * r['Raw'].get('G0', 1.0)) for r in active_res])
+                            if pub_y_scale == "Log":
+                                min_y = min([np.min(r['Raw']['g'] * r['Raw'].get('G0', 1.0)) for r in active_res])
+                                if min_y <= 0:
+                                    min_y = max_y * 1e-4
+                                ax1.set_ylim(min_y * 0.8, max_y * 1.2)
+                            else:
+                                ax1.set_ylim(0, max_y * 1.05)
+    
+                        all_times = np.concatenate([r['Raw']['t'] / x_factor for r in active_res])
+                        ax1.set_xlim(all_times.min() * 0.8, all_times.max() * 1.2)
+    
+                    if show_rel_leg:
+                        l_pos = 'best'; l_anchor = None
+                        if rel_leg_pos == "Upper Right": l_pos = 'upper right'
+                        elif rel_leg_pos == "Upper Left": l_pos = 'upper left'
+                        elif rel_leg_pos == "Lower Left": l_pos = 'lower left'
+                        elif rel_leg_pos == "Lower Right": l_pos = 'lower right'
+                        elif rel_leg_pos == "Right (Outside)": l_pos = 'upper left'; l_anchor = (1.02, 1.0)
+                        elif rel_leg_pos == "Above the Plot (Horizontal)": l_pos = 'lower center'; l_anchor = (0.5, 1.05)
+                        elif rel_leg_pos == "Below the Plot (Horizontal)": l_pos = 'upper center'; l_anchor = (0.5, -0.22)
+                        elif rel_leg_pos == "Custom (Coords)": l_pos = rel_leg_anchor; l_anchor = (rel_leg_x, rel_leg_y)
+                        ax1.legend(frameon=rel_leg_box, loc=l_pos, bbox_to_anchor=l_anchor, fontsize=rel_leg_font_size, ncol=rel_leg_ncol, columnspacing=1.0, handletextpad=0.5)
+    
+                    if panel_letter:
+                        ax1.text(-0.12, 1.02, f"({panel_letter})", transform=ax1.transAxes,
+                                 fontfamily=panel_font_family, fontsize=panel_font_size,
+                                 fontweight=panel_font_weight, fontstyle=panel_font_style,
+                                 va='bottom', ha='right')
+    
+                    plt.tight_layout()
+                    st.pyplot(fig1, dpi=300, bbox_inches='tight')
     
                 if pub_colorspace.startswith("CMYK"):
                     # Save figure as RGB PNG bytes first
@@ -603,192 +587,111 @@ def render(tab_pub, PLOTLY_STYLE: dict, Tg_input: float, G_prime_input: float):
                                 cm3.metric("R\u00b2", f"{r_sq_pub:.4f}")
     
                             # --- Build matplotlib figure ---
-                            fig2, ax2 = plt.subplots(figsize=(fig_width / 2.54, fig_height / 2.54), facecolor='white')
-                            ax2.set_facecolor('white'); ax2.grid(False)
-                            for spine in ['top', 'bottom', 'left', 'right']:
-                                ax2.spines[spine].set_linewidth(1.0); ax2.spines[spine].set_color('black')
-                            ax2.tick_params(axis='both', which='major', labelsize=kin_tick_size, width=1.0, length=4, direction='in', color='black', top=kin_mirror, right=kin_mirror)
-                            ax2.tick_params(axis='both', which='minor', width=0.8, length=2.5, direction='in', color='black', top=kin_mirror, right=kin_mirror)
+                            kin_num_family = kin_font_family if kin_tick_font == "Same as Label" else kin_tick_font
+                            with plt.rc_context({
+                                'font.family': kin_num_family,
+                                'xtick.labelsize': kin_tick_size,
+                                'ytick.labelsize': kin_tick_size,
+                            }):
+                                fig2, ax2 = plt.subplots(figsize=(fig_width / 2.54, fig_height / 2.54), facecolor='white')
+                                ax2.set_facecolor('white'); ax2.grid(False)
+                                for spine in ['top', 'bottom', 'left', 'right']:
+                                    ax2.spines[spine].set_linewidth(1.0); ax2.spines[spine].set_color('black')
+                                ax2.tick_params(axis='both', which='major', width=1.0, length=4, direction='in', color='black', top=kin_mirror, right=kin_mirror)
+                                ax2.tick_params(axis='both', which='minor', width=0.8, length=2.5, direction='in', color='black', top=kin_mirror, right=kin_mirror)
     
-                            if kin_x_major != "Auto":
-                                ax2.xaxis.set_major_locator(ticker.MaxNLocator(nbins=int(kin_x_major), prune=None))
-                            if kin_x_minor != "Auto":
-                                n_minor = int(kin_x_minor)
-                                ax2.xaxis.set_minor_locator(ticker.NullLocator() if n_minor == 0 else ticker.AutoMinorLocator(n=n_minor + 1))
-                            else:
-                                ax2.xaxis.set_minor_locator(ticker.AutoMinorLocator())
-                            if kin_y_major != "Auto":
-                                ax2.yaxis.set_major_locator(ticker.MaxNLocator(nbins=int(kin_y_major), prune=None))
-                            if kin_y_minor != "Auto":
-                                n_minor = int(kin_y_minor)
-                                ax2.yaxis.set_minor_locator(ticker.NullLocator() if n_minor == 0 else ticker.AutoMinorLocator(n=n_minor + 1))
-                            else:
-                                ax2.yaxis.set_minor_locator(ticker.AutoMinorLocator())
-    
-                            font_label_kin = {
-                                'family': kin_font_family,
-                                'size': kin_label_size,
-                                'weight': kin_label_weight,
-                                'style': kin_label_style
-                            }
-    
-                            T_K_all = np.array(temps_list) + 273.15
-    
-                            # ── Model-specific plot data ──
-                            if fit_res_pub['Type'] == 'Arrhenius':
-                                x_data = fit_res_pub['Plot']['x']          # 1/T
-                                y_data = fit_res_pub['Plot']['y']          # ln(tau)
-                                x_label_kin = r"$1000/T\ (\mathrm{K}^{-1})$"
-                                y_label_kin = r"$\ln(\tau)$"
-                                # scatter: plot as 1000/T
-                                ax2.scatter(x_data * 1000, y_data, s=kin_marker_size**2, alpha=0.8,
-                                            edgecolors='black', linewidth=0.8, color='steelblue', zorder=3)
-                                x_range = np.linspace(x_data.min() * 0.95, x_data.max() * 1.05, 100)
-                                y_fit = slope_pub * x_range + intercept_pub
-                                label_fit = (r"$E_\mathrm{a} = %.1f \pm %.1f\ \mathrm{kJ\ mol}^{-1}$" % (Ea_pub, Ea_std_pub)
-                                             if show_ea_std else r"$E_\mathrm{a} = %.1f\ \mathrm{kJ\ mol}^{-1}$" % Ea_pub)
-                                label_fit += "\n" + r"$R^2 = %.4f$" % r_sq_pub
-                                ax2.plot(x_range * 1000, y_fit, '--', color='red', linewidth=kin_line_width, label=label_fit, zorder=2)
-                                ax2.set_xlabel(x_label_kin, fontdict=font_label_kin, labelpad=8)
-                                ax2.set_ylabel(y_label_kin, fontdict=font_label_kin, labelpad=8)
-                                if show_tv:
-                                    Tv_x_1000 = (ln_tau_t_pub - intercept_pub) / slope_pub * 1000
-                                    ax2.plot([Tv_x_1000], [ln_tau_t_pub], marker='*', markersize=kin_marker_size * 2,
-                                             color='gold', markeredgecolor='black', markeredgewidth=0.8,
-                                             label=r"$T_\mathrm{v} = %.1f^\circ\mathrm{C}$" % Tv_pub, zorder=4)
-                                    min_x_plot = min(x_data.min() * 0.95, (ln_tau_t_pub - intercept_pub) / slope_pub) * 1000
-                                    max_x_plot = max(x_data.max() * 1.05, (ln_tau_t_pub - intercept_pub) / slope_pub) * 1000
-                                    min_y_plot = min(y_data.min(), ln_tau_t_pub) - 0.5
-                                    max_y_plot = max(y_data.max(), ln_tau_t_pub) + 0.5
+                                if kin_x_major != "Auto":
+                                    ax2.xaxis.set_major_locator(ticker.MaxNLocator(nbins=int(kin_x_major), prune=None))
+                                if kin_x_minor != "Auto":
+                                    n_minor = int(kin_x_minor)
+                                    ax2.xaxis.set_minor_locator(ticker.NullLocator() if n_minor == 0 else ticker.AutoMinorLocator(n=n_minor + 1))
                                 else:
+                                    ax2.xaxis.set_minor_locator(ticker.AutoMinorLocator())
+                                if kin_y_major != "Auto":
+                                    ax2.yaxis.set_major_locator(ticker.MaxNLocator(nbins=int(kin_y_major), prune=None))
+                                if kin_y_minor != "Auto":
+                                    n_minor = int(kin_y_minor)
+                                    ax2.yaxis.set_minor_locator(ticker.NullLocator() if n_minor == 0 else ticker.AutoMinorLocator(n=n_minor + 1))
+                                else:
+                                    ax2.yaxis.set_minor_locator(ticker.AutoMinorLocator())
+    
+                                font_label_kin = {
+                                    'family': kin_font_family,
+                                    'size': kin_label_size,
+                                    'weight': kin_label_weight,
+                                    'style': kin_label_style
+                                }
+    
+                                T_K_all = np.array(temps_list) + 273.15
+    
+                                # ── Model-specific plot data ──
+                                if fit_res_pub['Type'] == 'Arrhenius':
+                                    x_data = fit_res_pub['Plot']['x']          # 1/T
+                                    y_data = fit_res_pub['Plot']['y']          # ln(tau)
+                                    x_label_kin = r"$1000/T\ (\mathrm{K}^{-1})$"
+                                    y_label_kin = r"$\ln(\tau)$"
+                                    # scatter: plot as 1000/T
+                                    ax2.scatter(x_data * 1000, y_data, s=kin_marker_size**2, alpha=0.8,
+                                                edgecolors='black', linewidth=0.8, color='steelblue', zorder=3)
+                                    x_range = np.linspace(x_data.min() * 0.95, x_data.max() * 1.05, 100)
+                                    y_fit = slope_pub * x_range + intercept_pub
+                                    label_fit = (r"$E_\mathrm{a} = %.1f \pm %.1f\ \mathrm{kJ\ mol}^{-1}$" % (Ea_pub, Ea_std_pub)
+                                                 if show_ea_std else r"$E_\mathrm{a} = %.1f\ \mathrm{kJ\ mol}^{-1}$" % Ea_pub)
+                                    label_fit += "\n" + r"$R^2 = %.4f$" % r_sq_pub
+                                    ax2.plot(x_range * 1000, y_fit, '--', color='red', linewidth=kin_line_width, label=label_fit, zorder=2)
+                                    ax2.set_xlabel(x_label_kin, fontdict=font_label_kin, labelpad=8)
+                                    ax2.set_ylabel(y_label_kin, fontdict=font_label_kin, labelpad=8)
+                                    if show_tv:
+                                        Tv_x_1000 = (ln_tau_t_pub - intercept_pub) / slope_pub * 1000
+                                        ax2.plot([Tv_x_1000], [ln_tau_t_pub], marker='*', markersize=kin_marker_size * 2,
+                                                 color='gold', markeredgecolor='black', markeredgewidth=0.8,
+                                                 label=r"$T_\mathrm{v} = %.1f^\circ\mathrm{C}$" % Tv_pub, zorder=4)
+                                        min_x_plot = min(x_data.min() * 0.95, (ln_tau_t_pub - intercept_pub) / slope_pub) * 1000
+                                        max_x_plot = max(x_data.max() * 1.05, (ln_tau_t_pub - intercept_pub) / slope_pub) * 1000
+                                        min_y_plot = min(y_data.min(), ln_tau_t_pub) - 0.5
+                                        max_y_plot = max(y_data.max(), ln_tau_t_pub) + 0.5
+                                    else:
+                                        min_x_plot = x_data.min() * 0.95 * 1000
+                                        max_x_plot = x_data.max() * 1.05 * 1000
+                                        min_y_plot = y_data.min() - 0.5
+                                        max_y_plot = y_data.max() + 0.5
+    
+                                elif fit_res_pub['Type'] == 'VFT':
+                                    inv_T = 1.0 / T_K_all
+                                    ln_tau = np.log(np.array(taus_list))
+                                    ax2.scatter(inv_T * 1000, ln_tau, s=kin_marker_size**2, alpha=0.8,
+                                                edgecolors='black', linewidth=0.8, color='steelblue', zorder=3)
+                                    T_K_grid = np.linspace(T_K_all.min() * 0.97, T_K_all.max() * 1.03, 150)
+                                    A_p = fit_res_pub['Params']['A']; B_p = fit_res_pub['Params']['B']; T0_p = fit_res_pub['Params']['T0']
+                                    y_fit = A_p + B_p / (T_K_grid - T0_p)
+                                    label_fit = r"VFT: $B = %.0f\ \mathrm{K},\ T_0 = %.1f^\circ\mathrm{C}$" % (B_p, T0_p - 273.15)
+                                    label_fit += "\n" + r"$R^2 = %.4f$" % r_sq_pub
+                                    ax2.plot(1000 / T_K_grid, y_fit, '--', color='red', linewidth=kin_line_width, label=label_fit, zorder=2)
+                                    ax2.set_xlabel(r"$1000/T\ (\mathrm{K}^{-1})$", fontdict=font_label_kin, labelpad=8)
+                                    ax2.set_ylabel(r"$\ln(\tau)$", fontdict=font_label_kin, labelpad=8)
+                                    min_x_plot = (1000 / T_K_all).min() * 0.95
+                                    max_x_plot = (1000 / T_K_all).max() * 1.05
+                                    min_y_plot = ln_tau.min() - 0.5
+                                    max_y_plot = ln_tau.max() + 0.5
+    
+                                elif fit_res_pub['Type'] == 'Eyring':
+                                    x_data = fit_res_pub['Plot']['x']          # 1/T
+                                    y_data = fit_res_pub['Plot']['y']          # ln(tau*T)
+                                    ax2.scatter(x_data * 1000, y_data, s=kin_marker_size**2, alpha=0.8,
+                                                edgecolors='black', linewidth=0.8, color='steelblue', zorder=3)
+                                    x_range = np.linspace(x_data.min() * 0.95, x_data.max() * 1.05, 100)
+                                    y_fit = fit_res_pub['Params']['slope'] * x_range + fit_res_pub['Params']['intercept']
+                                    label_fit = (r"$\Delta H^\ddagger = %.1f \pm %.1f\ \mathrm{kJ\ mol}^{-1}$" % (dH_pub, dH_std_pub)
+                                                 if show_ea_std else r"$\Delta H^\ddagger = %.1f\ \mathrm{kJ\ mol}^{-1}$" % dH_pub)
+                                    label_fit += "\n" + r"$\Delta S^\ddagger = %.1f\ \mathrm{J\ mol}^{-1}\mathrm{K}^{-1}$" % dS_pub
+                                    label_fit += "\n" + r"$R^2 = %.4f$" % r_sq_pub
+                                    ax2.plot(x_range * 1000, y_fit, '--', color='red', linewidth=kin_line_width, label=label_fit, zorder=2)
+                                    ax2.set_xlabel(r"$1000/T\ (\mathrm{K}^{-1})$", fontdict=font_label_kin, labelpad=8)
+                                    ax2.set_ylabel(r"$\ln(\tau \cdot T)$", fontdict=font_label_kin, labelpad=8)
                                     min_x_plot = x_data.min() * 0.95 * 1000
                                     max_x_plot = x_data.max() * 1.05 * 1000
                                     min_y_plot = y_data.min() - 0.5
                                     max_y_plot = y_data.max() + 0.5
-    
-                            elif fit_res_pub['Type'] == 'VFT':
-                                inv_T = 1.0 / T_K_all
-                                ln_tau = np.log(np.array(taus_list))
-                                ax2.scatter(inv_T * 1000, ln_tau, s=kin_marker_size**2, alpha=0.8,
-                                            edgecolors='black', linewidth=0.8, color='steelblue', zorder=3)
-                                T_K_grid = np.linspace(T_K_all.min() * 0.97, T_K_all.max() * 1.03, 150)
-                                A_p = fit_res_pub['Params']['A']; B_p = fit_res_pub['Params']['B']; T0_p = fit_res_pub['Params']['T0']
-                                y_fit = A_p + B_p / (T_K_grid - T0_p)
-                                label_fit = r"VFT: $B = %.0f\ \mathrm{K},\ T_0 = %.1f^\circ\mathrm{C}$" % (B_p, T0_p - 273.15)
-                                label_fit += "\n" + r"$R^2 = %.4f$" % r_sq_pub
-                                ax2.plot(1000 / T_K_grid, y_fit, '--', color='red', linewidth=kin_line_width, label=label_fit, zorder=2)
-                                ax2.set_xlabel(r"$1000/T\ (\mathrm{K}^{-1})$", fontdict=font_label_kin, labelpad=8)
-                                ax2.set_ylabel(r"$\ln(\tau)$", fontdict=font_label_kin, labelpad=8)
-                                min_x_plot = (1000 / T_K_all).min() * 0.95
-                                max_x_plot = (1000 / T_K_all).max() * 1.05
-                                min_y_plot = ln_tau.min() - 0.5
-                                max_y_plot = ln_tau.max() + 0.5
-    
-                            elif fit_res_pub['Type'] == 'Eyring':
-                                x_data = fit_res_pub['Plot']['x']          # 1/T
-                                y_data = fit_res_pub['Plot']['y']          # ln(tau*T)
-                                ax2.scatter(x_data * 1000, y_data, s=kin_marker_size**2, alpha=0.8,
-                                            edgecolors='black', linewidth=0.8, color='steelblue', zorder=3)
-                                x_range = np.linspace(x_data.min() * 0.95, x_data.max() * 1.05, 100)
-                                y_fit = fit_res_pub['Params']['slope'] * x_range + fit_res_pub['Params']['intercept']
-                                label_fit = (r"$\Delta H^\ddagger = %.1f \pm %.1f\ \mathrm{kJ\ mol}^{-1}$" % (dH_pub, dH_std_pub)
-                                             if show_ea_std else r"$\Delta H^\ddagger = %.1f\ \mathrm{kJ\ mol}^{-1}$" % dH_pub)
-                                label_fit += "\n" + r"$\Delta S^\ddagger = %.1f\ \mathrm{J\ mol}^{-1}\mathrm{K}^{-1}$" % dS_pub
-                                label_fit += "\n" + r"$R^2 = %.4f$" % r_sq_pub
-                                ax2.plot(x_range * 1000, y_fit, '--', color='red', linewidth=kin_line_width, label=label_fit, zorder=2)
-                                ax2.set_xlabel(r"$1000/T\ (\mathrm{K}^{-1})$", fontdict=font_label_kin, labelpad=8)
-                                ax2.set_ylabel(r"$\ln(\tau \cdot T)$", fontdict=font_label_kin, labelpad=8)
-                                min_x_plot = x_data.min() * 0.95 * 1000
-                                max_x_plot = x_data.max() * 1.05 * 1000
-                                min_y_plot = y_data.min() - 0.5
-                                max_y_plot = y_data.max() + 0.5
-    
-                            elif fit_res_pub['Type'] == 'Van_t_Hoff':
-                                x_data = fit_res_pub['Plot']['x']          # 1000/T
-                                y_data = fit_res_pub['Plot']['y']          # G0 values
-                                ax2.scatter(x_data, y_data, s=kin_marker_size**2, alpha=0.8,
-                                            edgecolors='black', linewidth=0.8, color='steelblue', zorder=3)
-                                T_K_grid = np.linspace(T_K_all.min() * 0.97, T_K_all.max() * 1.03, 150)
-                                G0mx_p = fit_res_pub['Params']['G0_max']
-                                dH_p   = fit_res_pub['Params']['dH_diss']
-                                dS_p   = fit_res_pub['Params']['dS_diss']
-                                y_fit  = G0mx_p / (1.0 + np.exp(np.clip(-dH_p / (R_GAS_PUB * T_K_grid) + dS_p / R_GAS_PUB, -50, 50)))
-                                label_fit = (r"$\Delta H_\mathrm{diss} = %.1f\ \mathrm{kJ\ mol}^{-1}$" % dH_d +
-                                             "\n" + r"$\Delta S_\mathrm{diss} = %.1f\ \mathrm{J\ mol}^{-1}\mathrm{K}^{-1}$" % dS_d +
-                                             "\n" + r"$R^2 = %.4f$" % r_sq_pub)
-                                ax2.plot(1000.0 / T_K_grid, y_fit, '--', color='red', linewidth=kin_line_width, label=label_fit, zorder=2)
-                                ax2.set_xlabel(r"$1000/T\ (\mathrm{K}^{-1})$", fontdict=font_label_kin, labelpad=8)
-                                ax2.set_ylabel(r"$G_0$ (MPa)", fontdict=font_label_kin, labelpad=8)
-                                min_x_plot = x_data.min() * 0.95
-                                max_x_plot = x_data.max() * 1.05
-                                min_y_plot = float(np.min(y_data)) * 0.9
-                                max_y_plot = float(np.max(y_data)) * 1.1
-    
-                            elif fit_res_pub['Type'] == 'Coupled':
-                                inv_T = 1.0 / T_K_all
-                                ln_tau = np.log(np.array(taus_list))
-                                ax2.scatter(inv_T * 1000, ln_tau, s=kin_marker_size**2, alpha=0.8,
-                                            edgecolors='black', linewidth=0.8, color='steelblue', zorder=3)
-                                T_K_grid = np.linspace(T_K_all.min() * 0.97, T_K_all.max() * 1.03, 150)
-                                T0_p = fit_res_pub['Params']['T0']
-                                term1 = np.exp(fit_res_pub['Params']['ln_A'] + fit_res_pub['Params']['Ea'] / (R_GAS_PUB * T_K_grid))
-                                term2 = np.exp(np.clip(fit_res_pub['Params']['ln_C'] + fit_res_pub['Params']['B'] / (T_K_grid - T0_p), -50, 50))
-                                y_fit = np.log(term1 + term2)
-                                label_fit = (r"Coupled: $E_{a,\mathrm{chem}} = %.1f\ \mathrm{kJ\ mol}^{-1}$" % Ea_c +
-                                             "\n" + r"$T_0 = %.1f^\circ\mathrm{C}$" % T0_g +
-                                             "\n" + r"$R^2 = %.4f$" % r_sq_pub)
-                                ax2.plot(1000 / T_K_grid, y_fit, '--', color='red', linewidth=kin_line_width, label=label_fit, zorder=2)
-                                ax2.set_xlabel(r"$1000/T\ (\mathrm{K}^{-1})$", fontdict=font_label_kin, labelpad=8)
-                                ax2.set_ylabel(r"$\ln(\tau)$", fontdict=font_label_kin, labelpad=8)
-                                min_x_plot = (1000 / T_K_all).min() * 0.95
-                                max_x_plot = (1000 / T_K_all).max() * 1.05
-                                min_y_plot = ln_tau.min() - 0.5
-                                max_y_plot = ln_tau.max() + 0.5
-    
-                            # --- Axis limits ---
-                            if kin_custom_lims:
-                                ax2.set_xlim(kin_xmin, kin_xmax)
-                                ax2.set_ylim(kin_ymin, kin_ymax)
-                            else:
-                                ax2.set_xlim(min_x_plot, max_x_plot)
-                                ax2.set_ylim(min_y_plot, max_y_plot)
-    
-                            # --- Legend ---
-                            if show_kin_leg:
-                                l_pos = 'best'; l_anchor = None
-                                if kin_leg_pos == "Upper Right": l_pos = 'upper right'
-                                elif kin_leg_pos == "Upper Left": l_pos = 'upper left'
-                                elif kin_leg_pos == "Lower Left": l_pos = 'lower left'
-                                elif kin_leg_pos == "Lower Right": l_pos = 'lower right'
-                                elif kin_leg_pos == "Right (Outside)": l_pos = 'upper left'; l_anchor = (1.02, 1.0)
-                                elif kin_leg_pos == "Above the Plot (Horizontal)": l_pos = 'lower center'; l_anchor = (0.5, 1.05)
-                                elif kin_leg_pos == "Below the Plot (Horizontal)": l_pos = 'upper center'; l_anchor = (0.5, -0.22)
-                                elif kin_leg_pos == "Custom (Coords)": l_pos = kin_leg_anchor; l_anchor = (kin_leg_x, kin_leg_y)
-                                ax2.legend(frameon=kin_leg_box, loc=l_pos, bbox_to_anchor=l_anchor,
-                                           fontsize=kin_leg_font_size, ncol=kin_leg_ncol,
-                                           columnspacing=1.0, handletextpad=0.5)
-    
-                            # --- Panel letter ---
-                            if panel_letter and len(panel_letter) == 1 and panel_letter.isalpha():
-                                next_letter = chr(ord(panel_letter) + 1)
-                                ax2.text(-0.12, 1.02, f"({next_letter})", transform=ax2.transAxes,
-                                         fontfamily=panel_font_family, fontsize=panel_font_size,
-                                         fontweight=panel_font_weight, fontstyle=panel_font_style,
-                                         va='bottom', ha='right')
-    
-                            try:
-                                fig2.canvas.draw()
-                            except Exception as e:
-                                st.error(f"Matplotlib canvas draw failed for kinetics figure! Error: {e}")
-                                raise e
-    
-                            kin_num_family = kin_font_family if kin_tick_font == "Same as Label" else kin_tick_font
-                            for lbl in ax2.get_xticklabels():
-                                lbl.set_family(kin_num_family); lbl.set_size(kin_tick_size)
-                                lbl.set_weight(kin_tick_weight); lbl.set_style(kin_tick_style)
-                            for lbl in ax2.get_yticklabels():
-                                lbl.set_family(kin_num_family); lbl.set_size(kin_tick_size)
-                                lbl.set_weight(kin_tick_weight); lbl.set_style(kin_tick_style)
     
                             plt.tight_layout()
                             st.pyplot(fig2, dpi=300, bbox_inches='tight')
