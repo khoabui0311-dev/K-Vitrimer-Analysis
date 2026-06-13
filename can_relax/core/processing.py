@@ -35,7 +35,7 @@ class DataProcessor:
         
         try:
             g_smooth = savgol_filter(g, eff_window, 2)
-        except:
+        except Exception:
             g_smooth = g # Fallback if signal processing fails
 
         # 4. Find Peak (Start of Relaxation)

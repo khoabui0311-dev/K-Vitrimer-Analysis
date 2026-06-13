@@ -40,7 +40,11 @@ class TTSEngine:
             popt = res['Fits'][best]['popt']
             if best == 'Maxwell': return popt[0]
             if best == 'Single_KWW': return popt[0]
-            if best == 'Dual_KWW': return popt[1] # Tau1 (fast) usually dominates shift
+            # Dual_KWW: popt = [A, tau1, beta1, tau2, beta2]
+            # We use tau2 (slow mode, index 3) as the canonical network exchange time.
+            # tau1 is guaranteed < tau2 after the label-switching fix in analyzer.py.
+            # This is consistent with the Kinetics tab which also uses popt[3].
+            if best == 'Dual_KWW': return popt[3]
             return 1.0
 
         tau_ref = get_tau(ref_res)

@@ -15,27 +15,21 @@ from scipy.stats import linregress
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 
-import importlib
-import can_relax.io.parser
-import can_relax.core.simulator
-import can_relax.core.kinetics
-import can_relax.core.tts
-import can_relax.core.analyzer
-import can_relax.core.spectrum
-
-importlib.reload(can_relax.io.parser)
-importlib.reload(can_relax.core.simulator)
-importlib.reload(can_relax.core.kinetics)
-importlib.reload(can_relax.core.tts)
-importlib.reload(can_relax.core.analyzer)
-importlib.reload(can_relax.core.spectrum)
-
+# Import proper modules from can_relax
 from can_relax.io.parser import parse_wide_format_data as parser_module_func
 from can_relax.core.simulator import MaterialSimulator
 from can_relax.core.kinetics import KineticsEngine
 from can_relax.core.tts import TTSEngine
 from can_relax.core.analyzer import CurveAnalyzer
 from can_relax.core.spectrum import SpectrumAnalyzer
+
+# Shared Plotly layout for visual consistency across all tabs
+PLOTLY_STYLE = dict(
+    font=dict(family="Inter, sans-serif", size=12),
+    paper_bgcolor="rgba(0,0,0,0)",
+    plot_bgcolor="rgba(0,0,0,0)",
+    colorway=["#6366f1", "#f43f5e", "#10b981", "#f59e0b", "#3b82f6", "#8b5cf6"],
+)
 
 # ==========================================
 # 1. PREMIUM UI CSS INJECTION
@@ -694,11 +688,18 @@ with tab_sim:
             c_p1, c_p2 = st.columns(2)
             with c_p1:
                 fig = go.Figure()
-                colors = ['#EF553B', '#636EFA', '#00CC96', '#AB63FA', '#FFA15A']
+                colors = PLOTLY_STYLE["colorway"]
                 for i, (T, t, g) in enumerate(sim_results):
-                    fig.add_trace(go.Scatter(x=t, y=g, mode='lines', name=f"{T}°C", line=dict(color=colors[i%5])))
-                fig.update_xaxes(type="log", title="Time"); fig.update_yaxes(title="G(t)")
-                fig.update_layout(margin=dict(l=20,r=20,t=0,b=20), height=300, showlegend=False)
+                    fig.add_trace(go.Scatter(x=t, y=g, mode='lines', name=f"{T}°C", line=dict(color=colors[i % len(colors)])))
+                fig.update_xaxes(type="log", title="Time (s)")
+                fig.update_yaxes(title="G(t) (MPa)")
+                fig.update_layout(
+                    **PLOTLY_STYLE,
+                    margin=dict(l=20, r=20, t=10, b=20),
+                    height=300,
+                    showlegend=True,
+                    legend=dict(font=dict(size=9))
+                )
                 st.plotly_chart(fig, width="stretch")
                 st.session_state.sim_fig_relax = fig
 
@@ -716,11 +717,21 @@ with tab_sim:
                         Tv_rec = (1000.0 / ((ln_tau_target - intercept)/slope)) - 273.15 if slope!=0 else 0
                     
                     fig_k = go.Figure()
-                    fig_k.add_trace(go.Scatter(x=inv_T, y=ln_tau, mode='markers'))
-                    xr = np.linspace(min(inv_T)*0.9, max(inv_T)*1.1, 10)
-                    fig_k.add_trace(go.Scatter(x=xr, y=slope*xr+intercept, mode='lines', line=dict(dash='dash', color='red')))
-                    fig_k.add_trace(go.Scatter(x=[(1000.0/(Tv_rec+273.15))], y=[ln_tau_target], mode='markers', marker=dict(size=12, color='gold', symbol='star')))
-                    fig_k.update_layout(xaxis_title="1000/T", yaxis_title="ln(tau)", margin=dict(l=20,r=20,t=0,b=20), height=300, showlegend=False)
+                    fig_k.add_trace(go.Scatter(x=inv_T, y=ln_tau, mode='markers',
+                                               marker=dict(size=8, color=PLOTLY_STYLE["colorway"][0]), name="Data"))
+                    xr = np.linspace(min(inv_T)*0.9, max(inv_T)*1.1, 100)
+                    fig_k.add_trace(go.Scatter(x=xr, y=slope*xr+intercept, mode='lines',
+                                               line=dict(dash='dash', color=PLOTLY_STYLE["colorway"][1], width=2), name=f"Eₐ={fit_res['Ea']:.1f} kJ/mol"))
+                    fig_k.add_trace(go.Scatter(x=[(1000.0/(Tv_rec+273.15))], y=[ln_tau_target], mode='markers',
+                                               marker=dict(size=14, color='gold', symbol='star', line=dict(color='black', width=1)), name=f"Tᵥ={Tv_rec:.1f}°C"))
+                    fig_k.update_layout(
+                        **PLOTLY_STYLE,
+                        xaxis_title="1000/T (K⁻¹)",
+                        yaxis_title="ln(τ)",
+                        margin=dict(l=20, r=20, t=10, b=20),
+                        height=300,
+                        legend=dict(font=dict(size=9))
+                    )
                     st.plotly_chart(fig_k, width="stretch")
                     st.caption(f"✅ Recovered Tv: {Tv_rec:.1f} °C")
                     st.session_state.sim_fig_kinetics = fig_k

@@ -76,7 +76,8 @@ class CurveAnalyzer:
                 pred_s = model_s.func(t, *popt_s)
                 r2_s, aic_s, bic_s = self._calculate_metrics(g, pred_s, 2)  # 2 params: tau, beta
                 result['Fits']['Single_KWW'] = {'popt': popt_s, 'r2': r2_s, 'aic': aic_s, 'bic': bic_s, 'curve': pred_s}
-            except: result['Fits']['Single_KWW'] = {'r2': 0, 'aic': np.inf, 'bic': np.inf, 'curve': g, 'popt': [np.nan, np.nan]}
+            except Exception:
+                result['Fits']['Single_KWW'] = {'r2': 0, 'aic': np.inf, 'bic': np.inf, 'curve': g, 'popt': [np.nan, np.nan]}
 
         # Maxwell
         if 'Maxwell' in models_to_fit:
@@ -86,7 +87,8 @@ class CurveAnalyzer:
                 pred_m = model_m.func(t, *popt_m)
                 r2_m, aic_m, bic_m = self._calculate_metrics(g, pred_m, 1)  # 1 param: tau
                 result['Fits']['Maxwell'] = {'popt': popt_m, 'r2': r2_m, 'aic': aic_m, 'bic': bic_m, 'curve': pred_m}
-            except: result['Fits']['Maxwell'] = {'r2': 0, 'aic': np.inf, 'bic': np.inf, 'curve': g, 'popt': [np.nan]}
+            except Exception:
+                result['Fits']['Maxwell'] = {'r2': 0, 'aic': np.inf, 'bic': np.inf, 'curve': g, 'popt': [np.nan]}
 
         # Dual KWW
         if 'Dual_KWW' in models_to_fit:
@@ -94,10 +96,18 @@ class CurveAnalyzer:
             try:
                 p0_d = model_d.get_initial_guess(t, g)
                 popt_d, _ = curve_fit(model_d.func, t, g, p0=p0_d, bounds=model_d.get_bounds(), maxfev=10000)
+                # --- Label-switching fix: always enforce tau1 < tau2 ---
+                A, tau1, beta1, tau2, beta2 = popt_d
+                if tau1 > tau2:
+                    # Swap modes so tau1 is always the fast (short) mode
+                    A, tau1, beta1, tau2, beta2 = (1.0 - A), tau2, beta2, tau1, beta1
+                    popt_d = np.array([A, tau1, beta1, tau2, beta2])
                 pred_d = model_d.func(t, *popt_d)
                 r2_d, aic_d, bic_d = self._calculate_metrics(g, pred_d, 5)  # 5 params: A, tau1, beta1, tau2, beta2
                 result['Fits']['Dual_KWW'] = {'popt': popt_d, 'r2': r2_d, 'aic': aic_d, 'bic': bic_d, 'curve': pred_d}
-            except: result['Fits']['Dual_KWW'] = {'r2': 0, 'aic': np.inf, 'bic': np.inf, 'curve': g, 'popt': [np.nan]*5}
+            except Exception:
+                result['Fits']['Dual_KWW'] = {'r2': 0, 'aic': np.inf, 'bic': np.inf, 'curve': g, 'popt': [np.nan]*5}
+
 
         # 4. Pick Best
         if result['Fits']:

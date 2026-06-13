@@ -61,7 +61,7 @@ def parse_wide_format_data(file_path):
     curves = {}
 
     # 3. Group Columns into Triplets
-    print(f"[PARSER] Scanning {len(cols)} columns...")
+    logger.info(f"[PARSER] Scanning {len(cols)} columns...")
     for i, c in enumerate(cols):
         if col_type[c] != 'temp': continue
         
@@ -118,11 +118,11 @@ def parse_wide_format_data(file_path):
                     
                     if not final_df.empty:
                         curves[temp_val] = final_df
-                        print(f"  [OK] Found curve: {temp_val}C")
+                        logger.info(f"  [OK] Found curve: {temp_val}C")
             except Exception:
                 continue
     
     if not curves:
-        print(f"[ERROR] [PARSER] No curves found. Columns detected: {cols}")
+        logger.warning(f"[PARSER] No curves found. Columns detected: {cols}")
         
     return curves
