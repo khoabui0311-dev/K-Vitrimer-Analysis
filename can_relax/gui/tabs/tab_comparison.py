@@ -647,7 +647,6 @@ def render(tab_comparison, PLOTLY_STYLE: dict):
                         vh_comp_tick_size = st.number_input("Number Size", 4, 30, 10, key="vh_comp_tick_sz")
                 
                 with col_plot_vh:
-                    import matplotlib.pyplot as plt
                     import matplotlib.ticker as ticker
                     
                     fig_vh, ax_vh = plt.subplots(figsize=(vh_comp_width/2.54, vh_comp_height/2.54))
