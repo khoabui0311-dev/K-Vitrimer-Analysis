@@ -620,10 +620,6 @@ def render(tab_comparison, PLOTLY_STYLE: dict):
                             st.error("⚠️ Matplotlib preview unavailable due to invalid MathText in labels.")
 
                 plt.close(fig_mpl)
-        else:
-            st.info("💡 Fill in samples and click 'Analyze All Samples' to start comparison")
-
-
             with comp_tab_vh:
                 st.subheader("📈 Van 't Hoff Comparison Plot")
                 col_plot_vh, col_settings_vh = st.columns([3, 1])
@@ -713,3 +709,7 @@ def render(tab_comparison, PLOTLY_STYLE: dict):
                         
                         with col_settings_vh:
                             st.download_button(f"📥 Download Van 't Hoff Figure ({vh_comp_fmt})", buf_vh, f"Van_t_Hoff_Comparison.{fmt_lower}", mime=f"image/{fmt_lower}" if fmt_lower != 'pdf' else 'application/pdf', key="dl_vh_plot")
+        else:
+            st.info("💡 Fill in samples and click 'Analyze All Samples' to start comparison")
+
+
