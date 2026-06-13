@@ -3,6 +3,9 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 import matplotlib.pyplot as plt
+import matplotlib as mpl
+mpl.rcParams['svg.fonttype'] = 'none'
+mpl.rcParams['pdf.fonttype'] = 42
 import matplotlib.ticker as ticker
 import io
 from can_relax.core.kinetics import KineticsEngine
@@ -454,12 +457,12 @@ def render(tab_pub, PLOTLY_STYLE: dict, Tg_input: float, G_prime_input: float):
                                  va='bottom', ha='right')
     
                     plt.tight_layout()
-                    st.pyplot(fig1, dpi=300, bbox_inches='tight')
+                    st.pyplot(fig1, dpi=300)
     
                 if pub_colorspace.startswith("CMYK"):
                     # Save figure as RGB PNG bytes first
                     buf_rgb_png = io.BytesIO()
-                    fig1.savefig(buf_rgb_png, format='png', dpi=1200, bbox_inches='tight')
+                    fig1.savefig(buf_rgb_png, format='png', dpi=1200)
                     buf_rgb_png.seek(0)
                     
                     # Convert to CMYK using Pillow
@@ -487,9 +490,9 @@ def render(tab_pub, PLOTLY_STYLE: dict, Tg_input: float, G_prime_input: float):
                     with dc2: st.download_button("\U0001f4e5 TIFF (1200 DPI CMYK)", buf_tiff1, "Relaxation_Curves_CMYK.tiff", key="dl_tiff_rel")
                     with dc3: st.download_button("\U0001f4e5 JPEG (300 DPI CMYK)", buf_jpg1, "Relaxation_Curves_CMYK.jpg", key="dl_jpg_rel")
                 else:
-                    buf_pdf1 = io.BytesIO(); fig1.savefig(buf_pdf1, format='pdf', bbox_inches='tight'); buf_pdf1.seek(0)
-                    buf_svg1 = io.BytesIO(); fig1.savefig(buf_svg1, format='svg', bbox_inches='tight'); buf_svg1.seek(0)
-                    buf_png1 = io.BytesIO(); fig1.savefig(buf_png1, format='png', dpi=1200, bbox_inches='tight'); buf_png1.seek(0)
+                    buf_pdf1 = io.BytesIO(); fig1.savefig(buf_pdf1, format='pdf'); buf_pdf1.seek(0)
+                    buf_svg1 = io.BytesIO(); fig1.savefig(buf_svg1, format='svg'); buf_svg1.seek(0)
+                    buf_png1 = io.BytesIO(); fig1.savefig(buf_png1, format='png', dpi=1200); buf_png1.seek(0)
                     from PIL import Image
                     img1_rgb = Image.open(buf_png1)
                     buf_bmp1 = io.BytesIO(); img1_rgb.save(buf_bmp1, format='BMP'); buf_bmp1.seek(0)
@@ -696,13 +699,13 @@ def render(tab_pub, PLOTLY_STYLE: dict, Tg_input: float, G_prime_input: float):
                                     max_y_plot = y_data.max() + 0.5
     
                             plt.tight_layout()
-                            st.pyplot(fig2, dpi=300, bbox_inches='tight')
+                            st.pyplot(fig2, dpi=300)
     
                             # --- Download buttons ---
                             model_slug = pub_kin_model.replace(" ", "_").replace("'", "").replace("(", "").replace(")", "")
                             if pub_colorspace.startswith("CMYK"):
                                 buf_rgb_png = io.BytesIO()
-                                fig2.savefig(buf_rgb_png, format='png', dpi=1200, bbox_inches='tight')
+                                fig2.savefig(buf_rgb_png, format='png', dpi=1200)
                                 buf_rgb_png.seek(0)
                                 from PIL import Image
                                 img = Image.open(buf_rgb_png)
@@ -715,9 +718,9 @@ def render(tab_pub, PLOTLY_STYLE: dict, Tg_input: float, G_prime_input: float):
                                 with da2: st.download_button("\U0001f4e5 TIFF (1200 DPI CMYK)", buf_tiff2, f"{model_slug}_CMYK.tiff", key="dl_tiff_arr")
                                 with da3: st.download_button("\U0001f4e5 JPEG (300 DPI CMYK)", buf_jpg2, f"{model_slug}_CMYK.jpg", key="dl_jpg_arr")
                             else:
-                                buf_pdf2 = io.BytesIO(); fig2.savefig(buf_pdf2, format='pdf', bbox_inches='tight'); buf_pdf2.seek(0)
-                                buf_svg2 = io.BytesIO(); fig2.savefig(buf_svg2, format='svg', bbox_inches='tight'); buf_svg2.seek(0)
-                                buf_png2 = io.BytesIO(); fig2.savefig(buf_png2, format='png', dpi=1200, bbox_inches='tight'); buf_png2.seek(0)
+                                buf_pdf2 = io.BytesIO(); fig2.savefig(buf_pdf2, format='pdf'); buf_pdf2.seek(0)
+                                buf_svg2 = io.BytesIO(); fig2.savefig(buf_svg2, format='svg'); buf_svg2.seek(0)
+                                buf_png2 = io.BytesIO(); fig2.savefig(buf_png2, format='png', dpi=1200); buf_png2.seek(0)
                                 from PIL import Image
                                 img2_rgb = Image.open(buf_png2)
                                 buf_bmp2 = io.BytesIO(); img2_rgb.save(buf_bmp2, format='BMP'); buf_bmp2.seek(0)
