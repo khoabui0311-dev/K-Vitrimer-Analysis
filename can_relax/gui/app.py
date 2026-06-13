@@ -15,7 +15,21 @@ from scipy.stats import linregress
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 
-# Import proper modules from can_relax
+import importlib
+import can_relax.io.parser
+import can_relax.core.simulator
+import can_relax.core.kinetics
+import can_relax.core.tts
+import can_relax.core.analyzer
+import can_relax.core.spectrum
+
+importlib.reload(can_relax.io.parser)
+importlib.reload(can_relax.core.simulator)
+importlib.reload(can_relax.core.kinetics)
+importlib.reload(can_relax.core.tts)
+importlib.reload(can_relax.core.analyzer)
+importlib.reload(can_relax.core.spectrum)
+
 from can_relax.io.parser import parse_wide_format_data as parser_module_func
 from can_relax.core.simulator import MaterialSimulator
 from can_relax.core.kinetics import KineticsEngine
