@@ -184,7 +184,7 @@ def render(tab_comparison, PLOTLY_STYLE: dict):
                         tau_target = 1e12 / G_Pa
                         ln_tau_t = np.log(tau_target)
                         if slope != 0:
-                            Tv_val = (1000.0 / ((ln_tau_t - intercept)/slope)) - 273.15
+                            Tv_val = (1.0 / ((ln_tau_t - intercept)/slope)) - 273.15
                         else:
                             Tv_val = 0
                         
@@ -411,14 +411,14 @@ def render(tab_comparison, PLOTLY_STYLE: dict):
                     ax_mpl.scatter(inv_T, ln_tau, s=comp_ms**2, alpha=0.7, edgecolors='black', linewidth=0.8,
                                  label=name, color=color, zorder=3)
 
-                    # Plot fit line
+                    # Plot fit line (slope is in 1/T units, x_range is 1000/T, so divide slope by 1000)
                     x_range = np.linspace(inv_T.min() * 0.9, inv_T.max() * 1.1, 50)
-                    y_fit = slope * x_range + intercept
+                    y_fit = (slope / 1000.0) * x_range + intercept
                     ax_mpl.plot(x_range, y_fit, '--', color=color, linewidth=comp_lw, alpha=0.8, zorder=2)
 
-                    # Plot Tv marker
+                    # Plot Tv marker (convert 1/T result to 1000/T axis)
                     if comp_show_tv:
-                        tv_x = (ln_tau_target - intercept) / slope
+                        tv_x = ((ln_tau_target - intercept) / slope) * 1000.0
                         ax_mpl.plot([tv_x], [ln_tau_target], marker='*', markersize=comp_ms*2, color=color,
                                   markeredgecolor='black', markeredgewidth=1.0, zorder=4)
 
@@ -541,9 +541,9 @@ def render(tab_comparison, PLOTLY_STYLE: dict):
                                 hovertemplate=f"<b>{name}</b><br>1000/T: %{{x:.3f}}<br>ln(τ): %{{y:.2f}}<extra></extra>"
                             ))
 
-                            # Fit line
+                            # Fit line (slope is in 1/T units, x_range is 1000/T, so divide slope by 1000)
                             x_range = np.linspace(inv_T.min() * 0.9, inv_T.max() * 1.1, 50)
-                            y_fit = slope * x_range + intercept
+                            y_fit = (slope / 1000.0) * x_range + intercept
                             fig_comp.add_trace(go.Scatter(
                                 x=x_range,
                                 y=y_fit,
@@ -554,8 +554,8 @@ def render(tab_comparison, PLOTLY_STYLE: dict):
                                 hoverinfo='skip'
                             ))
 
-                            # Tv marker (star)
-                            tv_x = (ln_tau_target - intercept) / slope
+                            # Tv marker (star) - convert 1/T result to 1000/T axis
+                            tv_x = ((ln_tau_target - intercept) / slope) * 1000.0
                             fig_comp.add_trace(go.Scatter(
                                 x=[tv_x],
                                 y=[ln_tau_target],
