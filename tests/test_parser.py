@@ -5,15 +5,15 @@ import os
 from can_relax.io.parser import parse_wide_format_data
 
 def test_parse_wide_format_data_csv():
-    # Create temporary CSV
-    csv_content = "Temp,Time,Modulus\n100,0.1,1000\n100,1.0,500\n120,0.1,800\n120,1.0,300"
+    # Create temporary CSV with wide format
+    csv_content = "Temp_A,Time_A,Modulus_A,Temp_B,Time_B,Modulus_B\n100,0.1,1000,120,0.1,800\n100,1.0,500,120,1.0,300"
     with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.csv') as tmp:
         tmp.write(csv_content)
         tmp_path = tmp.name
-        
+
     try:
         curves = parse_wide_format_data(tmp_path)
-        
+
         assert 100.0 in curves
         assert 120.0 in curves
         

@@ -317,6 +317,7 @@ def render(tab_pub, PLOTLY_STYLE: dict, Tg_input: float, G_prime_input: float):
                     'font.family': rel_num_family,
                     'xtick.labelsize': rel_tick_size,
                     'ytick.labelsize': rel_tick_size,
+                    'axes.unicode_minus': False,
                 }):
                     fig1, ax1 = plt.subplots(figsize=(fig_width / 2.54, fig_height / 2.54), facecolor='white')
                     ax1.set_facecolor('white')
@@ -592,6 +593,7 @@ def render(tab_pub, PLOTLY_STYLE: dict, Tg_input: float, G_prime_input: float):
                                 'font.family': kin_num_family,
                                 'xtick.labelsize': kin_tick_size,
                                 'ytick.labelsize': kin_tick_size,
+                                'axes.unicode_minus': False,
                             }):
                                 fig2, ax2 = plt.subplots(figsize=(fig_width / 2.54, fig_height / 2.54), facecolor='white')
                                 ax2.set_facecolor('white'); ax2.grid(False)
