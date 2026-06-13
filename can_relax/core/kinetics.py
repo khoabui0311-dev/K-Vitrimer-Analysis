@@ -81,19 +81,20 @@ class KineticsEngine:
         T_K = np.array(temps_C) + 273.15
         G0s = np.array(G0s)
 
-        def van_t_hoff_func(T, G0_max, dH, dS):
+        def van_t_hoff_func(T, A, dH, dS):
             exponent = -dH / (R_GAS * T) + dS / R_GAS
             exponent = np.clip(exponent, -50.0, 50.0)
-            return G0_max / (1.0 + np.exp(exponent))
+            return (A * T) / (1.0 + np.exp(exponent))
 
         try:
-            # Initial guess
-            G0_max_p0 = float(np.max(G0s) * 1.05)
+            # Initial guess: G0_max roughly occurs at high T? No, A*T is the max.
+            # So A ~ np.max(G0s) / np.min(T_K)
+            A_p0 = float(np.max(G0s) / np.max(T_K) * 1.5)
             # Transesterification/bond dissociation typically has dH around 60-120 kJ/mol
-            p0 = [G0_max_p0, 80000.0, 150.0]
+            p0 = [A_p0, 80000.0, 150.0]
             bounds = (
-                [np.max(G0s), 0.0, -500.0],
-                [np.max(G0s) * 5.0, 500000.0, 500.0]
+                [np.max(G0s) / np.max(T_K) * 0.1, 0.0, -500.0],
+                [np.max(G0s) / np.min(T_K) * 10.0, 500000.0, 500.0]
             )
 
             popt, _ = curve_fit(van_t_hoff_func, T_K, G0s, p0=p0, bounds=bounds, maxfev=5000)
@@ -105,7 +106,7 @@ class KineticsEngine:
 
             return {
                 "Type": "Van_t_Hoff",
-                "G0_max": popt[0],
+                "A": popt[0],
                 "dH_diss": popt[1] / 1000.0,  # to kJ/mol
                 "dS_diss": popt[2],  # J/mol*K
                 "R2": r2,
