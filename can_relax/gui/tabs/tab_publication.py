@@ -475,7 +475,7 @@ def render(tab_pub, PLOTLY_STYLE: dict, Tg_input: float, G_prime_input: float):
                                 G_Pa_pub = G_prime_input * 1e6
                                 tau_target_pub = 1e12 / G_Pa_pub
                                 ln_tau_t_pub = np.log(tau_target_pub)
-                                Tv_pub = (1.0 / ((ln_tau_t_pub - intercept_pub)/slope_pub)) - 273.15 if slope_pub != 0 else 0
+                                Tv_pub = (1000.0 / ((ln_tau_t_pub - intercept_pub)/slope_pub)) - 273.15 if slope_pub != 0 else 0
                                 
                                 c1, c2, c3 = st.columns(3)
                                 c1.metric("Ea", f"{Ea_pub:.1f} ± {Ea_std_pub:.1f} kJ/mol" if show_ea_std else f"{Ea_pub:.1f} kJ/mol")
@@ -511,15 +511,15 @@ def render(tab_pub, PLOTLY_STYLE: dict, Tg_input: float, G_prime_input: float):
                                 if tau_kin_model == "Arrhenius":
                                     x_data = fit_res_pub['Plot']['x']
                                     y_data = fit_res_pub['Plot']['y']
-                                    ax2.scatter(x_data * 1000, y_data, s=kin_marker_size**2, alpha=0.8, edgecolors='black', linewidth=0.8, color='steelblue', zorder=3)
+                                    ax2.scatter(x_data, y_data, s=kin_marker_size**2, alpha=0.8, edgecolors='black', linewidth=0.8, color='steelblue', zorder=3)
                                     x_range = np.linspace(x_data.min() * 0.95, x_data.max() * 1.05, 100)
                                     y_fit = slope_pub * x_range + intercept_pub
                                     label_fit = r"$E_\mathrm{a} = %.1f \pm %.1f\ \mathrm{kJ\ mol}^{-1}$" % (Ea_pub, Ea_std_pub) if show_ea_std else r"$E_\mathrm{a} = %.1f\ \mathrm{kJ\ mol}^{-1}$" % Ea_pub
                                     label_fit += "\n" + r"$R^2 = %.4f$" % r_sq_pub
-                                    ax2.plot(x_range * 1000, y_fit, '--', color='red', linewidth=kin_line_width, label=label_fit, zorder=2)
+                                    ax2.plot(x_range, y_fit, '--', color='red', linewidth=kin_line_width, label=label_fit, zorder=2)
                                     
                                     if show_tv:
-                                        Tv_x_1000 = (ln_tau_t_pub - intercept_pub) / slope_pub * 1000
+                                        Tv_x_1000 = (ln_tau_t_pub - intercept_pub) / slope_pub
                                         ax2.plot([Tv_x_1000], [ln_tau_t_pub], marker='*', markersize=kin_marker_size * 2, color='gold', markeredgecolor='black', markeredgewidth=0.8, label=r"$T_\mathrm{v} = %.1f^\circ\mathrm{C}$" % Tv_pub, zorder=4)
                                 else:
                                     inv_T = 1.0 / T_K_all
@@ -635,13 +635,13 @@ def render(tab_pub, PLOTLY_STYLE: dict, Tg_input: float, G_prime_input: float):
 
                                 x_data = fit_res_pub['Plot']['x']
                                 y_data = fit_res_pub['Plot']['y']
-                                ax4.scatter(x_data * 1000, y_data, s=vh_marker_size**2, alpha=0.8, edgecolors='black', linewidth=0.8, color='steelblue', zorder=3)
+                                ax4.scatter(x_data, y_data, s=vh_marker_size**2, alpha=0.8, edgecolors='black', linewidth=0.8, color='steelblue', zorder=3)
                                 x_range = np.linspace(x_data.min() * 0.95, x_data.max() * 1.05, 100)
                                 T_range = 1000.0 / x_range
                                 exponent = -(fit_res_pub['dH_diss'] * 1000.0) / (8.314462 * T_range) + fit_res_pub['dS_diss'] / 8.314462
                                 y_fit = fit_res_pub['G0_max'] / (1.0 + np.exp(np.clip(exponent, -50.0, 50.0)))
                                 label_fit = r"$\Delta H_{diss} = %.1f\ \mathrm{kJ\ mol}^{-1}$" % fit_res_pub['dH_diss']
-                                ax4.plot(x_range * 1000, y_fit, '--', color='red', linewidth=vh_line_width, label=label_fit, zorder=2)
+                                ax4.plot(x_range, y_fit, '--', color='red', linewidth=vh_line_width, label=label_fit, zorder=2)
 
                                 ax4.set_xlabel(r"$1000/T\ (\mathrm{K}^{-1})$", fontdict={'family': vh_font_family, 'size': vh_label_size, 'weight': vh_label_weight, 'style': vh_label_style})
                                 ax4.set_ylabel(r"$G_0$ (MPa)", fontdict={'family': vh_font_family, 'size': vh_label_size, 'weight': vh_label_weight, 'style': vh_label_style})
