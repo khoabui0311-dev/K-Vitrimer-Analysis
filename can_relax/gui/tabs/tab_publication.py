@@ -9,8 +9,19 @@ mpl.rcParams['pdf.fonttype'] = 42
 import matplotlib.ticker as ticker
 import io
 from PIL import Image
+import matplotlib.mathtext as mathtext
 from can_relax.core.kinetics import KineticsEngine
 
+if not hasattr(mathtext.MathTextParser, '_patched_by_us'):
+    _original_parse = mathtext.MathTextParser.parse
+    def _safe_parse(self, s, *args, **kwargs):
+        try:
+            return _original_parse(self, s, *args, **kwargs)
+        except Exception as e:
+            print(f"Matplotlib MathText error on string {repr(s)}. {str(e)}")
+            return _original_parse(self, "", *args, **kwargs)
+    mathtext.MathTextParser.parse = _safe_parse
+    mathtext.MathTextParser._patched_by_us = True
 def save_and_download(fig, title_prefix, pub_colorspace, key_suffix):
     buf_rgb_png = io.BytesIO()
     fig.savefig(buf_rgb_png, format='png', dpi=1200)
