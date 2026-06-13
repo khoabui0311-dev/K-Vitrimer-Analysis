@@ -19,7 +19,7 @@ if not hasattr(mathtext.MathTextParser, '_patched_by_us'):
             return _original_parse(self, s, *args, **kwargs)
         except Exception as e:
             print(f"Matplotlib MathText error on string {repr(s)}. {str(e)}")
-            return _original_parse(self, "", *args, **kwargs)
+            return _original_parse(self, " ", *args, **kwargs)
     mathtext.MathTextParser.parse = _safe_parse
     mathtext.MathTextParser._patched_by_us = True
 def save_and_download(fig, title_prefix, pub_colorspace, key_suffix):
