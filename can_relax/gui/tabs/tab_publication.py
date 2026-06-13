@@ -539,12 +539,14 @@ def render(tab_pub, PLOTLY_STYLE: dict, Tg_input: float, G_prime_input: float):
                                 y_data = fit_res_pub['Plot']['y']
                                 ax4.scatter(x_data * 1000, y_data, s=16, alpha=0.8, edgecolors='black', linewidth=0.8, color='steelblue', zorder=3)
                                 x_range = np.linspace(x_data.min() * 0.95, x_data.max() * 1.05, 100)
-                                y_fit = fit_res_pub['Params']['slope'] * x_range + fit_res_pub['Params']['intercept']
+                                T_range = 1000.0 / x_range
+                                exponent = -(fit_res_pub['dH_diss'] * 1000.0) / (8.314462 * T_range) + fit_res_pub['dS_diss'] / 8.314462
+                                y_fit = fit_res_pub['G0_max'] / (1.0 + np.exp(np.clip(exponent, -50.0, 50.0)))
                                 label_fit = r"$\Delta H_{diss} = %.1f\ \mathrm{kJ\ mol}^{-1}$" % fit_res_pub['dH_diss']
                                 ax4.plot(x_range * 1000, y_fit, '--', color='red', linewidth=1.5, label=label_fit, zorder=2)
 
                                 ax4.set_xlabel(r"$1000/T\ (\mathrm{K}^{-1})$", fontdict={'family': rel_font_family, 'size':12})
-                                ax4.set_ylabel(r"$\ln(G_0)$", fontdict={'family': rel_font_family, 'size':12})
+                                ax4.set_ylabel(r"$G_0$ (MPa)", fontdict={'family': rel_font_family, 'size':12})
 
                                 apply_legend(ax4, "Best (Auto)", False)
                                 if panel_l_4:
