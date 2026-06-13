@@ -697,7 +697,10 @@ def render(tab_comparison, PLOTLY_STYLE: dict):
                             x_range = np.linspace(inv_T.min() * 0.9, inv_T.max() * 1.1, 100)
                             T_range = 1000.0 / x_range
                             exponent = -(vh_fit['dH_diss'] * 1000.0) / (8.314462 * T_range) + vh_fit['dS_diss'] / 8.314462
-                            y_fit = (vh_fit['A'] * T_range) / (1.0 + np.exp(np.clip(exponent, -50.0, 50.0)))
+                            if 'A' in vh_fit:
+                                y_fit = (vh_fit['A'] * T_range) / (1.0 + np.exp(np.clip(exponent, -50.0, 50.0)))
+                            else:
+                                y_fit = vh_fit['G0_max'] / (1.0 + np.exp(np.clip(exponent, -50.0, 50.0)))
                             
                             label_fit = f"{name}: ΔH = {vh_fit['dH_diss']:.1f} kJ/mol"
                             ax_vh.plot(x_range, y_fit, '--', color=color, linewidth=1.5, label=label_fit, zorder=2)
