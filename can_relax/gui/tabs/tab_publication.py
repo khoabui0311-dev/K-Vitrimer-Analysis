@@ -46,7 +46,7 @@ def save_and_download(fig, title_prefix, pub_colorspace, key_suffix):
         st.download_button(f"📥 Download JPEG (600 DPI)", buf_jpg, f"{title_prefix}{title_suffix}.jpg", key=f"dl_jpg_{key_suffix}")
 
 
-def render(tab_pub, PLOTLY_STYLE: dict, Tg_input: float, G_prime_input: float):
+def render_publication(tab_pub, PLOTLY_STYLE: dict, Tg_input: float, G_prime_input: float):
     with tab_pub:
         st.header("📝 Publication Figures")
         if 'active_results' in st.session_state and st.session_state.active_results:
@@ -640,7 +640,10 @@ def render(tab_pub, PLOTLY_STYLE: dict, Tg_input: float, G_prime_input: float):
                                 x_range = np.linspace(x_data.min() * 0.95, x_data.max() * 1.05, 100)
                                 T_range = 1000.0 / x_range
                                 exponent = -(fit_res_pub['dH_diss'] * 1000.0) / (8.314462 * T_range) + fit_res_pub['dS_diss'] / 8.314462
-                                y_fit = fit_res_pub['G0_max'] / (1.0 + np.exp(np.clip(exponent, -50.0, 50.0)))
+                                if 'A' in fit_res_pub:
+                                    y_fit = (fit_res_pub['A'] * T_range) / (1.0 + np.exp(np.clip(exponent, -50.0, 50.0)))
+                                else:
+                                    y_fit = fit_res_pub['G0_max'] / (1.0 + np.exp(np.clip(exponent, -50.0, 50.0)))
                                 label_fit = r"$\Delta H_{diss} = %.1f\ \mathrm{kJ\ mol}^{-1}$" % fit_res_pub['dH_diss']
                                 ax4.plot(x_range, y_fit, '--', color='red', linewidth=vh_line_width, label=label_fit, zorder=2)
 
