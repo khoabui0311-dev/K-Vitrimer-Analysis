@@ -15,11 +15,12 @@ from can_relax.core.kinetics import KineticsEngine
 if not hasattr(mathtext.MathTextParser, '_patched_by_us'):
     _original_parse = mathtext.MathTextParser.parse
     def _safe_parse(self, s, *args, **kwargs):
+        if not s or str(s).strip() == "" or str(s).strip() == "$$":
+            return _original_parse(self, r"~", *args, **kwargs)
         try:
             return _original_parse(self, s, *args, **kwargs)
-        except Exception as e:
-            print(f"Matplotlib MathText error on string {repr(s)}. {str(e)}")
-            return _original_parse(self, " ", *args, **kwargs)
+        except ValueError:
+            return _original_parse(self, r"~", *args, **kwargs)
     mathtext.MathTextParser.parse = _safe_parse
     mathtext.MathTextParser._patched_by_us = True
 def save_and_download(fig, title_prefix, pub_colorspace, key_suffix):
@@ -486,7 +487,7 @@ def render(tab_pub, PLOTLY_STYLE: dict, Tg_input: float, G_prime_input: float):
                                 G_Pa_pub = G_prime_input * 1e6
                                 tau_target_pub = 1e12 / G_Pa_pub
                                 ln_tau_t_pub = np.log(tau_target_pub)
-                                Tv_pub = (1000.0 / ((ln_tau_t_pub - intercept_pub)/slope_pub)) - 273.15 if slope_pub != 0 else 0
+                                Tv_pub = (1.0 / ((ln_tau_t_pub - intercept_pub)/slope_pub)) - 273.15 if slope_pub != 0 else 0
                                 
                                 c1, c2, c3 = st.columns(3)
                                 c1.metric("Ea", f"{Ea_pub:.1f} ± {Ea_std_pub:.1f} kJ/mol" if show_ea_std else f"{Ea_pub:.1f} kJ/mol")
@@ -520,17 +521,17 @@ def render(tab_pub, PLOTLY_STYLE: dict, Tg_input: float, G_prime_input: float):
                                 T_K_all = np.array(temps_list) + 273.15
                                 
                                 if tau_kin_model == "Arrhenius":
-                                    x_data = fit_res_pub['Plot']['x']
+                                    x_data = fit_res_pub['Plot']['x'] * 1000.0
                                     y_data = fit_res_pub['Plot']['y']
                                     ax2.scatter(x_data, y_data, s=kin_marker_size**2, alpha=0.8, edgecolors='black', linewidth=0.8, color='steelblue', zorder=3)
                                     x_range = np.linspace(x_data.min() * 0.95, x_data.max() * 1.05, 100)
-                                    y_fit = slope_pub * x_range + intercept_pub
+                                    y_fit = (slope_pub / 1000.0) * x_range + intercept_pub
                                     label_fit = r"$E_\mathrm{a} = %.1f \pm %.1f\ \mathrm{kJ\ mol}^{-1}$" % (Ea_pub, Ea_std_pub) if show_ea_std else r"$E_\mathrm{a} = %.1f\ \mathrm{kJ\ mol}^{-1}$" % Ea_pub
                                     label_fit += "\n" + r"$R^2 = %.4f$" % r_sq_pub
                                     ax2.plot(x_range, y_fit, '--', color='red', linewidth=kin_line_width, label=label_fit, zorder=2)
                                     
                                     if show_tv:
-                                        Tv_x_1000 = (ln_tau_t_pub - intercept_pub) / slope_pub
+                                        Tv_x_1000 = ((ln_tau_t_pub - intercept_pub) / slope_pub) * 1000.0
                                         ax2.plot([Tv_x_1000], [ln_tau_t_pub], marker='*', markersize=kin_marker_size * 2, color='gold', markeredgecolor='black', markeredgewidth=0.8, label=r"$T_\mathrm{v} = %.1f^\circ\mathrm{C}$" % Tv_pub, zorder=4)
                                 else:
                                     inv_T = 1.0 / T_K_all
