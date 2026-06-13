@@ -463,7 +463,7 @@ def render(tab_pub, PLOTLY_STYLE: dict, Tg_input: float, G_prime_input: float):
                                 G_Pa_pub = G_prime_input * 1e6
                                 tau_target_pub = 1e12 / G_Pa_pub
                                 ln_tau_t_pub = np.log(tau_target_pub)
-                                Tv_pub = (1000.0 / ((ln_tau_t_pub - intercept_pub)/slope_pub)) - 273.15 if slope_pub != 0 else 0
+                                Tv_pub = (1.0 / ((ln_tau_t_pub - intercept_pub)/slope_pub)) - 273.15 if slope_pub != 0 else 0
                                 
                                 c1, c2, c3 = st.columns(3)
                                 c1.metric("Ea", f"{Ea_pub:.1f} ± {Ea_std_pub:.1f} kJ/mol" if show_ea_std else f"{Ea_pub:.1f} kJ/mol")
