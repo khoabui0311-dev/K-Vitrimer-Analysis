@@ -313,6 +313,7 @@ def render(tab_pub, PLOTLY_STYLE: dict, Tg_input: float, G_prime_input: float):
                             with vx2: vh_xmax = st.number_input("X Max", value=auto_kin_xmax, format="%.4f", key="vh_xmax")
                             with vy1: vh_ymin = st.number_input("Y Min", value=0.0, format="%.4f", key="vh_ymin")
                             with vy2: vh_ymax = st.number_input("Y Max", value=1.0, format="%.4f", key="vh_ymax")
+                        vh_y_scale = st.selectbox("Y Axis Scale ", ["Linear", "Log"], key="vh_yscale")
                         show_vh_leg = st.checkbox("Show Legend ", value=True, key="vh_leg")
                         if show_vh_leg:
                             vh_leg_pos = st.selectbox("Position ", ["Best (Auto)", "Upper Right", "Upper Left", "Lower Left", "Lower Right", "Right (Outside)"], key="vh_legpos")
@@ -626,7 +627,11 @@ def render(tab_pub, PLOTLY_STYLE: dict, Tg_input: float, G_prime_input: float):
                                 ax4.tick_params(axis='both', which='major', width=1.0, length=4, direction='in', top=vh_mirror, right=vh_mirror)
                                 ax4.tick_params(axis='both', which='minor', width=0.8, length=2.5, direction='in', top=vh_mirror, right=vh_mirror)
                                 ax4.xaxis.set_minor_locator(ticker.AutoMinorLocator())
-                                ax4.yaxis.set_minor_locator(ticker.AutoMinorLocator())
+                                if vh_y_scale != "Log": ax4.yaxis.set_minor_locator(ticker.AutoMinorLocator())
+                                else:
+                                    ax4.yaxis.set_major_locator(ticker.LogLocator(base=10.0))
+                                    ax4.yaxis.set_minor_locator(ticker.LogLocator(base=10.0, subs=(2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0)))
+                                    ax4.set_yscale('log')
 
                                 x_data = fit_res_pub['Plot']['x']
                                 y_data = fit_res_pub['Plot']['y']
