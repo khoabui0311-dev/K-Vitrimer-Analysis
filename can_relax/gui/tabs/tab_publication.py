@@ -78,6 +78,7 @@ def render(tab_pub, PLOTLY_STYLE: dict, Tg_input: float, G_prime_input: float):
                 auto_rel_ymin, auto_rel_ymax = 0.0, float(max_y_temp * 1.05)
 
             # Pre-calculate kinetics bounds
+            auto_vh_ymin, auto_vh_ymax = 0.1, 1000.0
             if not kinetics_df.empty:
                 active_k_temp = kinetics_df[kinetics_df['Include']==True]
                 if not active_k_temp.empty and len(active_k_temp) >= 2:
@@ -85,6 +86,16 @@ def render(tab_pub, PLOTLY_STYLE: dict, Tg_input: float, G_prime_input: float):
                     auto_kin_xmax = float(active_k_temp['1000/T'].max() * 1.05)
                     auto_kin_ymin = float(active_k_temp['ln(Tau)'].min() - 0.5)
                     auto_kin_ymax = float(active_k_temp['ln(Tau)'].max() + 0.5)
+                    
+                    g0_vals = []
+                    if 'analysis_results' in st.session_state:
+                        for t in active_k_temp['Temp']:
+                            match = next((r for r in st.session_state['analysis_results'] if r.get('Temp') == t), None)
+                            if match and 'Raw' in match and 'G0' in match['Raw']:
+                                g0_vals.append(match['Raw']['G0'])
+                    if g0_vals:
+                        auto_vh_ymin = float(max(1e-6, min(g0_vals)) * 0.5)
+                        auto_vh_ymax = float(max(g0_vals) * 2.0)
                 else:
                     auto_kin_xmin, auto_kin_xmax, auto_kin_ymin, auto_kin_ymax = 2.0, 3.5, -2.0, 10.0
             else:
@@ -311,8 +322,8 @@ def render(tab_pub, PLOTLY_STYLE: dict, Tg_input: float, G_prime_input: float):
                             vy1, vy2 = st.columns(2)
                             with vx1: vh_xmin = st.number_input("X Min", value=auto_kin_xmin, format="%.4f", key="vh_xmin")
                             with vx2: vh_xmax = st.number_input("X Max", value=auto_kin_xmax, format="%.4f", key="vh_xmax")
-                            with vy1: vh_ymin = st.number_input("Y Min", value=0.0, format="%.4f", key="vh_ymin")
-                            with vy2: vh_ymax = st.number_input("Y Max", value=1.0, format="%.4f", key="vh_ymax")
+                            with vy1: vh_ymin = st.number_input("Y Min", value=auto_vh_ymin, format="%.4f", key="vh_ymin")
+                            with vy2: vh_ymax = st.number_input("Y Max", value=auto_vh_ymax, format="%.4f", key="vh_ymax")
                         vh_y_scale = st.selectbox("Y Axis Scale ", ["Linear", "Log"], key="vh_yscale")
                         show_vh_leg = st.checkbox("Show Legend ", value=True, key="vh_leg")
                         if show_vh_leg:
