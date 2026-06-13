@@ -167,7 +167,7 @@ def render(tab_comparison, PLOTLY_STYLE: dict):
                         k_engine = KineticsEngine()
                         fit_res = k_engine.fit_arrhenius(temps, taus)
                         if fit_res:
-                            slope = fit_res['Params']['slope'] / 1000.0
+                            slope = fit_res['Params']['slope']
                             intercept = fit_res['Params']['intercept']
                             r_sq = fit_res['R2']
                             Ea = fit_res['Ea']
