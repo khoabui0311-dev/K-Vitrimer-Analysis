@@ -618,7 +618,7 @@ def render(tab_pub, PLOTLY_STYLE: dict, Tg_input: float, G_prime_input: float):
                             c2.metric("ΔS_diss", f"{fit_res_pub['dS_diss']:.1f} J/mol·K")
                             c3.metric("R²", f"{fit_res_pub.get('R2',0):.4f}")
 
-                            with plt.rc_context({'font.family': eyr_tick_font if eyr_tick_font != 'Same as Label' else eyr_font_family, 'xtick.labelsize': eyr_tick_size, 'ytick.labelsize': eyr_tick_size, 'axes.unicode_minus': False}):
+                            with plt.rc_context({'font.family': vh_tick_font if vh_tick_font != 'Same as Label' else vh_font_family, 'xtick.labelsize': vh_tick_size, 'ytick.labelsize': vh_tick_size, 'axes.unicode_minus': False}):
                                 fig4, ax4 = plt.subplots(figsize=(fig_width / 2.54, fig_height / 2.54), facecolor='white')
                                 ax4.grid(False)
                                 for spine in ['top', 'bottom', 'left', 'right']:
