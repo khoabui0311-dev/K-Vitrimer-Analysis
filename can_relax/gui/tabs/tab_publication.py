@@ -12,17 +12,6 @@ from PIL import Image
 import matplotlib.mathtext as mathtext
 from can_relax.core.kinetics import KineticsEngine
 
-if not hasattr(mathtext.MathTextParser, '_patched_by_us'):
-    _original_parse = mathtext.MathTextParser.parse
-    def _safe_parse(self, s, *args, **kwargs):
-        if not s or str(s).strip() == "" or str(s).strip() == "$$":
-            return _original_parse(self, r"~", *args, **kwargs)
-        try:
-            return _original_parse(self, s, *args, **kwargs)
-        except ValueError:
-            return _original_parse(self, r"~", *args, **kwargs)
-    mathtext.MathTextParser.parse = _safe_parse
-    mathtext.MathTextParser._patched_by_us = True
 def save_and_download(fig, title_prefix, pub_colorspace, key_suffix):
     buf_rgb_png = io.BytesIO()
     fig.savefig(buf_rgb_png, format='png', dpi=1200)

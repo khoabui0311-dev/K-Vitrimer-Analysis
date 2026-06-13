@@ -14,6 +14,20 @@ from scipy.optimize import curve_fit
 from scipy.stats import linregress
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
+import matplotlib.mathtext as mathtext
+
+# Patch MathTextParser to safely handle invalid MathText without crashing
+if not hasattr(mathtext.MathTextParser, '_patched_by_us'):
+    _original_parse = mathtext.MathTextParser.parse
+    def _safe_parse(self, s, *args, **kwargs):
+        if not s or str(s).strip() == "" or str(s).strip() == "$$":
+            return _original_parse(self, r"~", *args, **kwargs)
+        try:
+            return _original_parse(self, s, *args, **kwargs)
+        except ValueError:
+            return _original_parse(self, r"~", *args, **kwargs)
+    mathtext.MathTextParser.parse = _safe_parse
+    mathtext.MathTextParser._patched_by_us = True
 
 # Import proper modules from can_relax
 from can_relax.io.parser import parse_wide_format_data as parser_module_func
