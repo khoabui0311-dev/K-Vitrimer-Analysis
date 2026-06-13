@@ -22,7 +22,12 @@ def save_and_download(fig, title_prefix, pub_colorspace, key_suffix):
         img_out = img.convert('CMYK')
         title_suffix = "_CMYK"
     else:
-        img_out = img
+        if img.mode == 'RGBA':
+            bg = Image.new('RGB', img.size, (255, 255, 255))
+            bg.paste(img, mask=img.split()[3])
+            img_out = bg
+        else:
+            img_out = img.convert('RGB')
         title_suffix = "_RGB"
 
     buf_tiff = io.BytesIO()
