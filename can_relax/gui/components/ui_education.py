@@ -414,33 +414,35 @@ def render_education_tab(tab_education):
                 st.markdown(r"""
                 Our software implements the recommended characterization workflow detailed in the scientific literature (*Berne et al., ACS Polym. Au 2025*):
                 
-                ```
+                ```text
                 [Raw Stress Relaxation G(t) in MPa]
                                │
                                ▼
                [Pre-processing: G_eq Subtraction]
                                │
-                               ▼
-              [Model Fitting & Spectrum Extraction]
-                 (Maxwell, KWW, Dual-KWW, or 
-                Tikhonov Continuous Spectrum H(τ))
-                               │
-                               ▼
-               [Characteristic Scale τ* Extraction]
-                               │
-                               ▼
-                   [Kinetics Model Fitting]
-             (Arrhenius, Eyring, VFT, or Coupled)
-                               │
-                               ▼
-               [Parameter Estimation & Selection]
-                  (Ea, ΔH‡, ΔS‡, and BIC selection)
+                ┌──────────────┴──────────────┐
+                ▼                             ▼
+         [Parametric Fit]            [Tikhonov Inversion]
+     (Maxwell, KWW, Dual-KWW)        (Continuous H(τ))
+                │                             │
+                ▼                             ▼
+          [Extract τ*]              [Visual Diagnostics & Warnings]
+                │                   (Peak counting, Truncation limits)
+                ▼
+       [Kinetics Model Fitting]
+    (Arrhenius, Eyring, VFT, Coupled)
+                │
+                ▼
+       [Parameter Estimation]
+  (Ea, ΔH‡, ΔS‡, and BIC selection)
                 ```
                 
                 1. **Linear Viscoelastic Region (LVE) & MPa Modulus**: Stress relaxation tests are conducted under constant small strain. Initial plateau modulus values ($G_0$/$E_0$) are processed and reported in **MPa**.
                 2. **G_eq Subtraction**: If dynamic networks contain permanent cross-links or measurements are truncated, the stress decays to a non-zero equilibration plateau ($G_{eq}$). We subtract this tail value before inverting the spectrum to avoid long-time spectral baseline artifacts.
-                3. **Model Fitting**: Users can fit discrete models (Maxwell, Single-KWW, or Dual-KWW) or extract the continuous relaxation spectrum $H(\tau)$ via Ridge regression with Hansen's L-curve corner optimization.
-                4. **Temperature-dependent Kinetics**: The relaxation times $\tau(T)$ are analyzed using Arrhenius or Eyring (Transition State Theory) models to diagnose chemical mechanisms, or Vogel-Fulcher-Tammann (VFT) / Coupled WLF-Arrhenius models to study glass dynamics.
+                3. **Parallel Analysis Tracks**: 
+                   * **Parametric Model Fitting**: Users fit discrete phenomenological models (Maxwell, Single-KWW, or Dual-KWW) to explicitly extract the characteristic relaxation time ($\tau^*$).
+                   * **Continuous Spectrum Diagnostics**: In parallel, the continuous relaxation spectrum $H(\tau)$ is extracted via Ridge regression with Hansen's L-curve corner optimization. This serves as a diagnostic tool to verify the number of relaxation modes and mathematically warn about incomplete relaxation, but is *not* the model used to extract $\tau^*$ for kinetic fitting.
+                4. **Temperature-dependent Kinetics**: The relaxation times $\tau(T)$ from the parametric models are analyzed using Arrhenius or Eyring (Transition State Theory) models to diagnose chemical mechanisms, or Vogel-Fulcher-Tammann (VFT) / Coupled WLF-Arrhenius models to study glass dynamics.
                 5. **Decrosslinking analysis**: The temperature-dependent modulus $G_0(T)$ is analyzed using the Van 't Hoff equation to model network dissociation thermodynamics.
                 """)
 
