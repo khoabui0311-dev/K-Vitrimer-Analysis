@@ -286,21 +286,23 @@ with tab_analysis:
                 fit_details = []
                 for r in active_results:
                     temp = r['Temp']
+                    g0 = r['Raw'].get('G0', np.nan)
                     if fit_model in r['Fits']:
                         p = r['Fits'][fit_model]['popt']
                         r2 = r['Fits'][fit_model]['r2']
                         aic = r['Fits'][fit_model].get('aic', np.inf)
                         bic = r['Fits'][fit_model].get('bic', np.inf)
                         if fit_model == "Maxwell":
-                            fit_details.append({"Temperature (\u00b0C)": temp, "Tau (s)": p[0], "R\u00b2": r2, "AICc": aic, "BIC": bic})
+                            fit_details.append({"Temperature (\u00b0C)": temp, "G0 (MPa)": g0, "Tau (s)": p[0], "R\u00b2": r2, "AICc": aic, "BIC": bic})
                         elif fit_model == "Single_KWW":
-                            fit_details.append({"Temperature (\u00b0C)": temp, "Tau (s)": p[0], "Beta (\u03b2)": p[1], "R\u00b2": r2, "AICc": aic, "BIC": bic})
+                            fit_details.append({"Temperature (\u00b0C)": temp, "G0 (MPa)": g0, "Tau (s)": p[0], "Beta (\u03b2)": p[1], "R\u00b2": r2, "AICc": aic, "BIC": bic})
                         elif fit_model == "Dual_KWW":
-                            fit_details.append({"Temperature (\u00b0C)": temp, "Fraction A": p[0], "Tau 1 (s)": p[1], "Beta 1 (\u03b21)": p[2], "Tau 2 (s)": p[3], "Beta 2 (\u03b22)": p[4], "R\u00b2": r2, "AICc": aic, "BIC": bic})
+                            fit_details.append({"Temperature (\u00b0C)": temp, "G0 (MPa)": g0, "Fraction A": p[0], "Tau 1 (s)": p[1], "Beta 1 (\u03b21)": p[2], "Tau 2 (s)": p[3], "Beta 2 (\u03b22)": p[4], "R\u00b2": r2, "AICc": aic, "BIC": bic})
                 if fit_details:
                     df_details = pd.DataFrame(fit_details)
                     col_config = {
                         "Temperature (\u00b0C)": st.column_config.NumberColumn(format="%.1f"),
+                        "G0 (MPa)": st.column_config.NumberColumn(format="%.3f"),
                         "R\u00b2": st.column_config.NumberColumn(format="%.4f"),
                         "AICc": st.column_config.NumberColumn(format="%.2f"),
                         "BIC": st.column_config.NumberColumn(format="%.2f")
