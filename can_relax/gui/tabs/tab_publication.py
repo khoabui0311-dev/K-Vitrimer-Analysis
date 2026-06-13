@@ -162,6 +162,12 @@ def render(tab_pub, PLOTLY_STYLE: dict, Tg_input: float, G_prime_input: float):
                         show_rel_leg = st.checkbox("Show Legend", value=True, key="pub_relleg")
                         if show_rel_leg:
                             rel_leg_pos = st.selectbox("Position", ["Best (Auto)", "Upper Right", "Upper Left", "Lower Left", "Lower Right", "Right (Outside)"], key="pub_relpos")
+                            rnc1, rnc2 = st.columns(2)
+                            with rnc1: rel_leg_ncol = st.number_input("Columns", 1, 10, 1, key="pub_relncol")
+                            with rnc2: rel_leg_font_size = st.slider("Font Size", 4, 16, 8, key="pub_relfont")
+                            rel_leg_box = st.checkbox("Box Border", value=False, key="pub_relbox")
+                        else:
+                            rel_leg_pos, rel_leg_font_size, rel_leg_box, rel_leg_ncol = "Best (Auto)", 8, False, 1
 
                 # ==============================================================================
                 # TAU KINETICS CONFIG
@@ -208,6 +214,12 @@ def render(tab_pub, PLOTLY_STYLE: dict, Tg_input: float, G_prime_input: float):
                         show_kin_leg = st.checkbox("Show Legend ", value=True, key="pub_kinleg")
                         if show_kin_leg:
                             kin_leg_pos = st.selectbox("Position ", ["Best (Auto)", "Upper Right", "Upper Left", "Lower Left", "Lower Right", "Right (Outside)"], key="pub_kinpos")
+                            knc1, knc2 = st.columns(2)
+                            with knc1: kin_leg_ncol = st.number_input("Columns ", 1, 10, 1, key="pub_kinncol")
+                            with knc2: kin_leg_font_size = st.slider("Font Size ", 4, 16, 8, key="pub_kinfont")
+                            kin_leg_box = st.checkbox("Box Border ", value=False, key="pub_kinbox")
+                        else:
+                            kin_leg_pos, kin_leg_font_size, kin_leg_box, kin_leg_ncol = "Best (Auto)", 8, False, 1
 
                 # ==============================================================================
                 # EYRING CONFIG
@@ -220,6 +232,37 @@ def render(tab_pub, PLOTLY_STYLE: dict, Tg_input: float, G_prime_input: float):
                         with f3_pan_c2:
                             pl_x_3 = st.number_input("X pos  ", -1.0, 2.0, -0.12, 0.01, key="plx_3")
                             pl_y_3 = st.number_input("Y pos  ", -1.0, 2.0, 1.02, 0.01, key="ply_3")
+                        ec1, ec2 = st.columns(2)
+                        with ec1: eyr_line_width = st.slider("Fit Line Width", 0.5, 6.0, 1.5, 0.5, key="eyr_lw")
+                        with ec2: eyr_marker_size = st.slider("Data Marker Size", 1, 15, 6, 1, key="eyr_ms")
+                        eyr_font_family = st.selectbox("Font Family", ["Arial", "Times New Roman", "Courier New", "DejaVu Sans"], key="eyr_ff")
+                        els1, els2, els3 = st.columns(3)
+                        with els1: eyr_label_size = st.number_input("Label Size", 4, 30, 12, key="eyr_lsz")
+                        with els2: eyr_label_weight = st.selectbox("Label Weight", ["normal", "bold"], key="eyr_lwt")
+                        with els3: eyr_label_style = st.selectbox("Label Style", ["normal", "italic"], key="eyr_lst")
+                        ens1, ens2, ens3, ens4 = st.columns(4)
+                        with ens1: eyr_tick_font = st.selectbox("Num Font", ["Same as Label", "Arial", "Times New Roman"], key="eyr_nf")
+                        with ens2: eyr_tick_size = st.number_input("Num Size", 4, 30, 10, key="eyr_nsz")
+                        with ens3: eyr_tick_weight = st.selectbox("Num Weight", ["normal", "bold"], key="eyr_nwt")
+                        with ens4: eyr_tick_style = st.selectbox("Num Style", ["normal", "italic"], key="eyr_nst")
+                        eyr_mirror = st.checkbox("Mirror Ticks to Top/Right", value=False, key="eyr_mir")
+                        eyr_custom_lims = st.checkbox("Manual Axis Bounding", value=False, key="eyr_clim")
+                        if eyr_custom_lims:
+                            ex1, ex2 = st.columns(2)
+                            ey1, ey2 = st.columns(2)
+                            with ex1: eyr_xmin = st.number_input("X Min", value=auto_kin_xmin, format="%.4f", key="eyr_xmin")
+                            with ex2: eyr_xmax = st.number_input("X Max", value=auto_kin_xmax, format="%.4f", key="eyr_xmax")
+                            with ey1: eyr_ymin = st.number_input("Y Min", value=auto_kin_ymin, format="%.4f", key="eyr_ymin")
+                            with ey2: eyr_ymax = st.number_input("Y Max", value=auto_kin_ymax, format="%.4f", key="eyr_ymax")
+                        show_eyr_leg = st.checkbox("Show Legend ", value=True, key="eyr_leg")
+                        if show_eyr_leg:
+                            eyr_leg_pos = st.selectbox("Position ", ["Best (Auto)", "Upper Right", "Upper Left", "Lower Left", "Lower Right", "Right (Outside)"], key="eyr_legpos")
+                            enc1, enc2 = st.columns(2)
+                            with enc1: eyr_leg_ncol = st.number_input("Columns ", 1, 10, 1, key="eyr_legncol")
+                            with enc2: eyr_leg_font_size = st.slider("Font Size ", 4, 16, 8, key="eyr_legfont")
+                            eyr_leg_box = st.checkbox("Box Border ", value=False, key="eyr_legbox")
+                        else:
+                            eyr_leg_pos, eyr_leg_font_size, eyr_leg_box, eyr_leg_ncol = "Best (Auto)", 8, False, 1
 
                 # ==============================================================================
                 # VAN T HOFF CONFIG
@@ -232,20 +275,51 @@ def render(tab_pub, PLOTLY_STYLE: dict, Tg_input: float, G_prime_input: float):
                         with f4_pan_c2:
                             pl_x_4 = st.number_input("X pos   ", -1.0, 2.0, -0.12, 0.01, key="plx_4")
                             pl_y_4 = st.number_input("Y pos   ", -1.0, 2.0, 1.02, 0.01, key="ply_4")
+                        vc1, vc2 = st.columns(2)
+                        with vc1: vh_line_width = st.slider("Fit Line Width", 0.5, 6.0, 1.5, 0.5, key="vh_lw")
+                        with vc2: vh_marker_size = st.slider("Data Marker Size", 1, 15, 6, 1, key="vh_ms")
+                        vh_font_family = st.selectbox("Font Family", ["Arial", "Times New Roman", "Courier New", "DejaVu Sans"], key="vh_ff")
+                        vls1, vls2, vls3 = st.columns(3)
+                        with vls1: vh_label_size = st.number_input("Label Size", 4, 30, 12, key="vh_lsz")
+                        with vls2: vh_label_weight = st.selectbox("Label Weight", ["normal", "bold"], key="vh_lwt")
+                        with vls3: vh_label_style = st.selectbox("Label Style", ["normal", "italic"], key="vh_lst")
+                        vns1, vns2, vns3, vns4 = st.columns(4)
+                        with vns1: vh_tick_font = st.selectbox("Num Font", ["Same as Label", "Arial", "Times New Roman"], key="vh_nf")
+                        with vns2: vh_tick_size = st.number_input("Num Size", 4, 30, 10, key="vh_nsz")
+                        with vns3: vh_tick_weight = st.selectbox("Num Weight", ["normal", "bold"], key="vh_nwt")
+                        with vns4: vh_tick_style = st.selectbox("Num Style", ["normal", "italic"], key="vh_nst")
+                        vh_mirror = st.checkbox("Mirror Ticks to Top/Right", value=False, key="vh_mir")
+                        vh_custom_lims = st.checkbox("Manual Axis Bounding", value=False, key="vh_clim")
+                        if vh_custom_lims:
+                            vx1, vx2 = st.columns(2)
+                            vy1, vy2 = st.columns(2)
+                            with vx1: vh_xmin = st.number_input("X Min", value=auto_kin_xmin, format="%.4f", key="vh_xmin")
+                            with vx2: vh_xmax = st.number_input("X Max", value=auto_kin_xmax, format="%.4f", key="vh_xmax")
+                            with vy1: vh_ymin = st.number_input("Y Min", value=0.0, format="%.4f", key="vh_ymin")
+                            with vy2: vh_ymax = st.number_input("Y Max", value=1.0, format="%.4f", key="vh_ymax")
+                        show_vh_leg = st.checkbox("Show Legend ", value=True, key="vh_leg")
+                        if show_vh_leg:
+                            vh_leg_pos = st.selectbox("Position ", ["Best (Auto)", "Upper Right", "Upper Left", "Lower Left", "Lower Right", "Right (Outside)"], key="vh_legpos")
+                            vnc1, vnc2 = st.columns(2)
+                            with vnc1: vh_leg_ncol = st.number_input("Columns ", 1, 10, 1, key="vh_legncol")
+                            with vnc2: vh_leg_font_size = st.slider("Font Size ", 4, 16, 8, key="vh_legfont")
+                            vh_leg_box = st.checkbox("Box Border ", value=False, key="vh_legbox")
+                        else:
+                            vh_leg_pos, vh_leg_font_size, vh_leg_box, vh_leg_ncol = "Best (Auto)", 8, False, 1
 
             # ── Right panel: figure previews ──────────────────────────────
             with pan_preview:
                 color_palette = ['#1b9e77', '#d95f02', '#7570b3', '#e7298a', '#66a61e', '#e6ab02', '#a6761d', '#666666']
                 
                 # Helper function for legends
-                def apply_legend(ax, pos, box):
+                def apply_legend(ax, pos, box, fontsize=8, ncol=1):
                     l_pos = 'best'; l_anchor = None
                     if pos == "Upper Right": l_pos = 'upper right'
                     elif pos == "Upper Left": l_pos = 'upper left'
                     elif pos == "Lower Left": l_pos = 'lower left'
                     elif pos == "Lower Right": l_pos = 'lower right'
                     elif pos == "Right (Outside)": l_pos = 'upper left'; l_anchor = (1.02, 1.0)
-                    ax.legend(frameon=box, loc=l_pos, bbox_to_anchor=l_anchor)
+                    ax.legend(frameon=box, loc=l_pos, bbox_to_anchor=l_anchor, fontsize=fontsize, ncol=ncol, columnspacing=1.0, handletextpad=0.5)
 
                 # ================= FIGURE 1 =================
                 if 'show_fig1' in locals() and show_fig1:
@@ -351,7 +425,7 @@ def render(tab_pub, PLOTLY_STYLE: dict, Tg_input: float, G_prime_input: float):
                             all_times = np.concatenate([r['Raw']['t'] / x_factor for r in active_res])
                             ax1.set_xlim(all_times.min() * 0.8, all_times.max() * 1.2)
 
-                        if show_rel_leg: apply_legend(ax1, rel_leg_pos, False)
+                        if show_rel_leg: apply_legend(ax1, rel_leg_pos, rel_leg_box, fontsize=rel_leg_font_size, ncol=rel_leg_ncol)
 
                         if panel_l_1:
                             ax1.text(pl_x_1, pl_y_1, f"({panel_l_1})", transform=ax1.transAxes,
@@ -448,7 +522,7 @@ def render(tab_pub, PLOTLY_STYLE: dict, Tg_input: float, G_prime_input: float):
                                     ax2.set_xlim(kin_xmin, kin_xmax)
                                     ax2.set_ylim(kin_ymin, kin_ymax)
                                 
-                                if show_kin_leg: apply_legend(ax2, kin_leg_pos, False)
+                                if show_kin_leg: apply_legend(ax2, kin_leg_pos, kin_leg_box, fontsize=kin_leg_font_size, ncol=kin_leg_ncol)
 
                                 if panel_l_2:
                                     ax2.text(pl_x_2, pl_y_2, f"({panel_l_2})", transform=ax2.transAxes,
@@ -477,29 +551,32 @@ def render(tab_pub, PLOTLY_STYLE: dict, Tg_input: float, G_prime_input: float):
                             c2.metric("ΔS‡", f"{fit_res_pub['dS']:.1f} J/mol·K")
                             c3.metric("R²", f"{fit_res_pub.get('R2',0):.4f}")
 
-                            with plt.rc_context({'font.family': rel_font_family, 'axes.unicode_minus': False}):
+                            with plt.rc_context({'font.family': eyr_tick_font if eyr_tick_font != 'Same as Label' else eyr_font_family, 'xtick.labelsize': eyr_tick_size, 'ytick.labelsize': eyr_tick_size, 'axes.unicode_minus': False}):
                                 fig3, ax3 = plt.subplots(figsize=(fig_width / 2.54, fig_height / 2.54), facecolor='white')
                                 ax3.grid(False)
                                 for spine in ['top', 'bottom', 'left', 'right']:
                                     ax3.spines[spine].set_linewidth(1.0); ax3.spines[spine].set_color('black')
-                                ax3.tick_params(axis='both', which='major', width=1.0, length=4, direction='in')
-                                ax3.tick_params(axis='both', which='minor', width=0.8, length=2.5, direction='in')
+                                ax3.tick_params(axis='both', which='major', width=1.0, length=4, direction='in', top=eyr_mirror, right=eyr_mirror)
+                                ax3.tick_params(axis='both', which='minor', width=0.8, length=2.5, direction='in', top=eyr_mirror, right=eyr_mirror)
                                 ax3.xaxis.set_minor_locator(ticker.AutoMinorLocator())
                                 ax3.yaxis.set_minor_locator(ticker.AutoMinorLocator())
 
                                 x_data = fit_res_pub['Plot']['x']
                                 y_data = fit_res_pub['Plot']['y']
-                                ax3.scatter(x_data * 1000, y_data, s=16, alpha=0.8, edgecolors='black', linewidth=0.8, color='steelblue', zorder=3)
+                                ax3.scatter(x_data * 1000, y_data, s=eyr_marker_size**2, alpha=0.8, edgecolors='black', linewidth=0.8, color='steelblue', zorder=3)
                                 x_range = np.linspace(x_data.min() * 0.95, x_data.max() * 1.05, 100)
                                 y_fit = fit_res_pub['Params']['slope'] * x_range + fit_res_pub['Params']['intercept']
                                 label_fit = r"$\Delta H^\ddagger = %.1f\ \mathrm{kJ\ mol}^{-1}$" % fit_res_pub['dH']
                                 label_fit += "\n" + r"$\Delta S^\ddagger = %.1f\ \mathrm{J\ mol}^{-1}\mathrm{K}^{-1}$" % fit_res_pub['dS']
-                                ax3.plot(x_range * 1000, y_fit, '--', color='red', linewidth=1.5, label=label_fit, zorder=2)
+                                ax3.plot(x_range * 1000, y_fit, '--', color='red', linewidth=eyr_line_width, label=label_fit, zorder=2)
 
-                                ax3.set_xlabel(r"$1000/T\ (\mathrm{K}^{-1})$", fontdict={'family': rel_font_family, 'size':12})
-                                ax3.set_ylabel(r"$\ln(\tau \cdot T)$", fontdict={'family': rel_font_family, 'size':12})
+                                ax3.set_xlabel(r"$1000/T\ (\mathrm{K}^{-1})$", fontdict={'family': eyr_font_family, 'size': eyr_label_size, 'weight': eyr_label_weight, 'style': eyr_label_style})
+                                ax3.set_ylabel(r"$\ln(\tau \cdot T)$", fontdict={'family': eyr_font_family, 'size': eyr_label_size, 'weight': eyr_label_weight, 'style': eyr_label_style})
+                                if eyr_custom_lims:
+                                    ax3.set_xlim(eyr_xmin, eyr_xmax)
+                                    ax3.set_ylim(eyr_ymin, eyr_ymax)
 
-                                apply_legend(ax3, "Best (Auto)", False)
+                                apply_legend(ax3, eyr_leg_pos, eyr_leg_box, fontsize=eyr_leg_font_size, ncol=eyr_leg_ncol)
                                 if panel_l_3:
                                     ax3.text(pl_x_3, pl_y_3, f"({panel_l_3})", transform=ax3.transAxes, fontfamily=panel_font_family, fontsize=panel_font_size, fontweight=panel_font_weight, fontstyle=panel_font_style, va='bottom', ha='right')
 
@@ -525,30 +602,33 @@ def render(tab_pub, PLOTLY_STYLE: dict, Tg_input: float, G_prime_input: float):
                             c2.metric("ΔS_diss", f"{fit_res_pub['dS_diss']:.1f} J/mol·K")
                             c3.metric("R²", f"{fit_res_pub.get('R2',0):.4f}")
 
-                            with plt.rc_context({'font.family': rel_font_family, 'axes.unicode_minus': False}):
+                            with plt.rc_context({'font.family': eyr_tick_font if eyr_tick_font != 'Same as Label' else eyr_font_family, 'xtick.labelsize': eyr_tick_size, 'ytick.labelsize': eyr_tick_size, 'axes.unicode_minus': False}):
                                 fig4, ax4 = plt.subplots(figsize=(fig_width / 2.54, fig_height / 2.54), facecolor='white')
                                 ax4.grid(False)
                                 for spine in ['top', 'bottom', 'left', 'right']:
                                     ax4.spines[spine].set_linewidth(1.0); ax4.spines[spine].set_color('black')
-                                ax4.tick_params(axis='both', which='major', width=1.0, length=4, direction='in')
-                                ax4.tick_params(axis='both', which='minor', width=0.8, length=2.5, direction='in')
+                                ax4.tick_params(axis='both', which='major', width=1.0, length=4, direction='in', top=vh_mirror, right=vh_mirror)
+                                ax4.tick_params(axis='both', which='minor', width=0.8, length=2.5, direction='in', top=vh_mirror, right=vh_mirror)
                                 ax4.xaxis.set_minor_locator(ticker.AutoMinorLocator())
                                 ax4.yaxis.set_minor_locator(ticker.AutoMinorLocator())
 
                                 x_data = fit_res_pub['Plot']['x']
                                 y_data = fit_res_pub['Plot']['y']
-                                ax4.scatter(x_data * 1000, y_data, s=16, alpha=0.8, edgecolors='black', linewidth=0.8, color='steelblue', zorder=3)
+                                ax4.scatter(x_data * 1000, y_data, s=vh_marker_size**2, alpha=0.8, edgecolors='black', linewidth=0.8, color='steelblue', zorder=3)
                                 x_range = np.linspace(x_data.min() * 0.95, x_data.max() * 1.05, 100)
                                 T_range = 1000.0 / x_range
                                 exponent = -(fit_res_pub['dH_diss'] * 1000.0) / (8.314462 * T_range) + fit_res_pub['dS_diss'] / 8.314462
                                 y_fit = fit_res_pub['G0_max'] / (1.0 + np.exp(np.clip(exponent, -50.0, 50.0)))
                                 label_fit = r"$\Delta H_{diss} = %.1f\ \mathrm{kJ\ mol}^{-1}$" % fit_res_pub['dH_diss']
-                                ax4.plot(x_range * 1000, y_fit, '--', color='red', linewidth=1.5, label=label_fit, zorder=2)
+                                ax4.plot(x_range * 1000, y_fit, '--', color='red', linewidth=vh_line_width, label=label_fit, zorder=2)
 
-                                ax4.set_xlabel(r"$1000/T\ (\mathrm{K}^{-1})$", fontdict={'family': rel_font_family, 'size':12})
-                                ax4.set_ylabel(r"$G_0$ (MPa)", fontdict={'family': rel_font_family, 'size':12})
+                                ax4.set_xlabel(r"$1000/T\ (\mathrm{K}^{-1})$", fontdict={'family': vh_font_family, 'size': vh_label_size, 'weight': vh_label_weight, 'style': vh_label_style})
+                                ax4.set_ylabel(r"$G_0$ (MPa)", fontdict={'family': vh_font_family, 'size': vh_label_size, 'weight': vh_label_weight, 'style': vh_label_style})
+                                if vh_custom_lims:
+                                    ax4.set_xlim(vh_xmin, vh_xmax)
+                                    ax4.set_ylim(vh_ymin, vh_ymax)
 
-                                apply_legend(ax4, "Best (Auto)", False)
+                                apply_legend(ax4, vh_leg_pos, vh_leg_box, fontsize=vh_leg_font_size, ncol=vh_leg_ncol)
                                 if panel_l_4:
                                     ax4.text(pl_x_4, pl_y_4, f"({panel_l_4})", transform=ax4.transAxes, fontfamily=panel_font_family, fontsize=panel_font_size, fontweight=panel_font_weight, fontstyle=panel_font_style, va='bottom', ha='right')
 
