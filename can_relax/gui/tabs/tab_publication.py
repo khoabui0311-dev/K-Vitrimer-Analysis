@@ -1,11 +1,13 @@
-﻿import streamlit as st
+import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
 import io
+from can_relax.core.kinetics import KineticsEngine
 
-def render(tab_pub, PLOTLY_STYLE: dict):
+def render(tab_pub, PLOTLY_STYLE: dict, Tg_input: float, G_prime_input: float):
     # TAB 5: PUBLICATION
     # ==========================
     with tab_pub:

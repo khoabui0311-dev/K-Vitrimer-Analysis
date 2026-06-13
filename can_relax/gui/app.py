@@ -1,4 +1,4 @@
-﻿import sys
+import sys
 import os
 # Add parent directory to path for Streamlit Cloud
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
@@ -649,8 +649,9 @@ tab_comparison_mod.render(tab_comparison, PLOTLY_STYLE)
 
 # ==========================
 # TAB 5: PUBLICATION  →  extracted to can_relax/gui/tabs/tab_publication.py
+# ==========================
 from can_relax.gui.tabs import tab_publication
-tab_publication.render(tab_pub, PLOTLY_STYLE)
+tab_publication.render(tab_pub, PLOTLY_STYLE, Tg_input, G_prime_input)
 
 
 # --- MODULAR TABS ---
