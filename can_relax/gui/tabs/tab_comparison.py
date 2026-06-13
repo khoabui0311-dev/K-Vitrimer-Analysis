@@ -508,7 +508,7 @@ def render(tab_comparison, PLOTLY_STYLE: dict):
                     mpl_success = True
                 except Exception as e:
                     with col_settings:
-                        st.error(f"⚠️ Matplotlib export failed. Check for invalid MathText in Sample Names (e.g. unclosed '$').")
+                        st.error(f"⚠️ Matplotlib export failed. Error: {str(e)}")
 
                 # Render the plot in col_plot
                 with col_plot:
@@ -635,9 +635,31 @@ def render(tab_comparison, PLOTLY_STYLE: dict):
                         vh_comp_leg_fontsize = st.slider("Font Size", 4, 20, 8, key="vh_comp_leg_fontsize")
                         vh_comp_leg_box = st.checkbox("Box Border", value=True, key="vh_comp_leg_box")
                     
-                    with st.expander("📐 Figure Dimensions", expanded=True):
+                    with st.expander("📐 Figure Dimensions & Axis", expanded=True):
                         vh_comp_width = st.number_input("Width (cm)", 1.0, 40.0, 12.7, 0.1, key="vh_comp_w")
                         vh_comp_height = st.number_input("Height (cm)", 1.0, 40.0, 10.0, 0.1, key="vh_comp_h")
+                        st.markdown("---")
+                        vh_y_scale = st.radio("Y Scale", ["Log", "Linear"], horizontal=True, key="vh_y_scale")
+                        vh_custom_lims = st.checkbox("Manual Axis Bounding", value=False, key="vh_custom_lims")
+                        
+                        valid_vh_results = [r for r in results if r.get('vh_fit') is not None]
+                        
+                        if vh_custom_lims and valid_vh_results:
+                            all_vh_inv_T = np.concatenate([1000.0 / (np.array(r['vh_temps']) + 273.15) for r in valid_vh_results])
+                            all_vh_g0s = np.concatenate([r['vh_g0s'] for r in valid_vh_results])
+                            vh_auto_xmin = float(all_vh_inv_T.min() * 0.95)
+                            vh_auto_xmax = float(all_vh_inv_T.max() * 1.05)
+                            if vh_y_scale == "Log":
+                                vh_auto_ymin = float(max(1e-6, all_vh_g0s.min() * 0.5))
+                                vh_auto_ymax = float(all_vh_g0s.max() * 2.0)
+                            else:
+                                vh_auto_ymin = float(all_vh_g0s.min() * 0.9)
+                                vh_auto_ymax = float(all_vh_g0s.max() * 1.1)
+                            
+                            vh_xmin = st.number_input("X Min (1000/T)", value=vh_auto_xmin, format="%.4f", key="vh_xmin")
+                            vh_xmax = st.number_input("X Max (1000/T)", value=vh_auto_xmax, format="%.4f", key="vh_xmax")
+                            vh_ymin = st.number_input("Y Min (G0)", value=vh_auto_ymin, format="%.4f", key="vh_ymin")
+                            vh_ymax = st.number_input("Y Max (G0)", value=vh_auto_ymax, format="%.4f", key="vh_ymax")
                     
                     with st.expander("🔤 Axis Typography", expanded=False):
                         vh_comp_font_family = st.selectbox("Font Family", ["Arial", "Times New Roman", "Courier New", "DejaVu Sans"], key="vh_comp_font_family")
@@ -680,7 +702,15 @@ def render(tab_comparison, PLOTLY_STYLE: dict):
                             label_fit = f"{name}: ΔH = {vh_fit['dH_diss']:.1f} kJ/mol"
                             ax_vh.plot(x_range, y_fit, '--', color=color, linewidth=1.5, label=label_fit, zorder=2)
                         
-                        ax_vh.set_yscale('log')
+                        if vh_y_scale == "Log":
+                            ax_vh.set_yscale('log')
+                        else:
+                            ax_vh.set_yscale('linear')
+                            
+                        if vh_custom_lims:
+                            ax_vh.set_xlim(vh_xmin, vh_xmax)
+                            ax_vh.set_ylim(vh_ymin, vh_ymax)
+                        
                         ax_vh.set_xlabel(r"$1000/T\ (\mathrm{K}^{-1})$", fontdict={'family': vh_comp_font_family, 'size': vh_comp_lbl_sz})
                         ax_vh.set_ylabel(r"$G_0$ (MPa)", fontdict={'family': vh_comp_font_family, 'size': vh_comp_lbl_sz})
                         
