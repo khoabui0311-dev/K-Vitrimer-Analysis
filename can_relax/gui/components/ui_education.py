@@ -3,6 +3,76 @@ import numpy as np
 import plotly.graph_objects as go
 import matplotlib.pyplot as plt
 import pandas as pd
+import io
+
+@st.cache_data
+def get_kinetics_comparison_plot():
+    T_range = np.linspace(40 + 273.15, 200 + 273.15, 200)
+    T_C = T_range - 273.15
+    tau_arr = np.exp(-30.0 + 90000.0 / (8.314 * T_range))
+    h = 6.626e-34
+    kB = 1.381e-23
+    tau_eyring = (h / (kB * T_range)) * np.exp(85000.0 / (8.314 * T_range) - (-20.0 / 8.314))
+    tau_vft = np.exp(-16.0 + 2000.0 / (T_range - 240.0))
+    tau_coupled = 1e-11 * np.exp(80000.0 / (8.314 * T_range)) + 1e-4 * np.exp(1000.0 / (T_range - 260.0))
+
+    fig, ax = plt.subplots(figsize=(8, 5))
+    ax.semilogy(T_C, tau_arr, '-', linewidth=2.5, label=r'Arrhenius ($E_a = 90$ kJ/mol)', color='#EF553B')
+    ax.semilogy(T_C, tau_eyring, '--', linewidth=2.5, label=r'Eyring ($\Delta H^{\ddagger} = 85$ kJ/mol)', color='#00CC96')
+    ax.semilogy(T_C, tau_vft, ':', linewidth=2.5, label=r'VFT ($B = 2000$ K)', color='#636EFA')
+    ax.semilogy(T_C, tau_coupled, '-.', linewidth=2.5, label=r'Coupled WLF-Arrhenius', color='#AB63FA')
+    ax.axvline(x=50, color='gray', linestyle='--', alpha=0.6, label=r'Approximate $T_{g}$ (50 °C)')
+    
+    ax.set_xlabel('Temperature (°C)', fontsize=12, fontweight='normal')
+    ax.set_ylabel(r'Relaxation Time $\tau$ (s)', fontsize=12, fontweight='normal')
+    ax.set_title('Comparison of Temperature Kinetics Models', fontsize=13, fontweight='normal')
+    ax.grid(True, alpha=0.3, which='both')
+    ax.legend(fontsize=8, loc='upper right')
+    ax.tick_params(labelsize=10)
+    ax.set_ylim([1e-3, 1e6])
+    
+    plt.tight_layout()
+    buf = io.BytesIO()
+    fig.savefig(buf, format='png', dpi=150, bbox_inches='tight')
+    plt.close(fig)
+    buf.seek(0)
+    return buf.getvalue()
+
+@st.cache_data
+def get_models_comparison_plot():
+    t = np.logspace(-4, 2, 200)
+    G0 = 1.0
+    tau_m = 10.0
+    tau_kww = 15.0
+    beta_kww = 0.85
+    tau1_dual = 5.0
+    beta1_dual = 0.9
+    tau2_dual = 100.0
+    beta2_dual = 0.7
+    f_dual = 0.4
+
+    g_maxwell = G0 * np.exp(-t/tau_m)
+    g_kww = G0 * np.exp(-(t/tau_kww)**beta_kww)
+    g_dual = G0 * (f_dual * np.exp(-(t/tau1_dual)**beta1_dual) + (1-f_dual) * np.exp(-(t/tau2_dual)**beta2_dual))
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.loglog(t, g_maxwell, 'o-', linewidth=2.5, markersize=4, alpha=0.8, label=r'Maxwell ($\tau = 10$ s)')
+    ax.loglog(t, g_kww, 's-', linewidth=2.5, markersize=4, alpha=0.8, label=r'Single-KWW ($\tau = 15$ s, $\beta = 0.85$)')
+    ax.loglog(t, g_dual, '^-', linewidth=2.5, markersize=4, alpha=0.8, label=r'Dual-KWW ($\tau_{1} = 5$ s, $\tau_{2} = 100$ s)')
+    ax.set_xlabel('Time (s)', fontsize=12, fontweight='normal')
+    ax.set_ylabel(r'G(t) / $G_{0}$', fontsize=12, fontweight='normal')
+    ax.set_title('Comparison of Relaxation Models', fontsize=13, fontweight='normal')
+    ax.grid(True, alpha=0.3, which='both')
+    ax.legend(fontsize=8, loc='upper right')
+    ax.tick_params(labelsize=10)
+    
+    plt.tight_layout()
+    buf = io.BytesIO()
+    fig.savefig(buf, format='png', dpi=150, bbox_inches='tight')
+    plt.close(fig)
+    buf.seek(0)
+    return buf.getvalue()
+
 def render_education_tab(tab_education):
     with tab_education:
             st.header("📚 Educational & Scientific Foundation")
@@ -134,6 +204,15 @@ def render_education_tab(tab_education):
                 $$g_{target}(t) = G(t) - G_{eq}$$
                 
                 This aligns directly with the methodology described in *Wink et al., ACS Polym. Au 2026*.
+
+                **Short-Time Loading Transients & Machinery Artifacts (Staircase Curve):**
+                During the very early stage of a stress relaxation test (typically $t < 0.5 - 1.0$ s), the rheometer motor requires a finite rise time to apply the step strain. Consequently, this phase does not reflect true stress relaxation but rather the dynamics of the deformation process. In addition, transducer quantization limits and feedback control loops at these short timescales often introduce step-like oscillations, presenting as a "staircase" pattern.
+                
+                **Impact on Continuous Spectrum**: Inverting raw relaxation data to extract $H(\tau)$ is a highly ill-posed problem. High-frequency noise or staircase patterns at short times violate the assumption of a perfect step strain starting at $t=0$, causing the Tikhonov inversion to generate false, high-intensity spectral artifacts at extremely short timescales ($\tau < 0.1$ s).
+                
+                **Our Strategy (Short-Time Cutoff)**: To remove these machinery artifacts, **CAN-Relax** provides a **Short-Time Cutoff (s)** sidebar input. Users can filter out these early corrupt data points, yielding cleaner and physically representative relaxation spectra.
+                
+                **Normalization Consistency**: The data processing pipeline handles the cropped time series dynamically: it finds the peak modulus in the remaining range as the new $G_0$, shifts the initial time to $0.01$ s (retaining numerical stability on logarithmic time axes), and re-normalizes the curve accordingly.
                 """)
 
                 st.info("✅ **CAN-Relax Implements**: Maxwell, Single-KWW, Dual-KWW, and Continuous Tikhonov Relaxation Spectrum with L-curve optimization and G_eq subtraction.")
@@ -249,47 +328,7 @@ def render_education_tab(tab_education):
                 """)
 
                 st.markdown("#### 🎯 Comparison Plot: Temperature Kinetics Models")
-
-                # Generate comparison plot
-                T_range = np.linspace(40 + 273.15, 200 + 273.15, 200) # 40 to 200 °C
-                T_C = T_range - 273.15
-                
-                # 1. Arrhenius: Ea = 90 kJ/mol, ln(tau0) = -30
-                tau_arr = np.exp(-30.0 + 90000.0 / (8.314 * T_range))
-                
-                # 2. Eyring: dH = 85 kJ/mol, dS = -20 J/mol*K
-                h = 6.626e-34
-                kB = 1.381e-23
-                tau_eyring = (h / (kB * T_range)) * np.exp(85000.0 / (8.314 * T_range) - (-20.0 / 8.314))
-                
-                # 3. VFT: A = -16, B = 2000 K, T0 = 240 K (Tg ~ 50 °C)
-                tau_vft = np.exp(-16.0 + 2000.0 / (T_range - 240.0))
-                
-                # 4. Coupled: Ea_chem = 80 kJ/mol, VFT B = 1000 K, T0 = 260 K
-                tau_coupled = 1e-11 * np.exp(80000.0 / (8.314 * T_range)) + 1e-4 * np.exp(1000.0 / (T_range - 260.0))
-
-                fig_comp, ax_comp = plt.subplots(figsize=(8, 5))
-                ax_comp.semilogy(T_C, tau_arr, '-', linewidth=2.5, label=r'Arrhenius ($E_a = 90$ kJ/mol)', color='#EF553B')
-                ax_comp.semilogy(T_C, tau_eyring, '--', linewidth=2.5, label=r'Eyring ($\Delta H^{\ddagger} = 85$ kJ/mol)', color='#00CC96')
-                ax_comp.semilogy(T_C, tau_vft, ':', linewidth=2.5, label=r'VFT ($B = 2000$ K)', color='#636EFA')
-                ax_comp.semilogy(T_C, tau_coupled, '-.', linewidth=2.5, label=r'Coupled WLF-Arrhenius', color='#AB63FA')
-                ax_comp.axvline(x=50, color='gray', linestyle='--', alpha=0.6, label=r'Approximate $T_{g}$ (50 °C)')
-                
-                ax_comp.set_xlabel('Temperature (°C)', fontsize=12, fontweight='normal')
-                ax_comp.set_ylabel(r'Relaxation Time $\tau$ (s)', fontsize=12, fontweight='normal')
-                ax_comp.set_title('Comparison of Temperature Kinetics Models', fontsize=13, fontweight='normal')
-                ax_comp.grid(True, alpha=0.3, which='both')
-                ax_comp.legend(fontsize=8, loc='upper right')
-                ax_comp.tick_params(labelsize=10)
-                ax_comp.set_ylim([1e-3, 1e6])
-                try:
-                    plt.tight_layout()
-                    st.pyplot(fig_comp)
-                except Exception as e:
-                    st.error(f"Matplotlib error rendering models comparison: {e}")
-                    st.pyplot(fig_comp)
-                finally:
-                    plt.close(fig_comp)
+                st.image(get_kinetics_comparison_plot(), width=700)
 
                 st.markdown("""
                 **Key Observations:**
@@ -438,44 +477,7 @@ def render_education_tab(tab_education):
                 st.code(decision_tree, language=None)
 
                 st.markdown("#### 🔬 Simulated Examples: Model Comparison")
-
-                # Create synthetic data comparing models
-                t = np.logspace(-4, 2, 200)
-
-                # Parameters
-                G0 = 1.0
-                tau_m = 10.0
-                tau_kww = 15.0
-                beta_kww = 0.85
-                tau1_dual = 5.0
-                beta1_dual = 0.9
-                tau2_dual = 100.0
-                beta2_dual = 0.7
-                f_dual = 0.4
-
-                # Generate curves
-                g_maxwell = G0 * np.exp(-t/tau_m)
-                g_kww = G0 * np.exp(-(t/tau_kww)**beta_kww)
-                g_dual = G0 * (f_dual * np.exp(-(t/tau1_dual)**beta1_dual) + (1-f_dual) * np.exp(-(t/tau2_dual)**beta2_dual))
-
-                fig_models, ax_models = plt.subplots(figsize=(10, 6))
-                ax_models.loglog(t, g_maxwell, 'o-', linewidth=2.5, markersize=4, alpha=0.8, label=r'Maxwell ($\tau = 10$ s)')
-                ax_models.loglog(t, g_kww, 's-', linewidth=2.5, markersize=4, alpha=0.8, label=r'Single-KWW ($\tau = 15$ s, $\beta = 0.85$)')
-                ax_models.loglog(t, g_dual, '^-', linewidth=2.5, markersize=4, alpha=0.8, label=r'Dual-KWW ($\tau_{1} = 5$ s, $\tau_{2} = 100$ s)')
-                ax_models.set_xlabel('Time (s)', fontsize=12, fontweight='normal')
-                ax_models.set_ylabel(r'G(t) / $G_{0}$', fontsize=12, fontweight='normal')
-                ax_models.set_title('Comparison of Relaxation Models', fontsize=13, fontweight='normal')
-                ax_models.grid(True, alpha=0.3, which='both')
-                ax_models.legend(fontsize=8, loc='upper right')
-                ax_models.tick_params(labelsize=10)
-                try:
-                    plt.tight_layout()
-                    st.pyplot(fig_models)
-                except Exception as e:
-                    st.error(f"Matplotlib error rendering Models Comparison: {e}")
-                    st.pyplot(fig_models) # Attempt without tight_layout
-                finally:
-                    plt.close(fig_models)
+                st.image(get_models_comparison_plot(), width=800)
 
                 st.markdown("""
                 **Observations from Example:**

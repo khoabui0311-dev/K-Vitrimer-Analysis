@@ -89,4 +89,24 @@ class DataProcessor:
         
         g_final = g_clean / G0
 
+        # 9. Logarithmic downsampling for performance (max 250 points)
+        # Stress relaxation curves are logarithmic; log-spacing preserves detail at short times
+        # while significantly reducing size to make KWW/Dual-KWW fitting and Tikhonov Ridge regression instant.
+        max_pts = 250
+        if len(t_final) > max_pts:
+            bins = np.logspace(np.log10(t_final[0]), np.log10(t_final[-1]), max_pts)
+            indices = []
+            for b in bins:
+                idx = np.abs(t_final - b).argmin()
+                if idx not in indices:
+                    indices.append(idx)
+            # Ensure boundaries are included
+            if 0 not in indices:
+                indices.insert(0, 0)
+            if len(t_final) - 1 not in indices:
+                indices.append(len(t_final) - 1)
+            indices = sorted(list(set(indices)))
+            t_final = t_final[indices]
+            g_final = g_final[indices]
+
         return t_final, g_final, G0

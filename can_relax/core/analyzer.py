@@ -30,7 +30,7 @@ class CurveAnalyzer:
         bic = n_params * np.log(n) + n * np.log(rss/n)
         return float(r2), float(aicc), float(bic)
 
-    def fit_one_temp(self, temp: float, df_raw: pd.DataFrame, Tg: Optional[float] = None) -> Dict[str, Any]:
+    def fit_one_temp(self, temp: float, df_raw: pd.DataFrame, Tg: Optional[float] = None, fit_model: Optional[str] = None) -> Dict[str, Any]:
         """
         Runs analysis for one temperature.
         If Tg is provided and temp < Tg, returns a 'Frozen' status.
@@ -65,41 +65,54 @@ class CurveAnalyzer:
         result['Quality'] = quality
 
         # 3. Fit Models
+        # Only fit the specified model (or all if fit_model is None)
+        models_to_fit = [fit_model] if fit_model is not None else ['Maxwell', 'Single_KWW', 'Dual_KWW']
+
         # Single KWW
-        model_s = self.models['Single_KWW']
-        try:
-            popt_s, _ = curve_fit(model_s.func, t, g, p0=model_s.get_initial_guess(t, g), bounds=model_s.get_bounds(), maxfev=5000)
-            pred_s = model_s.func(t, *popt_s)
-            r2_s, aic_s, bic_s = self._calculate_metrics(g, pred_s, 2)  # 2 params: tau, beta
-            result['Fits']['Single_KWW'] = {'popt': popt_s, 'r2': r2_s, 'aic': aic_s, 'bic': bic_s, 'curve': pred_s}
-        except: result['Fits']['Single_KWW'] = {'r2': 0, 'aic': np.inf, 'bic': np.inf, 'curve': g, 'popt': [np.nan, np.nan]}
+        if 'Single_KWW' in models_to_fit:
+            model_s = self.models['Single_KWW']
+            try:
+                popt_s, _ = curve_fit(model_s.func, t, g, p0=model_s.get_initial_guess(t, g), bounds=model_s.get_bounds(), maxfev=5000)
+                pred_s = model_s.func(t, *popt_s)
+                r2_s, aic_s, bic_s = self._calculate_metrics(g, pred_s, 2)  # 2 params: tau, beta
+                result['Fits']['Single_KWW'] = {'popt': popt_s, 'r2': r2_s, 'aic': aic_s, 'bic': bic_s, 'curve': pred_s}
+            except: result['Fits']['Single_KWW'] = {'r2': 0, 'aic': np.inf, 'bic': np.inf, 'curve': g, 'popt': [np.nan, np.nan]}
 
         # Maxwell
-        model_m = self.models['Maxwell']
-        try:
-            popt_m, _ = curve_fit(model_m.func, t, g, p0=model_m.get_initial_guess(t, g), bounds=model_m.get_bounds(), maxfev=5000)
-            pred_m = model_m.func(t, *popt_m)
-            r2_m, aic_m, bic_m = self._calculate_metrics(g, pred_m, 1)  # 1 param: tau
-            result['Fits']['Maxwell'] = {'popt': popt_m, 'r2': r2_m, 'aic': aic_m, 'bic': bic_m, 'curve': pred_m}
-        except: result['Fits']['Maxwell'] = {'r2': 0, 'aic': np.inf, 'bic': np.inf, 'curve': g, 'popt': [np.nan]}
+        if 'Maxwell' in models_to_fit:
+            model_m = self.models['Maxwell']
+            try:
+                popt_m, _ = curve_fit(model_m.func, t, g, p0=model_m.get_initial_guess(t, g), bounds=model_m.get_bounds(), maxfev=5000)
+                pred_m = model_m.func(t, *popt_m)
+                r2_m, aic_m, bic_m = self._calculate_metrics(g, pred_m, 1)  # 1 param: tau
+                result['Fits']['Maxwell'] = {'popt': popt_m, 'r2': r2_m, 'aic': aic_m, 'bic': bic_m, 'curve': pred_m}
+            except: result['Fits']['Maxwell'] = {'r2': 0, 'aic': np.inf, 'bic': np.inf, 'curve': g, 'popt': [np.nan]}
 
         # Dual KWW
-        model_d = self.models['Dual_KWW']
-        try:
-            p0_d = model_d.get_initial_guess(t, g)
-            popt_d, _ = curve_fit(model_d.func, t, g, p0=p0_d, bounds=model_d.get_bounds(), maxfev=10000)
-            pred_d = model_d.func(t, *popt_d)
-            r2_d, aic_d, bic_d = self._calculate_metrics(g, pred_d, 5)  # 5 params: A, tau1, beta1, tau2, beta2
-            result['Fits']['Dual_KWW'] = {'popt': popt_d, 'r2': r2_d, 'aic': aic_d, 'bic': bic_d, 'curve': pred_d}
-        except: result['Fits']['Dual_KWW'] = {'r2': 0, 'aic': np.inf, 'bic': np.inf, 'curve': g, 'popt': [np.nan]*5}
+        if 'Dual_KWW' in models_to_fit:
+            model_d = self.models['Dual_KWW']
+            try:
+                p0_d = model_d.get_initial_guess(t, g)
+                popt_d, _ = curve_fit(model_d.func, t, g, p0=p0_d, bounds=model_d.get_bounds(), maxfev=10000)
+                pred_d = model_d.func(t, *popt_d)
+                r2_d, aic_d, bic_d = self._calculate_metrics(g, pred_d, 5)  # 5 params: A, tau1, beta1, tau2, beta2
+                result['Fits']['Dual_KWW'] = {'popt': popt_d, 'r2': r2_d, 'aic': aic_d, 'bic': bic_d, 'curve': pred_d}
+            except: result['Fits']['Dual_KWW'] = {'r2': 0, 'aic': np.inf, 'bic': np.inf, 'curve': g, 'popt': [np.nan]*5}
 
         # 4. Pick Best
-        best_model = min(result['Fits'], key=lambda k: result['Fits'][k]['aic'])
+        if result['Fits']:
+            best_model = min(result['Fits'], key=lambda k: result['Fits'][k]['aic'])
+        else:
+            best_model = fit_model if fit_model is not None else 'Maxwell'
         result['Best_Model'] = best_model
         
         # 5. Auto Explanation (With WLF Warning)
-        best_r2 = result['Fits'][best_model]['r2']
-        explanation = self.auto.generate_explanation(temp, best_model, best_r2, quality)
+        if best_model in result['Fits'] and result['Fits'][best_model]['r2'] > 0:
+            best_r2 = result['Fits'][best_model]['r2']
+            explanation = self.auto.generate_explanation(temp, best_model, best_r2, quality)
+        else:
+            best_r2 = 0.0
+            explanation = f"Model {best_model} fit was not computed or failed."
         
         if Tg is not None and (Tg <= temp < Tg + 20):
             explanation += "\n\n⚠️ **Note:** Temperature is near Tg. Dynamics may follow WLF (super-Arrhenius) rather than pure Arrhenius."

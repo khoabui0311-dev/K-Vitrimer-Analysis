@@ -120,7 +120,22 @@ st.sidebar.caption("v1.0 | Professional Edition")
 sim = MaterialSimulator()
 tts_engine = TTSEngine()
 analyzer = CurveAnalyzer()
-spectrum_engine = SpectrumAnalyzer()
+
+# Cached curve fitting helper to prevent heavy calculations on every rerun
+@st.cache_data
+def cached_fit_one_temp(temp, df, Tg_input, fit_model):
+    local_analyzer = CurveAnalyzer()
+    return local_analyzer.fit_one_temp(temp, df, Tg=Tg_input, fit_model=fit_model)
+
+# Cached continuous spectrum helper to prevent heavy calculations on every rerun
+@st.cache_data
+def cached_compute_continuous_spectrum(t, g, num_modes, alpha, optimize_alpha, subtract_G_eq):
+    engine = SpectrumAnalyzer()
+    tau_grid, H = engine.compute_continuous_spectrum(
+        t, g, num_modes=num_modes, alpha=alpha, 
+        optimize_alpha=optimize_alpha, subtract_G_eq=subtract_G_eq
+    )
+    return tau_grid, H, engine.last_alpha, engine.last_G_eq
 
 # Helper
 def get_tau_1_over_e(t, g):
@@ -147,21 +162,7 @@ with tab_analysis:
             label_visibility="collapsed",
             help="Wide-format CSV or XLSX: columns = Temperature, then Time/Modulus pairs"
         )
-
-    # ── Material DNA ─────────────────────────────────────────────
-    with st.sidebar.expander("🧬 Material DNA", expanded=False):
-        mat_class = st.selectbox("Class", ["Neat Material", "Composite", "Blend"])
-        if mat_class == "Neat Material":
-            mat_type = st.selectbox("Type", ["Vitrimer", "Thermoplastic", "Thermoset", "Vitrimer-like"])
-            composition = "Pure"
-        elif mat_class == "Composite":
-            mat_type = st.selectbox("Matrix", ["Vitrimer", "Thermoplastic", "Thermoset"])
-            composition = st.text_input("Filler", "Silica")
-        else:
-            mat_type = "Blend"
-            composition = st.text_input("Components", "Vitrimer/Epoxy")
-        st.markdown("**Exchange Chemistry**")
-        chem_tags = st.multiselect("Mechanism", ["Transesterification", "Disulfide", "Imine", "Boronic Ester", "Urethane"], default=["Transesterification"])
+        use_example_data = st.checkbox("Use toy_data.csv Example", value=False, key="use_example_data")
 
     # ── Physics & Fitting (merged) ────────────────────────────────
     with st.sidebar.expander("⚙️ Physics & Fitting", expanded=True):
@@ -177,16 +178,18 @@ with tab_analysis:
     run_btn = st.sidebar.button("▶ Run Analysis", type="primary", width='stretch')
 
     # PROCESS
-    if uploaded_file and run_btn:
+    if (uploaded_file or use_example_data) and run_btn:
         # Use the wrapper to parse Streamlit UploadedFile
-        curves = parse_uploaded_file(uploaded_file)
+        if uploaded_file:
+            curves = parse_uploaded_file(uploaded_file)
+        else:
+            curves = parser_module_func("examples/toy_data.csv")
         
         if not curves: st.error("Parsing failed. Data must be columns of Temp/Time/Modulus."); st.stop()
         
         res = []
         skipped = []
         bar = st.progress(0)
-        meta = {'class': mat_class, 'type': mat_type, 'composition': composition, 'chemistry': json.dumps(chem_tags)}
 
         idx = 0
         for temp, df in curves.items():
@@ -194,8 +197,8 @@ with tab_analysis:
             if time_cutoff > 0.0:
                 df = df[df['Time'] >= time_cutoff].copy()
             
-            # Pass Tg for filtering
-            out = analyzer.fit_one_temp(temp, df, Tg=Tg_input)
+            # Pass Tg and selected fit_model for cached filtering and fast fit
+            out = cached_fit_one_temp(temp, df, Tg_input, fit_model)
             if out.get('Valid', False):
                 out['Best_Model'] = fit_model 
                 out['Tau_1e'] = get_tau_1_over_e(out['Raw']['t'], out['Raw']['g'])
@@ -540,24 +543,61 @@ with tab_analysis:
                 st.markdown("---")
                 st.markdown("**Optimized Fit Details:**")
                 
-            with c_spec:
-                fig_h = go.Figure()
-                for i, r in enumerate(active_results):
+            # Get current spectrum configuration to check for modifications
+            current_spec_config = {
+                "opt_alpha": opt_alpha,
+                "alpha_reg": alpha_reg,
+                "sub_G_eq": sub_G_eq,
+                "n_modes": n_modes,
+                "active_temps": sorted([r['Temp'] for r in active_results])
+            }
+            
+            # Retrieve or compute the spectrum outputs
+            if ('spec_config' in st.session_state and 
+                st.session_state.spec_config == current_spec_config and 
+                'spec_results' in st.session_state):
+                spec_outputs = st.session_state.spec_results
+            else:
+                spec_outputs = []
+                for r in active_results:
                     t = r['Raw']['t']
-                    g = r['Raw']['g']
-                    if mod_plot_type == "Absolute":
-                        g = g * r['Raw']['G0']
+                    g = r['Raw']['g']  # ALWAYS use normalized modulus to avoid cache misses when scaling toggles
                     
-                    tau_grid, H = spectrum_engine.compute_continuous_spectrum(
+                    tau_grid, H, last_alpha, last_G_eq = cached_compute_continuous_spectrum(
                         t, g, num_modes=n_modes, alpha=alpha_reg, 
                         optimize_alpha=opt_alpha, subtract_G_eq=sub_G_eq
                     )
+                    spec_outputs.append({
+                        "Temp": r['Temp'],
+                        "tau_grid": tau_grid,
+                        "H": H,
+                        "last_alpha": last_alpha,
+                        "last_G_eq": last_G_eq,
+                        "G0": r['Raw']['G0']
+                    })
+                st.session_state.spec_config = current_spec_config
+                st.session_state.spec_results = spec_outputs
+
+            with c_spec:
+                fig_h = go.Figure()
+                for item in spec_outputs:
+                    tau_grid = item['tau_grid']
+                    H = item['H']
+                    G0 = item['G0']
+                    
+                    # Scale output metrics and curves to absolute scale only during display step
+                    if mod_plot_type == "Absolute":
+                        H_plot = H * G0
+                        last_G_eq_plot = item['last_G_eq'] * G0
+                    else:
+                        H_plot = H
+                        last_G_eq_plot = item['last_G_eq']
                     
                     # Display L-curve corner alpha and G_eq details
                     with c_ctrl:
-                        st.caption(f"{r['Temp']}\u00b0C: \u03b1={spectrum_engine.last_alpha:.2e} (G_eq: {spectrum_engine.last_G_eq:.2e})")
+                        st.caption(f"{item['Temp']}\u00b0C: \u03b1={item['last_alpha']:.2e} (G_eq: {last_G_eq_plot:.2e})")
                         
-                    fig_h.add_trace(go.Scatter(x=tau_grid, y=H, mode='lines', name=f"{r['Temp']}C", fill='tozeroy'))
+                    fig_h.add_trace(go.Scatter(x=tau_grid, y=H_plot, mode='lines', name=f"{item['Temp']}C", fill='tozeroy'))
                 fig_h.update_xaxes(type="log", title="Tau (s)"); fig_h.update_yaxes(title="H(τ)")
                 st.plotly_chart(fig_h, width="stretch")
 
@@ -624,15 +664,18 @@ with tab_sim:
             sim_results = []; fitted_taus = []; valid_temps = []
             
             for T in exp_temps:
-                t, g_true, _ = sim.simulate_curve(T, sim_model, params)
-                sim_results.append((T, t, g_true))
-                if T > Tg_sim:
-                    try:
-                        # Simple tau extraction from simulated curve
-                        target = 0.36788 * g_true[0]
-                        t_fit = np.interp(target, g_true[::-1], t[::-1])
-                        if 1e-5 < t_fit < 1e12: fitted_taus.append(t_fit); valid_temps.append(T)
-                    except: pass
+                try:
+                    t, g_true, _ = sim.simulate_curve(T, sim_model, params)
+                    sim_results.append((T, t, g_true))
+                    if T > Tg_sim:
+                        try:
+                            # Simple tau extraction from simulated curve
+                            target = 0.36788 * g_true[0]
+                            t_fit = np.interp(target, g_true[::-1], t[::-1])
+                            if 1e-5 < t_fit < 1e12: fitted_taus.append(t_fit); valid_temps.append(T)
+                        except: pass
+                except Exception as e:
+                    st.error(f"Failed to simulate curve for {T}°C: {e}")
 
             c_p1, c_p2 = st.columns(2)
             with c_p1:
@@ -1050,13 +1093,13 @@ with tab_comparison:
                 comp_font_family = st.selectbox("Font Family", ["Arial", "Times New Roman", "Courier New", "DejaVu Sans", "serif", "sans-serif", "monospace"], key="comp_font_family")
                 
                 st.markdown("**Axis Label Font**")
-                comp_lbl_sz = st.number_input("Label Size", 4, 30, 10, key="comp_lbl_sz")
-                comp_lbl_wt = st.selectbox("Label Weight", ["bold", "normal"], key="comp_lbl_wt")
+                comp_lbl_sz = st.number_input("Label Size", 4, 30, 12, key="comp_lbl_sz")
+                comp_lbl_wt = st.selectbox("Label Weight", ["normal", "bold"], key="comp_lbl_wt")
                 comp_lbl_sty = st.selectbox("Label Style", ["normal", "italic"], key="comp_lbl_sty")
                 
                 st.markdown("**Axis Number Font**")
                 comp_tick_font = st.selectbox("Number Font", ["Same as Label", "Arial", "Times New Roman", "Courier New", "DejaVu Sans", "serif", "sans-serif", "monospace"], key="comp_tick_font")
-                comp_tick_size = st.number_input("Number Size", 4, 30, 8, key="comp_tick_sz")
+                comp_tick_size = st.number_input("Number Size", 4, 30, 10, key="comp_tick_sz")
                 comp_tick_weight = st.selectbox("Number Weight", ["normal", "bold"], key="comp_tick_wt")
                 comp_tick_style = st.selectbox("Number Style", ["normal", "italic"], key="comp_tick_sty")
 
@@ -1483,9 +1526,9 @@ with tab_pub:
                 st.markdown("**Axis Label Font**")
                 rls1, rls2, rls3 = st.columns(3)
                 with rls1:
-                    rel_label_size = st.number_input("Label Size", 4, 30, 10, key="pub_rel_lbl_sz")
+                    rel_label_size = st.number_input("Label Size", 4, 30, 12, key="pub_rel_lbl_sz")
                 with rls2:
-                    rel_label_weight = st.selectbox("Label Weight", ["bold", "normal"], key="pub_rel_lbl_wt")
+                    rel_label_weight = st.selectbox("Label Weight", ["normal", "bold"], key="pub_rel_lbl_wt")
                 with rls3:
                     rel_label_style = st.selectbox("Label Style", ["normal", "italic"], key="pub_rel_lbl_sty")
                 
@@ -1494,7 +1537,7 @@ with tab_pub:
                 with rns1:
                     rel_tick_font = st.selectbox("Number Font", ["Same as Label", "Arial", "Times New Roman", "Courier New", "DejaVu Sans", "serif", "sans-serif", "monospace"], key="pub_rel_num_font")
                 with rns2:
-                    rel_tick_size = st.number_input("Number Size", 4, 30, 8, key="pub_rel_num_sz")
+                    rel_tick_size = st.number_input("Number Size", 4, 30, 10, key="pub_rel_num_sz")
                 with rns3:
                     rel_tick_weight = st.selectbox("Number Weight", ["normal", "bold"], key="pub_rel_num_wt")
                 with rns4:
@@ -1554,9 +1597,9 @@ with tab_pub:
                 st.markdown("**Axis Label Font**")
                 kls1, kls2, kls3 = st.columns(3)
                 with kls1:
-                    kin_label_size = st.number_input("Label Size ", 4, 30, 10, key="pub_kin_lbl_sz")
+                    kin_label_size = st.number_input("Label Size ", 4, 30, 12, key="pub_kin_lbl_sz")
                 with kls2:
-                    kin_label_weight = st.selectbox("Label Weight ", ["bold", "normal"], key="pub_kin_lbl_wt")
+                    kin_label_weight = st.selectbox("Label Weight ", ["normal", "bold"], key="pub_kin_lbl_wt")
                 with kls3:
                     kin_label_style = st.selectbox("Label Style ", ["normal", "italic"], key="pub_kin_lbl_sty")
                 
@@ -1565,7 +1608,7 @@ with tab_pub:
                 with kns1:
                     kin_tick_font = st.selectbox("Number Font ", ["Same as Label", "Arial", "Times New Roman", "Courier New", "DejaVu Sans", "serif", "sans-serif", "monospace"], key="pub_kin_num_font")
                 with kns2:
-                    kin_tick_size = st.number_input("Number Size ", 4, 30, 8, key="pub_kin_num_sz")
+                    kin_tick_size = st.number_input("Number Size ", 4, 30, 10, key="pub_kin_num_sz")
                 with kns3:
                     kin_tick_weight = st.selectbox("Number Weight ", ["normal", "bold"], key="pub_kin_num_wt")
                 with kns4:

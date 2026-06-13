@@ -19,5 +19,5 @@ class MaterialSimulator:
             else: g = t*0
             
             return t, g, tau_T
-        except:
-            return np.array([1]), np.array([1]), 1
+        except Exception as e:
+            raise ValueError(f"Simulation math error: {str(e)}") from e
