@@ -401,9 +401,16 @@ def render(tab_comparison, PLOTLY_STYLE: dict):
                     tau_target = r['tau_target']
                     ln_tau_target = r['ln_tau_target']
 
+                    label_parts = []
                     if comp_show_ea:
                         ea_std = r.get('Ea_std (kJ/mol)', 0)
-                        name = f"{name} ({Ea:.1f} +/- {ea_std:.1f} kJ/mol)"
+                        label_parts.append(f"Ea={Ea:.1f}±{ea_std:.1f} kJ/mol")
+                    if comp_show_tv:
+                        Tv = r.get('Tv (°C)', 0)
+                        label_parts.append(f"Tv={Tv:.1f}°C")
+                        
+                    if label_parts:
+                        name = f"{name} (" + ", ".join(label_parts) + ")"
 
                     color = colors_mpl[idx % len(colors_mpl)]
 
