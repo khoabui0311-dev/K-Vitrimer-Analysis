@@ -666,7 +666,7 @@ tab_comparison_mod.render(tab_comparison, PLOTLY_STYLE)
 # ==========================
 # TAB 5: PUBLICATION  →  extracted to can_relax/gui/tabs/tab_publication.py
 # ==========================
-from can_relax.gui.tabs import tab_publication
+from can_relax.gui.tabs import tab_pub_main as tab_publication
 tab_publication.render_publication(tab_pub, PLOTLY_STYLE, Tg_input, G_prime_input)
 
 
