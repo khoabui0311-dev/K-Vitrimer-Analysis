@@ -404,13 +404,13 @@ def render(tab_comparison, PLOTLY_STYLE: dict):
                     label_parts = []
                     if comp_show_ea:
                         ea_std = r.get('Ea_std (kJ/mol)', 0)
-                        label_parts.append(f"Ea={Ea:.1f}±{ea_std:.1f} kJ/mol")
+                        label_parts.append(r"$E_\mathrm{a} = %.1f \pm %.1f\ \mathrm{kJ\ mol}^{-1}$" % (Ea, ea_std))
                     if comp_show_tv:
                         Tv = r.get('Tv (°C)', 0)
-                        label_parts.append(f"Tv={Tv:.1f}°C")
+                        label_parts.append(r"$T_\mathrm{v} = %.1f^\circ\mathrm{C}$" % Tv)
                         
                     if label_parts:
-                        name = f"{name} (" + ", ".join(label_parts) + ")"
+                        name = f"{name}\n(" + ", ".join(label_parts) + ")"
 
                     color = colors_mpl[idx % len(colors_mpl)]
 
