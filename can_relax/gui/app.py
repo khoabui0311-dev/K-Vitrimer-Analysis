@@ -24,7 +24,7 @@ if not hasattr(mathtext.MathTextParser, '_patched_by_us'):
             return _original_parse(self, r"~", *args, **kwargs)
         try:
             return _original_parse(self, s, *args, **kwargs)
-        except ValueError:
+        except Exception:
             return _original_parse(self, r"~", *args, **kwargs)
     mathtext.MathTextParser.parse = _safe_parse
     mathtext.MathTextParser._patched_by_us = True

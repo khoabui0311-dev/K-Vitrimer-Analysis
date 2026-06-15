@@ -468,6 +468,7 @@ def render(tab_comparison, PLOTLY_STYLE: dict):
                              va='bottom', ha='right')
 
                 mpl_success = False
+                mpl_error = None
                 try:
                     plt.tight_layout()
 
@@ -507,6 +508,7 @@ def render(tab_comparison, PLOTLY_STYLE: dict):
 
                     mpl_success = True
                 except Exception as e:
+                    mpl_error = e
                     with col_settings:
                         st.error(f"⚠️ Matplotlib export failed. Error: {str(e)}")
 
@@ -617,7 +619,7 @@ def render(tab_comparison, PLOTLY_STYLE: dict):
                             except Exception as e:
                                 st.error(f"⚠️ Matplotlib render failed. Check Sample Names for invalid MathText. Error: {e}")
                         else:
-                            st.error("⚠️ Matplotlib preview unavailable due to invalid MathText in labels.")
+                            st.error(f"⚠️ Matplotlib preview unavailable. Error: {mpl_error}")
 
                 plt.close(fig_mpl)
             with comp_tab_vh:
