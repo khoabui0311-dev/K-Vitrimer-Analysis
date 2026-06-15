@@ -727,7 +727,6 @@ def render(tab_comparison, PLOTLY_STYLE: dict):
                         st.pyplot(fig_vh, dpi=300, bbox_inches='tight')
                         
                         # Export logic
-                        import io
                         buf_vh = io.BytesIO()
                         
                         fmt_lower = vh_comp_fmt.lower()
