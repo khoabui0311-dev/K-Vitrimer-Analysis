@@ -146,6 +146,12 @@ def _render_arrhenius_plot(results, PLOTLY_STYLE):
             comp_ms = st.slider("Marker Size", 1, 15, 6, 1, key="comp_ms")
             comp_custom_lims = st.checkbox("Manual Axis", value=False, key="comp_custom_lims")
 
+        with st.expander("🏷️ Panel Label"):
+            comp_panel_l = st.text_input("Label Text", "", key="comp_pl", help="e.g. 'a' will show as (a)")
+            pl_c1, pl_c2 = st.columns(2)
+            with pl_c1: comp_pl_x = st.number_input("X pos", -1.0, 2.0, -0.1, 0.01, key="comp_pl_x")
+            with pl_c2: comp_pl_y = st.number_input("Y pos", -1.0, 2.0, 1.02, 0.01, key="comp_pl_y")
+
     with col_plot:
         comp_plot_mode = st.radio("Plot Type", ["Interactive (Plotly)", "Static (Matplotlib)"], horizontal=True)
         colors = PLOTLY_STYLE.get('colorway', ['#EF553B', '#636EFA', '#00CC96', '#AB63FA', '#FFA15A', '#25D098'])
@@ -183,6 +189,11 @@ def _render_arrhenius_plot(results, PLOTLY_STYLE):
             ax_mpl.set_ylabel("ln(τ)", fontdict={'family': comp_font_family, 'size': comp_lbl_sz})
             ax_mpl.tick_params(axis='both', labelsize=comp_tick_size)
             if show_comp_legend: ax_mpl.legend(loc=comp_leg_pos, fontsize=comp_leg_fontsize, frameon=comp_leg_box)
+            
+            if comp_panel_l:
+                ax_mpl.text(comp_pl_x, comp_pl_y, f"({comp_panel_l})", transform=ax_mpl.transAxes, 
+                            fontfamily=comp_font_family, fontsize=comp_lbl_sz, fontweight='bold', va='bottom', ha='right')
+                            
             plt.tight_layout()
             st.pyplot(fig_mpl, dpi=300)
             
@@ -201,6 +212,12 @@ def _render_vant_hoff_plot(results, PLOTLY_STYLE):
         vh_comp_fmt = st.selectbox("Format", ["png", "jpeg", "pdf"], key="vh_comp_fmt")
         vh_comp_dpi = st.number_input("DPI", 72, 1200, 300, 50, key="vh_comp_dpi")
         vh_y_scale = st.radio("Y Scale", ["Log", "Linear"], horizontal=True, key="vh_y_scale")
+        
+        with st.expander("🏷️ Panel Label"):
+            vh_comp_panel_l = st.text_input("Label Text", "", key="vh_comp_pl", help="e.g. 'b' will show as (b)")
+            vh_pl_c1, vh_pl_c2 = st.columns(2)
+            with vh_pl_c1: vh_comp_pl_x = st.number_input("X pos", -1.0, 2.0, -0.1, 0.01, key="vh_comp_pl_x")
+            with vh_pl_c2: vh_comp_pl_y = st.number_input("Y pos", -1.0, 2.0, 1.02, 0.01, key="vh_comp_pl_y")
         
     with col_plot:
         if not valid_vh:
@@ -226,6 +243,11 @@ def _render_vant_hoff_plot(results, PLOTLY_STYLE):
         ax_vh.set_xlabel("1000/T (K⁻¹)")
         ax_vh.set_ylabel("G0 (MPa)")
         ax_vh.legend()
+        
+        if vh_comp_panel_l:
+            ax_vh.text(vh_comp_pl_x, vh_comp_pl_y, f"({vh_comp_panel_l})", transform=ax_vh.transAxes, 
+                       fontweight='bold', va='bottom', ha='right')
+                       
         plt.tight_layout()
         st.pyplot(fig_vh)
 
