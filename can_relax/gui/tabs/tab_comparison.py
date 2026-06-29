@@ -192,7 +192,7 @@ def _render_arrhenius_plot(results, PLOTLY_STYLE):
             
             if comp_panel_l:
                 ax_mpl.text(comp_pl_x, comp_pl_y, f"({comp_panel_l})", transform=ax_mpl.transAxes, 
-                            fontfamily=comp_font_family, fontsize=comp_lbl_sz, fontweight='bold', va='bottom', ha='right')
+                            fontfamily=comp_font_family, fontsize=comp_lbl_sz, fontweight='normal', va='bottom', ha='right')
                             
             plt.tight_layout()
             st.pyplot(fig_mpl, dpi=300)
@@ -246,7 +246,7 @@ def _render_vant_hoff_plot(results, PLOTLY_STYLE):
         
         if vh_comp_panel_l:
             ax_vh.text(vh_comp_pl_x, vh_comp_pl_y, f"({vh_comp_panel_l})", transform=ax_vh.transAxes, 
-                       fontweight='bold', va='bottom', ha='right')
+                       fontweight='normal', va='bottom', ha='right')
                        
         plt.tight_layout()
         st.pyplot(fig_vh)
