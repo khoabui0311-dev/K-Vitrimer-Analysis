@@ -14,208 +14,253 @@ import matplotlib.pyplot as plt
 
 from can_relax.core.kinetics import KineticsEngine
 
+def _render_controls():
+    """Renders the sidebar controls and returns the simulation parameters."""
+    with st.container(border=True):
+        mode = st.radio(
+            "Mode",
+            ["⚗️ Chemist", "📐 Engineering", "🎯 Target"],
+            label_visibility="collapsed"
+        )
+        st.markdown("---")
+        disable_G = mode.startswith("📐")
+        G_modulus = st.number_input("Modulus G (MPa)", 0.01, 2000.0, 1.0, 0.1, disabled=disable_G)
+        log_tau0 = st.slider("log(tau0)", -18, -3, -12)
+        tau0 = 10 ** log_tau0
+        disable_Ea = mode.startswith("🎯")
+        Ea_sim = st.number_input("Ea (kJ/mol)", 10.0, 300.0, 90.0, disabled=disable_Ea)
+        disable_Tv = mode.startswith("⚗️")
+        Tv_sim = st.number_input("Tv (°C)", -100.0, 400.0, 120.0, disabled=disable_Tv)
+        st.markdown("---")
+        sim_model = st.selectbox("Model", ["Single_KWW", "Maxwell", "Dual_KWW"])
+        beta_sim = st.slider("Beta", 0.2, 1.0, 0.8)
+        Tg_sim = st.number_input("Tg (°C)", value=50.0)
+
+        frac_val = 0.5
+        factor_val = 50.0
+        Ea2_sim = Ea_sim
+        beta2_sim = beta_sim
+        if sim_model == "Dual_KWW":
+            Ea2_sim = st.number_input("Ea₂ (kJ/mol)", value=Ea_sim)
+            frac_val = st.slider("Fast-mode fraction", 0.1, 0.9, 0.5)
+            factor_val = st.number_input("τ₂/τ₁ separation factor", value=50.0)
+        st.markdown("---")
+        temp_input = st.text_input("Temperatures (°C)", "130, 140, 150, 160, 170")
+        
+    try:
+        exp_temps = sorted([float(x.strip()) for x in temp_input.split(',') if x.strip()])
+    except ValueError as e:
+        st.warning(f"Invalid temperature input: {e}")
+        exp_temps = []
+
+    params = {
+        'mode': mode,
+        'G_modulus': G_modulus,
+        'tau0': tau0,
+        'Ea_sim': Ea_sim,
+        'Tv_sim': Tv_sim,
+        'sim_model': sim_model,
+        'beta_sim': beta_sim,
+        'Tg_sim': Tg_sim,
+        'frac_val': frac_val,
+        'factor_val': factor_val,
+        'Ea2_sim': Ea2_sim,
+        'beta2_sim': beta2_sim,
+        'exp_temps': exp_temps
+    }
+    return params
+
+def _calculate_targets(params):
+    """Calculates target metrics based on the selected mode."""
+    R_GAS = 8.314462
+    mode = params['mode']
+    G_modulus = params['G_modulus']
+    tau0 = params['tau0']
+    Ea_sim = params['Ea_sim']
+    Tv_sim = params['Tv_sim']
+    
+    if mode.startswith("⚗️"):
+        try:
+            term = np.log(1e6 / (G_modulus * tau0))
+            Tv_res = ((Ea_sim * 1000.0) / (R_GAS * term)) - 273.15 if term > 0 else 999
+        except Exception as e:
+            st.warning(f"Calculation failed for Tv_res: {e}")
+            Tv_res = 999
+        st.metric("Calculated Tv", f"{Tv_res:.1f} °C")
+        if Tv_res < 900:
+            params['Tv_sim'] = Tv_res
+    elif mode.startswith("📐"):
+        try:
+            G_res = 1e6 / (tau0 * np.exp((Ea_sim * 1000.0) / (R_GAS * (Tv_sim + 273.15))))
+        except Exception as e:
+            st.warning(f"Calculation failed for G_res: {e}")
+            G_res = 0.0
+        st.metric("Required G", f"{G_res:.2f} MPa")
+        if G_res > 0:
+            params['G_modulus'] = G_res
+    elif mode.startswith("🎯"):
+        try:
+            Ea_res = (R_GAS * (Tv_sim + 273.15) * np.log(1e6 / (G_modulus * tau0))) / 1000.0
+        except Exception as e:
+            st.warning(f"Calculation failed for Ea_res: {e}")
+            Ea_res = 0.0
+        st.metric("Required Ea", f"{Ea_res:.1f} kJ/mol")
+        if Ea_res > 0:
+            params['Ea_sim'] = Ea_res
+    
+    return params
+
+def _render_simulation_charts(sim, params, PLOTLY_STYLE):
+    """Renders the simulation charts and returns results for export."""
+    exp_temps = params['exp_temps']
+    if not exp_temps:
+        return None, None, None
+
+    sim_params = {
+        'Ea': params['Ea_sim'], 'Tv': params['Tv_sim'], 'Tg': params['Tg_sim'],
+        'G_plateau': params['G_modulus'], 'beta': params['beta_sim'],
+        'fraction_fast': params['frac_val'], 'tau_factor': params['factor_val'],
+        'Ea_2': params['Ea2_sim'], 'beta_2': params['beta2_sim']
+    }
+    
+    sim_results = []
+    fitted_taus = []
+    valid_temps = []
+
+    for T in exp_temps:
+        try:
+            t, g_true, _ = sim.simulate_curve(T, params['sim_model'], sim_params)
+            sim_results.append((T, t, g_true))
+            if T > params['Tg_sim']:
+                try:
+                    target = 0.36788 * g_true[0]
+                    t_fit = np.interp(target, g_true[::-1], t[::-1])
+                    if 1e-5 < t_fit < 1e12:
+                        fitted_taus.append(t_fit)
+                        valid_temps.append(T)
+                except Exception as e:
+                    import logging
+                    logging.getLogger("VirtualLab").debug("Interpolation failed for T=%s: %s", T, e)
+        except Exception as e:
+            st.error(f"Failed to simulate curve for {T}°C: {e}")
+
+    c_p1, c_p2 = st.columns(2)
+    with c_p1:
+        fig = go.Figure()
+        colors = PLOTLY_STYLE["colorway"]
+        for i, (T, t, g) in enumerate(sim_results):
+            fig.add_trace(go.Scatter(
+                x=t, y=g, mode='lines',
+                name=f"{T}°C",
+                line=dict(color=colors[i % len(colors)])
+            ))
+        fig.update_xaxes(type="log", title="Time (s)")
+        fig.update_yaxes(title="G(t) (MPa)")
+        fig.update_layout(
+            **PLOTLY_STYLE,
+            margin=dict(l=20, r=20, t=10, b=20),
+            height=300,
+            showlegend=True,
+            legend=dict(font=dict(size=9))
+        )
+        st.plotly_chart(fig, width="stretch")
+        st.session_state.sim_fig_relax = fig
+        st.session_state.sim_results_cache = sim_results
+
+    with c_p2:
+        if len(valid_temps) >= 3:
+            inv_T = 1000.0 / (np.array(valid_temps) + 273.15)
+            ln_tau = np.log(np.array(fitted_taus))
+            k_engine = KineticsEngine()
+            fit_res = k_engine.fit_arrhenius(valid_temps, fitted_taus)
+            if fit_res:
+                slope = fit_res['Params']['slope'] / 1000.0
+                intercept = fit_res['Params']['intercept']
+                G_Pa = params['G_modulus'] * 1e6
+                tau_Tv = 1e12 / G_Pa
+                ln_tau_target = np.log(tau_Tv)
+                Tv_rec = (1000.0 / ((ln_tau_target - intercept) / slope)) - 273.15 if slope != 0 else 0
+
+                fig_k = go.Figure()
+                fig_k.add_trace(go.Scatter(
+                    x=inv_T, y=ln_tau, mode='markers',
+                    marker=dict(size=8, color=PLOTLY_STYLE["colorway"][0]),
+                    name="Data"
+                ))
+                xr = np.linspace(min(inv_T) * 0.9, max(inv_T) * 1.1, 100)
+                fig_k.add_trace(go.Scatter(
+                    x=xr, y=slope * xr + intercept, mode='lines',
+                    line=dict(dash='dash', color=PLOTLY_STYLE["colorway"][1], width=2),
+                    name=f"Eₐ={fit_res['Ea']:.1f} kJ/mol"
+                ))
+                fig_k.add_trace(go.Scatter(
+                    x=[(1000.0 / (Tv_rec + 273.15))], y=[ln_tau_target], mode='markers',
+                    marker=dict(size=14, color='gold', symbol='star', line=dict(color='black', width=1)),
+                    name=f"Tᵥ={Tv_rec:.1f}°C"
+                ))
+                fig_k.update_layout(
+                    **PLOTLY_STYLE,
+                    xaxis_title="1000/T (K⁻¹)",
+                    yaxis_title="ln(τ)",
+                    margin=dict(l=20, r=20, t=10, b=20),
+                    height=300,
+                    legend=dict(font=dict(size=9))
+                )
+                st.plotly_chart(fig_k, width="stretch")
+                st.caption(f"✅ Recovered Tv: {Tv_rec:.1f} °C")
+                st.session_state.sim_fig_kinetics = fig_k
+                st.session_state.sim_kinetics_cache = {
+                    'inv_T': inv_T, 'ln_tau': ln_tau,
+                    'slope': slope, 'intercept': intercept,
+                    'fit_res': fit_res,
+                    'valid_temps': valid_temps, 'fitted_taus': fitted_taus,
+                    'G_modulus': params['G_modulus']
+                }
+
+    return sim_results, valid_temps, fitted_taus
+
+def _render_export_panel(sim_results, valid_temps, fitted_taus, G_modulus):
+    """Renders the export settings and buttons."""
+    st.markdown("---")
+    st.subheader("📥 Export Simulation Plots")
+    exp_c1, exp_c2, *_ = st.columns(4)
+    with exp_c1:
+        sim_fig_fmt = st.selectbox("Format", ["png", "bmp", "tiff", "pdf", "svg"], key="sim_fmt")
+        sim_fig_dpi = st.number_input("DPI", 72, 1200, 300, 50, key="sim_dpi")
+    with exp_c2:
+        sim_fig_width = st.number_input("Width (in)", 2.0, 10.0, 3.5, 0.1, key="sim_width")
+        sim_fig_height = st.number_input("Height (in)", 2.0, 10.0, 3.0, 0.1, key="sim_height")
+
+    exp_col1, exp_col2 = st.columns(2)
+    with exp_col1:
+        if st.button("📥 Export Relaxation Curves", key="export_sim_relax"):
+            _export_relax(sim_results, sim_fig_fmt, sim_fig_dpi, sim_fig_width, sim_fig_height)
+
+    with exp_col2:
+        if st.button("📥 Export Arrhenius Plot", key="export_sim_arr"):
+            _export_arrhenius(valid_temps, fitted_taus, G_modulus,
+                              sim_fig_fmt, sim_fig_dpi, sim_fig_width, sim_fig_height)
+
 
 def render(sim, PLOTLY_STYLE: dict):
     """
     Render the Virtual Lab tab.
-
-    Parameters
-    ----------
-    sim : MaterialSimulator
-        Shared simulator instance.
-    PLOTLY_STYLE : dict
-        Shared Plotly layout dict for visual consistency.
     """
     st.subheader("🧪 Virtual Lab")
     col_ctrl, col_dash = st.columns([0.3, 0.7])
 
     with col_ctrl:
-        with st.container(border=True):
-            mode = st.radio(
-                "Mode",
-                ["⚗️ Chemist", "📐 Engineering", "🎯 Target"],
-                label_visibility="collapsed"
-            )
-            st.markdown("---")
-            disable_G = mode.startswith("📐")
-            G_modulus = st.number_input("Modulus G (MPa)", 0.01, 2000.0, 1.0, 0.1, disabled=disable_G)
-            log_tau0 = st.slider("log(tau0)", -18, -3, -12)
-            tau0 = 10 ** log_tau0
-            disable_Ea = mode.startswith("🎯")
-            Ea_sim = st.number_input("Ea (kJ/mol)", 10.0, 300.0, 90.0, disabled=disable_Ea)
-            disable_Tv = mode.startswith("⚗️")
-            Tv_sim = st.number_input("Tv (°C)", -100.0, 400.0, 120.0, disabled=disable_Tv)
-            st.markdown("---")
-            sim_model = st.selectbox("Model", ["Single_KWW", "Maxwell", "Dual_KWW"])
-            beta_sim = st.slider("Beta", 0.2, 1.0, 0.8)
-            Tg_sim = st.number_input("Tg (°C)", value=50.0)
-
-            frac_val = 0.5
-            factor_val = 50.0
-            Ea2_sim = Ea_sim
-            beta2_sim = beta_sim
-            if sim_model == "Dual_KWW":
-                Ea2_sim = st.number_input("Ea₂ (kJ/mol)", value=Ea_sim)
-                frac_val = st.slider("Fast-mode fraction", 0.1, 0.9, 0.5)
-                factor_val = st.number_input("τ₂/τ₁ separation factor", value=50.0)
-            st.markdown("---")
-            temp_input = st.text_input("Temperatures (°C)", "130, 140, 150, 160, 170")
+        params = _render_controls()
 
     with col_dash:
         c_res1, c_res2 = st.columns([1, 1])
-        R_GAS = 8.314462
         with c_res1:
-            if mode.startswith("⚗️"):
-                try:
-                    term = np.log(1e6 / (G_modulus * tau0))
-                    Tv_res = ((Ea_sim * 1000.0) / (R_GAS * term)) - 273.15 if term > 0 else 999
-                except Exception:
-                    Tv_res = 999
-                st.metric("Calculated Tv", f"{Tv_res:.1f} °C")
-                if Tv_res < 900:
-                    Tv_sim = Tv_res
-            elif mode.startswith("📐"):
-                try:
-                    G_res = 1e6 / (tau0 * np.exp((Ea_sim * 1000.0) / (R_GAS * (Tv_sim + 273.15))))
-                except Exception:
-                    G_res = 0.0
-                st.metric("Required G", f"{G_res:.2f} MPa")
-                if G_res > 0:
-                    G_modulus = G_res
-            elif mode.startswith("🎯"):
-                try:
-                    Ea_res = (R_GAS * (Tv_sim + 273.15) * np.log(1e6 / (G_modulus * tau0))) / 1000.0
-                except Exception:
-                    Ea_res = 0.0
-                st.metric("Required Ea", f"{Ea_res:.1f} kJ/mol")
-                if Ea_res > 0:
-                    Ea_sim = Ea_res
+            params = _calculate_targets(params)
 
-        try:
-            exp_temps = sorted([float(x.strip()) for x in temp_input.split(',') if x.strip()])
-        except Exception:
-            exp_temps = []
-
-        if exp_temps:
-            params = {
-                'Ea': Ea_sim, 'Tv': Tv_sim, 'Tg': Tg_sim,
-                'G_plateau': G_modulus, 'beta': beta_sim,
-                'fraction_fast': frac_val, 'tau_factor': factor_val,
-                'Ea_2': Ea2_sim, 'beta_2': beta2_sim
-            }
-            sim_results = []
-            fitted_taus = []
-            valid_temps = []
-
-            for T in exp_temps:
-                try:
-                    t, g_true, _ = sim.simulate_curve(T, sim_model, params)
-                    sim_results.append((T, t, g_true))
-                    if T > Tg_sim:
-                        try:
-                            target = 0.36788 * g_true[0]
-                            t_fit = np.interp(target, g_true[::-1], t[::-1])
-                            if 1e-5 < t_fit < 1e12:
-                                fitted_taus.append(t_fit)
-                                valid_temps.append(T)
-                        except Exception:
-                            pass
-                except Exception as e:
-                    st.error(f"Failed to simulate curve for {T}°C: {e}")
-
-            c_p1, c_p2 = st.columns(2)
-            with c_p1:
-                fig = go.Figure()
-                colors = PLOTLY_STYLE["colorway"]
-                for i, (T, t, g) in enumerate(sim_results):
-                    fig.add_trace(go.Scatter(
-                        x=t, y=g, mode='lines',
-                        name=f"{T}°C",
-                        line=dict(color=colors[i % len(colors)])
-                    ))
-                fig.update_xaxes(type="log", title="Time (s)")
-                fig.update_yaxes(title="G(t) (MPa)")
-                fig.update_layout(
-                    **PLOTLY_STYLE,
-                    margin=dict(l=20, r=20, t=10, b=20),
-                    height=300,
-                    showlegend=True,
-                    legend=dict(font=dict(size=9))
-                )
-                st.plotly_chart(fig, width="stretch")
-                st.session_state.sim_fig_relax = fig
-                st.session_state.sim_results_cache = sim_results
-
-            with c_p2:
-                if len(valid_temps) >= 3:
-                    inv_T = 1000.0 / (np.array(valid_temps) + 273.15)
-                    ln_tau = np.log(np.array(fitted_taus))
-                    k_engine = KineticsEngine()
-                    fit_res = k_engine.fit_arrhenius(valid_temps, fitted_taus)
-                    if fit_res:
-                        slope = fit_res['Params']['slope'] / 1000.0
-                        intercept = fit_res['Params']['intercept']
-                        G_Pa = G_modulus * 1e6
-                        tau_Tv = 1e12 / G_Pa
-                        ln_tau_target = np.log(tau_Tv)
-                        Tv_rec = (1000.0 / ((ln_tau_target - intercept) / slope)) - 273.15 if slope != 0 else 0
-
-                        fig_k = go.Figure()
-                        fig_k.add_trace(go.Scatter(
-                            x=inv_T, y=ln_tau, mode='markers',
-                            marker=dict(size=8, color=PLOTLY_STYLE["colorway"][0]),
-                            name="Data"
-                        ))
-                        xr = np.linspace(min(inv_T) * 0.9, max(inv_T) * 1.1, 100)
-                        fig_k.add_trace(go.Scatter(
-                            x=xr, y=slope * xr + intercept, mode='lines',
-                            line=dict(dash='dash', color=PLOTLY_STYLE["colorway"][1], width=2),
-                            name=f"Eₐ={fit_res['Ea']:.1f} kJ/mol"
-                        ))
-                        fig_k.add_trace(go.Scatter(
-                            x=[(1000.0 / (Tv_rec + 273.15))], y=[ln_tau_target], mode='markers',
-                            marker=dict(size=14, color='gold', symbol='star', line=dict(color='black', width=1)),
-                            name=f"Tᵥ={Tv_rec:.1f}°C"
-                        ))
-                        fig_k.update_layout(
-                            **PLOTLY_STYLE,
-                            xaxis_title="1000/T (K⁻¹)",
-                            yaxis_title="ln(τ)",
-                            margin=dict(l=20, r=20, t=10, b=20),
-                            height=300,
-                            legend=dict(font=dict(size=9))
-                        )
-                        st.plotly_chart(fig_k, width="stretch")
-                        st.caption(f"✅ Recovered Tv: {Tv_rec:.1f} °C")
-                        st.session_state.sim_fig_kinetics = fig_k
-                        st.session_state.sim_kinetics_cache = {
-                            'inv_T': inv_T, 'ln_tau': ln_tau,
-                            'slope': slope, 'intercept': intercept,
-                            'fit_res': fit_res,
-                            'valid_temps': valid_temps, 'fitted_taus': fitted_taus,
-                            'G_modulus': G_modulus
-                        }
-
-            # ── Export Settings ─────────────────────────────────────────
-            st.markdown("---")
-            st.subheader("📥 Export Simulation Plots")
-            exp_c1, exp_c2, *_ = st.columns(4)
-            with exp_c1:
-                sim_fig_fmt = st.selectbox("Format", ["png", "bmp", "tiff", "pdf", "svg"], key="sim_fmt")
-                sim_fig_dpi = st.number_input("DPI", 72, 1200, 300, 50, key="sim_dpi")
-            with exp_c2:
-                sim_fig_width = st.number_input("Width (in)", 2.0, 10.0, 3.5, 0.1, key="sim_width")
-                sim_fig_height = st.number_input("Height (in)", 2.0, 10.0, 3.0, 0.1, key="sim_height")
-
-            exp_col1, exp_col2 = st.columns(2)
-            with exp_col1:
-                if st.button("📥 Export Relaxation Curves", key="export_sim_relax"):
-                    _export_relax(sim_results, sim_fig_fmt, sim_fig_dpi, sim_fig_width, sim_fig_height)
-
-            with exp_col2:
-                if st.button("📥 Export Arrhenius Plot", key="export_sim_arr"):
-                    _export_arrhenius(valid_temps, fitted_taus, G_modulus,
-                                      sim_fig_fmt, sim_fig_dpi, sim_fig_width, sim_fig_height)
+        sim_results, valid_temps, fitted_taus = _render_simulation_charts(sim, params, PLOTLY_STYLE)
+        
+        if sim_results:
+            _render_export_panel(sim_results, valid_temps, fitted_taus, params['G_modulus'])
 
 
 def _export_relax(sim_results, fmt, dpi, width, height):

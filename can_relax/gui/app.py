@@ -21,11 +21,11 @@ if not hasattr(mathtext.MathTextParser, '_patched_by_us'):
     _original_parse = mathtext.MathTextParser.parse
     def _safe_parse(self, s, *args, **kwargs):
         if not s or str(s).strip() == "" or str(s).strip() == "$$":
-            return _original_parse(self, r" ", *args, **kwargs)
+            return _original_parse(self, "", *args, **kwargs)
         try:
             return _original_parse(self, s, *args, **kwargs)
         except Exception:
-            return _original_parse(self, r" ", *args, **kwargs)
+            return _original_parse(self, "", *args, **kwargs)
     mathtext.MathTextParser.parse = _safe_parse
     mathtext.MathTextParser._patched_by_us = True
 
@@ -164,7 +164,8 @@ def get_tau_1_over_e(t, g):
     target = 0.36788 * g[0] # Scale target by G0
     try:
         if g[0] > g[-1]: return np.interp(target, g[::-1], t[::-1])
-    except: pass
+    except Exception as e:
+        print(f"Interpolation failed in get_tau_1_over_e: {e}")
     return np.nan
 
 # TABS
