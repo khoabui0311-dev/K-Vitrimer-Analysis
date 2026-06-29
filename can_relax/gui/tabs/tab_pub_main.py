@@ -658,7 +658,7 @@ def render_publication(tab_pub, PLOTLY_STYLE: dict, Tg_input: float, G_prime_inp
                 'panel_font_family': panel_font_family, 'panel_font_weight': panel_font_weight,
                 'panel_font_size': panel_font_size, 'panel_font_style': panel_font_style,
                 'pub_colorspace': pub_colorspace,
-                'color_palette': ['#1b9e77', '#d95f02', '#7570b3', '#e7298a', '#66a61e', '#e6ab02', '#a6761d', '#666666']
+                'color_palette': PLOTLY_STYLE.get('colorway', ['#6366f1', '#f43f5e', '#10b981', '#f59e0b', '#3b82f6', '#8b5cf6'])
             }
 
             _render_figure1(pan_settings, pan_preview, active_res, glob, auto_bounds)

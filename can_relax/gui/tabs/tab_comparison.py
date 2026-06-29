@@ -118,7 +118,7 @@ def _calculate_kinetics(valid_samples):
                 })
     return results_list
 
-def _render_arrhenius_plot(results):
+def _render_arrhenius_plot(results, PLOTLY_STYLE):
     st.subheader("📈 Arrhenius Comparison Plot")
     col_plot, col_settings = st.columns([3, 1])
     with col_settings:
@@ -148,7 +148,7 @@ def _render_arrhenius_plot(results):
 
     with col_plot:
         comp_plot_mode = st.radio("Plot Type", ["Interactive (Plotly)", "Static (Matplotlib)"], horizontal=True)
-        colors = ['#EF553B', '#636EFA', '#00CC96', '#AB63FA', '#FFA15A', '#25D098']
+        colors = PLOTLY_STYLE.get('colorway', ['#EF553B', '#636EFA', '#00CC96', '#AB63FA', '#FFA15A', '#25D098'])
         
         if comp_plot_mode.startswith("Interactive"):
             fig_comp = go.Figure()
@@ -192,7 +192,7 @@ def _render_arrhenius_plot(results):
             with col_settings:
                 st.download_button(f"📥 Download ({comp_fmt})", buf, f"Arrhenius.{comp_fmt}", mime=f"image/{comp_fmt}")
 
-def _render_vant_hoff_plot(results):
+def _render_vant_hoff_plot(results, PLOTLY_STYLE):
     st.subheader("📈 Van 't Hoff Comparison Plot")
     col_plot, col_settings = st.columns([3, 1])
     valid_vh = [r for r in results if r.get('vh_fit') is not None]
@@ -208,7 +208,7 @@ def _render_vant_hoff_plot(results):
             return
             
         fig_vh, ax_vh = plt.subplots(figsize=(12.7/2.54, 10.0/2.54))
-        colors = ['#EF553B', '#636EFA', '#00CC96', '#AB63FA', '#FFA15A', '#25D098']
+        colors = PLOTLY_STYLE.get('colorway', ['#EF553B', '#636EFA', '#00CC96', '#AB63FA', '#FFA15A', '#25D098'])
         
         for idx, r in enumerate(valid_vh):
             color = colors[idx % 6]
@@ -258,7 +258,7 @@ def render(tab_comparison, PLOTLY_STYLE: dict):
             st.dataframe(results_df, hide_index=True, use_container_width=True)
             
             comp_tab_arr, comp_tab_vh = st.tabs(["Arrhenius Kinetics", "Van 't Hoff"])
-            with comp_tab_arr: _render_arrhenius_plot(results)
-            with comp_tab_vh: _render_vant_hoff_plot(results)
+            with comp_tab_arr: _render_arrhenius_plot(results, PLOTLY_STYLE)
+            with comp_tab_vh: _render_vant_hoff_plot(results, PLOTLY_STYLE)
         else:
             st.info("💡 Fill in samples and click 'Analyze All Samples' to start comparison")
