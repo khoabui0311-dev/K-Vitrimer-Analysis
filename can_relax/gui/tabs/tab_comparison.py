@@ -146,11 +146,11 @@ def _render_arrhenius_plot(results, PLOTLY_STYLE):
             comp_ms = st.slider("Marker Size", 1, 15, 6, 1, key="comp_ms")
             comp_custom_lims = st.checkbox("Manual Axis", value=False, key="comp_custom_lims")
 
-        with st.expander("🏷️ Panel Label"):
-            comp_panel_l = st.text_input("Label Text", "", key="comp_pl", help="e.g. 'a' will show as (a)")
-            pl_c1, pl_c2 = st.columns(2)
-            with pl_c1: comp_pl_x = st.number_input("X pos", -1.0, 2.0, -0.1, 0.01, key="comp_pl_x")
-            with pl_c2: comp_pl_y = st.number_input("Y pos", -1.0, 2.0, 1.02, 0.01, key="comp_pl_y")
+        pl_c1, pl_c2 = st.columns(2)
+        with pl_c1: comp_panel_l = st.text_input("Panel Letter", "", key="comp_pl")
+        with pl_c2:
+            comp_pl_x = st.number_input("X pos", -1.0, 2.0, -0.12, 0.01, key="comp_pl_x")
+            comp_pl_y = st.number_input("Y pos", -1.0, 2.0, 1.02, 0.01, key="comp_pl_y")
 
     with col_plot:
         comp_plot_mode = st.radio("Plot Type", ["Interactive (Plotly)", "Static (Matplotlib)"], horizontal=True)
@@ -213,11 +213,11 @@ def _render_vant_hoff_plot(results, PLOTLY_STYLE):
         vh_comp_dpi = st.number_input("DPI", 72, 1200, 300, 50, key="vh_comp_dpi")
         vh_y_scale = st.radio("Y Scale", ["Log", "Linear"], horizontal=True, key="vh_y_scale")
         
-        with st.expander("🏷️ Panel Label"):
-            vh_comp_panel_l = st.text_input("Label Text", "", key="vh_comp_pl", help="e.g. 'b' will show as (b)")
-            vh_pl_c1, vh_pl_c2 = st.columns(2)
-            with vh_pl_c1: vh_comp_pl_x = st.number_input("X pos", -1.0, 2.0, -0.1, 0.01, key="vh_comp_pl_x")
-            with vh_pl_c2: vh_comp_pl_y = st.number_input("Y pos", -1.0, 2.0, 1.02, 0.01, key="vh_comp_pl_y")
+        vh_pl_c1, vh_pl_c2 = st.columns(2)
+        with vh_pl_c1: vh_comp_panel_l = st.text_input("Panel Letter", "", key="vh_comp_pl")
+        with vh_pl_c2:
+            vh_comp_pl_x = st.number_input("X pos ", -1.0, 2.0, -0.12, 0.01, key="vh_comp_pl_x")
+            vh_comp_pl_y = st.number_input("Y pos ", -1.0, 2.0, 1.02, 0.01, key="vh_comp_pl_y")
         
     with col_plot:
         if not valid_vh:
