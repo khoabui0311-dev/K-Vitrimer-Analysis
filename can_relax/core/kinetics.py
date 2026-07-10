@@ -107,6 +107,7 @@ class KineticsEngine:
             return {
                 "Type": "Van_t_Hoff",
                 "A": popt[0],
+                "G0_max": popt[0],
                 "dH_diss": popt[1] / 1000.0,  # to kJ/mol
                 "dS_diss": popt[2],  # J/mol*K
                 "R2": r2,
@@ -139,7 +140,7 @@ class KineticsEngine:
             pred = vft_func(T_K, *popt)
             ss_res = np.sum((ln_tau - pred)**2)
             ss_tot = np.sum((ln_tau - np.mean(ln_tau))**2)
-            r2 = 1 - (ss_res / ss_tot)
+            r2 = 1.0 - (ss_res / ss_tot) if ss_tot > 0 else 0.0
             
             return {
                 "Type": "VFT",
