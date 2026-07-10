@@ -29,6 +29,27 @@ if not hasattr(mathtext.MathTextParser, '_patched_by_us'):
     mathtext.MathTextParser.parse = _safe_parse
     mathtext.MathTextParser._patched_by_us = True
 
+import matplotlib.backends.backend_agg as backend_agg
+if not hasattr(backend_agg.RendererAgg, '_patched_by_us'):
+    _orig_get_text_width_height_descent = backend_agg.RendererAgg.get_text_width_height_descent
+    def _safe_get_text_width_height_descent(self, s, prop, ismath):
+        if not s: return 0.0, 0.0, 0.0
+        try:
+            return _orig_get_text_width_height_descent(self, s, prop, ismath)
+        except Exception:
+            return 0.0, 0.0, 0.0
+    backend_agg.RendererAgg.get_text_width_height_descent = _safe_get_text_width_height_descent
+    
+    _orig_draw_text = backend_agg.RendererAgg.draw_text
+    def _safe_draw_text(self, gc, x, y, s, prop, angle, ismath=False, mtext=None):
+        if not s: return
+        try:
+            _orig_draw_text(self, gc, x, y, s, prop, angle, ismath, mtext)
+        except Exception:
+            pass
+    backend_agg.RendererAgg.draw_text = _safe_draw_text
+    backend_agg.RendererAgg._patched_by_us = True
+
 # Import proper modules from can_relax
 from can_relax.io.parser import parse_wide_format_data as parser_module_func
 from can_relax.core.simulator import MaterialSimulator
