@@ -7,6 +7,35 @@ H_PLANCK = 6.62607015e-34  # J*s
 K_BOLTZMANN = 1.380649e-23  # J/K
 LN_H_OVER_KB = np.log(H_PLANCK / K_BOLTZMANN)  # ~ -23.759978
 
+def predict_van_t_hoff(T_K, A, dH_diss, dS_diss):
+    """Predict modulus: A [MPa/K], dH [J/mol], dS [J/(mol K)], T [K]."""
+    T = np.asarray(T_K, dtype=float)
+    exponent = -dH_diss / (R_GAS * T) + dS_diss / R_GAS
+    return A * T * np.exp(-np.logaddexp(0.0, exponent))
+
+
+def predict_coupled(T_K, ln_A, Ea, ln_C, B, T0):
+    """Predict log(tau) stably; Ea [J/mol], temperatures and B [K]."""
+    T = np.asarray(T_K, dtype=float)
+    return np.logaddexp(ln_A + Ea / (R_GAS * T), ln_C + B / (T - T0))
+
+
+def _validated_inputs(temps_C, values, minimum):
+    """Require finite physical arrays and enough distinct temperatures."""
+    try:
+        temperatures = np.asarray(temps_C, dtype=float)
+        values = np.asarray(values, dtype=float)
+    except (TypeError, ValueError):
+        return None
+    if (temperatures.ndim != 1 or values.ndim != 1
+            or temperatures.shape != values.shape or len(values) < minimum
+            or not np.all(np.isfinite(temperatures)) or not np.all(np.isfinite(values))
+            or np.any(temperatures <= -273.15) or np.any(values <= 0)
+            or np.unique(temperatures).size < minimum):
+        return None
+    return temperatures + 273.15, values
+
+
 class KineticsEngine:
     def __init__(self):
         pass
@@ -16,9 +45,10 @@ class KineticsEngine:
         Fits ln(tau) = ln(tau0) + Ea / (R * T)
         Returns: Ea (kJ/mol), R2, and fit curve.
         """
-        if len(temps_C) < 2: return None
-
-        T_K = np.array(temps_C) + 273.15
+        inputs = _validated_inputs(temps_C, taus, 2)
+        if inputs is None:
+            return None
+        T_K, taus = inputs
         inv_T = 1000.0 / T_K
         ln_tau = np.log(np.array(taus))
 
@@ -29,10 +59,11 @@ class KineticsEngine:
         
         Ea_J = slope_std * R_GAS
         Ea_kJ = Ea_J / 1000.0
-        Ea_std_kJ = (stderr_std * R_GAS) / 1000.0
+        Ea_std_kJ = (stderr_std * R_GAS) / 1000.0 if len(taus) > 2 else np.nan
         
         return {
             "Type": "Arrhenius",
+            "Warning": "Two observations: uncertainty cannot be estimated." if len(taus) == 2 else None,
             "Ea": Ea_kJ,
             "Ea_std": Ea_std_kJ,
             "R2": r_std**2,
@@ -45,23 +76,25 @@ class KineticsEngine:
         Fits Eyring equation: ln(tau * T) = ln(h / kB) - dS / R + dH / (R * T)
         Returns: dH (kJ/mol), dS (J/mol*K), R2, and fit curve.
         """
-        if len(temps_C) < 2: return None
-
-        T_K = np.array(temps_C) + 273.15
+        inputs = _validated_inputs(temps_C, taus, 2)
+        if inputs is None:
+            return None
+        T_K, taus = inputs
         inv_T = 1.0 / T_K
-        y_val = np.log(np.array(taus) * T_K)
+        y_val = np.log(taus) + np.log(T_K)
 
         slope, intercept, r_val, _, stderr = linregress(inv_T, y_val)
 
         dH_J = slope * R_GAS
         dH_kJ = dH_J / 1000.0
-        dH_std_kJ = (stderr * R_GAS) / 1000.0
+        dH_std_kJ = (stderr * R_GAS) / 1000.0 if len(taus) > 2 else np.nan
 
         # intercept = LN_H_OVER_KB - dS / R  =>  dS = R * (LN_H_OVER_KB - intercept)
         dS = R_GAS * (LN_H_OVER_KB - intercept)
 
         return {
             "Type": "Eyring",
+            "Warning": "Two observations: uncertainty cannot be estimated." if len(taus) == 2 else None,
             "dH": dH_kJ,
             "dH_std": dH_std_kJ,
             "dS": dS,
@@ -73,22 +106,16 @@ class KineticsEngine:
     def fit_van_t_hoff(self, temps_C, G0s):
         """
         Fits temperature dependence of plateau modulus G0 using Van 't Hoff:
-        G0(T) = G0_max / (1 + exp(-dH_diss / (R * T) + dS_diss / R))
-        Returns: dH_diss (kJ/mol), dS_diss (J/mol*K), G0_max (MPa/Pa), R2, and fit curve.
+        G0(T) = A*T / (1 + exp(-dH_diss / (R * T) + dS_diss / R))
+        Returns: dH_diss (kJ/mol), dS_diss (J/mol*K), A (MPa/K), R2, and fit curve.
         """
-        if len(temps_C) < 3: return None
-
-        T_K = np.array(temps_C) + 273.15
-        G0s = np.array(G0s)
-
-        def van_t_hoff_func(T, A, dH, dS):
-            exponent = -dH / (R_GAS * T) + dS / R_GAS
-            exponent = np.clip(exponent, -50.0, 50.0)
-            return (A * T) / (1.0 + np.exp(exponent))
+        inputs = _validated_inputs(temps_C, G0s, 4)
+        if inputs is None:
+            return None
+        T_K, G0s = inputs
 
         try:
-            # Initial guess: G0_max roughly occurs at high T? No, A*T is the max.
-            # So A ~ np.max(G0s) / np.min(T_K)
+            # A*T is the fully associated modulus envelope.
             A_p0 = float(np.max(G0s) / np.max(T_K) * 1.5)
             # Transesterification/bond dissociation typically has dH around 60-120 kJ/mol
             p0 = [A_p0, 80000.0, 150.0]
@@ -97,8 +124,10 @@ class KineticsEngine:
                 [np.max(G0s) / np.min(T_K) * 10.0, 500000.0, 500.0]
             )
 
-            popt, _ = curve_fit(van_t_hoff_func, T_K, G0s, p0=p0, bounds=bounds, maxfev=5000)
-            pred = van_t_hoff_func(T_K, *popt)
+            popt, _ = curve_fit(predict_van_t_hoff, T_K, G0s, p0=p0, bounds=bounds, maxfev=5000)
+            pred = predict_van_t_hoff(T_K, *popt)
+            if not np.all(np.isfinite(popt)) or not np.all(np.isfinite(pred)):
+                return None
 
             ss_res = np.sum((G0s - pred)**2)
             ss_tot = np.sum((G0s - np.mean(G0s))**2)
@@ -107,11 +136,12 @@ class KineticsEngine:
             return {
                 "Type": "Van_t_Hoff",
                 "A": popt[0],
-                "G0_max": popt[0],
                 "dH_diss": popt[1] / 1000.0,  # to kJ/mol
                 "dS_diss": popt[2],  # J/mol*K
                 "R2": r2,
-                "Params": {"G0_max": popt[0], "dH_diss": popt[1], "dS_diss": popt[2]},
+                "Units": {"A": "MPa/K", "dH_diss": "kJ/mol", "dS_diss": "J/(mol K)"},
+                "Parameter_units": {"A": "MPa/K", "dH_diss": "J/mol", "dS_diss": "J/(mol K)"},
+                "Params": {"A": popt[0], "dH_diss": popt[1], "dS_diss": popt[2]},
                 "Plot": {"x": 1000.0 / T_K, "y": G0s, "y_pred": pred}
             }
         except Exception as e:
@@ -122,11 +152,12 @@ class KineticsEngine:
         """
         Fits ln(tau) = A + B / (T - T0)
         """
-        if len(temps_C) < 4: return None
-        
-        T_K = np.array(temps_C) + 273.15
-        ln_tau = np.log(np.array(taus))
-        
+        inputs = _validated_inputs(temps_C, taus, 4)
+        if inputs is None:
+            return None
+        T_K, taus = inputs
+        ln_tau = np.log(taus)
+
         def vft_func(T, A, B, T0):
             return A + B / (T - T0)
         
@@ -138,6 +169,8 @@ class KineticsEngine:
             
             # Calc R2
             pred = vft_func(T_K, *popt)
+            if not np.all(np.isfinite(popt)) or not np.all(np.isfinite(pred)):
+                return None
             ss_res = np.sum((ln_tau - pred)**2)
             ss_tot = np.sum((ln_tau - np.mean(ln_tau))**2)
             r2 = 1.0 - (ss_res / ss_tot) if ss_tot > 0 else 0.0
@@ -158,10 +191,18 @@ class KineticsEngine:
         Fits ln(tau) = ln(A * exp(Ea / (R * T)) + C * exp(B / (T - T0)))
         T0 is fixed to Tg - 50 K (if Tg is provided) or fit with bounds.
         """
-        if len(temps_C) < 4: return None
-
-        T_K = np.array(temps_C) + 273.15
-        ln_tau = np.log(np.array(taus))
+        inputs = _validated_inputs(temps_C, taus, 5 if Tg is not None else 6)
+        if inputs is None:
+            return None
+        T_K, taus = inputs
+        ln_tau = np.log(taus)
+        if Tg is not None:
+            try:
+                Tg = float(Tg)
+            except (TypeError, ValueError):
+                return None
+            if not np.isfinite(Tg) or Tg <= -273.15:
+                return None
 
         if Tg is not None:
             T0_val = 273.15 + (Tg - 50.0)
@@ -169,9 +210,7 @@ class KineticsEngine:
             T0_val = min(T0_val, T_K.min() - 5.0)
             
             def coupled_fixed_T0(T, ln_A, Ea, ln_C, B):
-                term1 = np.exp(ln_A + Ea / (R_GAS * T))
-                term2 = np.exp(ln_C + B / (T - T0_val))
-                return np.log(term1 + term2)
+                return predict_coupled(T, ln_A, Ea, ln_C, B, T0_val)
 
             try:
                 # Guesses: ln_A (chem), Ea (chem), ln_C (glass), B (glass VFT)
@@ -182,6 +221,8 @@ class KineticsEngine:
                 )
                 popt, _ = curve_fit(coupled_fixed_T0, T_K, ln_tau, p0=p0, bounds=bounds, maxfev=5000)
                 pred = coupled_fixed_T0(T_K, *popt)
+                if not np.all(np.isfinite(popt)) or not np.all(np.isfinite(pred)):
+                    return None
 
                 ss_res = np.sum((ln_tau - pred)**2)
                 ss_tot = np.sum((ln_tau - np.mean(ln_tau))**2)
@@ -202,9 +243,7 @@ class KineticsEngine:
         else:
             # Fit T0 as a parameter
             def coupled_free_T0(T, ln_A, Ea, ln_C, B, T0):
-                term1 = np.exp(ln_A + Ea / (R_GAS * T))
-                term2 = np.exp(np.clip(ln_C + B / (T - T0), -50, 50))
-                return np.log(term1 + term2)
+                return predict_coupled(T, ln_A, Ea, ln_C, B, T0)
 
             try:
                 p0 = [np.log(min(taus)) - 10, 80000.0, np.log(max(taus)), 1500.0, T_K.min() - 50.0]
@@ -214,6 +253,8 @@ class KineticsEngine:
                 )
                 popt, _ = curve_fit(coupled_free_T0, T_K, ln_tau, p0=p0, bounds=bounds, maxfev=10000)
                 pred = coupled_free_T0(T_K, *popt)
+                if not np.all(np.isfinite(popt)) or not np.all(np.isfinite(pred)):
+                    return None
 
                 ss_res = np.sum((ln_tau - pred)**2)
                 ss_tot = np.sum((ln_tau - np.mean(ln_tau))**2)

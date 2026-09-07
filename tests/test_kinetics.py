@@ -130,14 +130,75 @@ def test_coupled_runs_with_tg(engine):
     temps = [100, 120, 140, 160, 180]
     taus = _arrhenius_taus(temps, 85000.0, 1e-11)
     res = engine.fit_coupled_kinetics(temps, taus, Tg=60.0)
-    # May or may not converge, but must not raise
-    # If it converges, R2 should be reasonable
-    if res is not None:
-        assert res["R2"] >= 0.0
-        assert "Ea_chem" in res
+    assert res is not None
+    assert res["R2"] > 0.99
+    assert "Ea_chem" in res
 
 
 def test_coupled_minimum_points_guard(engine):
     """Coupled model requires ≥4 points."""
     result = engine.fit_coupled_kinetics([100, 120, 140], [1.0, 0.5, 0.3])
     assert result is None
+
+@pytest.mark.parametrize('method', ['fit_arrhenius', 'fit_eyring', 'fit_vft', 'fit_van_t_hoff', 'fit_coupled_kinetics'])
+@pytest.mark.parametrize('temps,values', [
+    ([100]*6, [1]*6),
+    ([100,120,140,160,180,200], [1,2,3,4,5]),
+    ([100,120,140,160,180,200], [1,2,0,4,5,6]),
+    ([100,120,140,160,180,200], [1,2,-1,4,5,6]),
+    ([100,120,140,160,180,200], [1,2,np.inf,4,5,6]),
+    ([-273.15,120,140,160,180,200], [1,2,3,4,5,6]),
+    ([100,np.nan,140,160,180,200], [1,2,3,4,5,6]),
+])
+def test_invalid_inputs_return_none(engine, method, temps, values):
+    assert getattr(engine, method)(temps, values) is None
+
+
+@pytest.mark.parametrize('method,error', [('fit_arrhenius','Ea_std'), ('fit_eyring','dH_std')])
+def test_two_observations_do_not_claim_uncertainty(engine, method, error):
+    result = getattr(engine, method)([100,120], [10,1])
+    assert result is not None
+    assert np.isnan(result[error])
+    assert result['Warning']
+
+
+def test_van_t_hoff_predictions_match_equation_and_result(engine):
+    from can_relax.core.kinetics import predict_van_t_hoff
+    T = np.linspace(373.15, 473.15, 8)
+    expected = 0.02*T/(1+np.exp(-80000/(R*T)+200/R))
+    np.testing.assert_allclose(predict_van_t_hoff(T, .02, 80000, 200), expected)
+    result = engine.fit_van_t_hoff(T-273.15, expected)
+    assert result is not None
+    assert 'G0_max' not in result and 'G0_max' not in result['Params']
+    np.testing.assert_allclose(result['Plot']['y_pred'], predict_van_t_hoff(T, **result['Params']))
+    np.testing.assert_allclose(result['Plot']['y_pred'], expected, rtol=1e-4)
+    assert result['Units']['A'] == 'MPa/K'
+
+
+def test_coupled_prediction_stable_beyond_exp_range():
+    from can_relax.core.kinetics import predict_coupled
+    T = np.array([300.,400.])
+    actual = predict_coupled(T, 1000., 80000., 1000., 1500., 250.)
+    assert np.all(np.isfinite(actual))
+    expected = 1000 + np.logaddexp(80000/(R*T), 1500/(T-250))
+    np.testing.assert_allclose(actual, expected)
+
+
+@pytest.mark.parametrize('tg,n', [(60.,4), (None,5)])
+def test_coupled_requires_residual_degrees_of_freedom(engine, tg, n):
+    assert engine.fit_coupled_kinetics(np.linspace(100,200,n), np.linspace(10,1,n), Tg=tg) is None
+
+
+def test_van_t_hoff_requires_four_temperatures(engine):
+    assert engine.fit_van_t_hoff([100,120,140], [10,8,6]) is None
+
+@pytest.mark.parametrize('tg', [60., None])
+def test_coupled_fit_uses_shared_prediction(engine, tg):
+    from can_relax.core.kinetics import predict_coupled
+    temps = np.linspace(100,240,10)
+    T = temps + 273.15
+    tau = np.exp(predict_coupled(T,-20,85000,-8,1500,283.15))
+    result = engine.fit_coupled_kinetics(temps,tau,Tg=tg)
+    assert result is not None
+    assert result['R2'] > 0.99
+    np.testing.assert_allclose(result['Plot']['y_pred'], predict_coupled(T, **result['Params']))

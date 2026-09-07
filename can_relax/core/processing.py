@@ -13,7 +13,10 @@ class DataProcessor:
         Returns: (t_trimmed, g_normalized, G0) or (None, None, None)
         """
         # 1. Basic Cleaning (Remove NaNs, Infs, Negatives)
-        mask = (g > 0) & np.isfinite(g) & np.isfinite(t)
+        t, g = np.asarray(t, dtype=float), np.asarray(g, dtype=float)
+        if t.ndim != 1 or g.shape != t.shape:
+            return None, None, None
+        mask = (g > 0) & (t >= 0) & np.isfinite(g) & np.isfinite(t)
         t = t[mask]
         g = g[mask]
         
@@ -24,6 +27,12 @@ class DataProcessor:
         idx = np.argsort(t)
         t = t[idx]
         g = g[idx]
+        if len(np.unique(t)) != len(t):
+            # Replicated timestamps have no unique interpolation/reference meaning.
+            grouped = pd.DataFrame({'t': t, 'g': g}).groupby('t', sort=True).mean()
+            t, g = grouped.index.to_numpy(), grouped['g'].to_numpy()
+        if len(t) < self.min_points or t[-1] <= t[0]:
+            return None, None, None
 
         # 3. Smoothing (Savitzky-Golay) to find the true peak
         # Dynamic window size: smaller of 11 or 10% of data
@@ -79,13 +88,11 @@ class DataProcessor:
             return None, None, None
 
         # 8. Normalize
-        # Time starts at 0.01 (better numerical stability than 1e-6)
-        t_final = t_clean - t_clean[0] + 0.01
+        # Preserve elapsed loading time. Trimming must not change the physical origin.
+        t_final = t_clean.copy()
         
-        # G0 should be the maximum value (peak of the curve after trimming start artifacts)
-        # Taking max of first 10% of points to be robust against single outliers
-        n_init = max(3, min(10, len(g_clean) // 10))
-        G0 = np.max(g_clean[:n_init])
+        # Reference modulus is measured at the first retained time, not inferred at t=0.
+        G0 = float(g_clean[0])
         
         g_final = g_clean / G0
 
@@ -94,7 +101,8 @@ class DataProcessor:
         # while significantly reducing size to make KWW/Dual-KWW fitting and Tikhonov Ridge regression instant.
         max_pts = 250
         if len(t_final) > max_pts:
-            bins = np.logspace(np.log10(t_final[0]), np.log10(t_final[-1]), max_pts)
+            positive = t_final[t_final > 0]
+            bins = np.geomspace(positive[0], t_final[-1], max_pts - 1)
             indices = []
             for b in bins:
                 idx = np.abs(t_final - b).argmin()

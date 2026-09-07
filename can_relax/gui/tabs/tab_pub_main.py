@@ -10,7 +10,8 @@ import matplotlib.ticker as ticker
 import io
 from PIL import Image
 import matplotlib.mathtext as mathtext
-from can_relax.core.kinetics import KineticsEngine
+from can_relax.core.kinetics import KineticsEngine, predict_van_t_hoff
+from can_relax.gui.labels import curve_labels
 
 def save_and_download(fig, title_prefix, pub_colorspace, key_suffix):
     buf_rgb_png = io.BytesIO()
@@ -151,6 +152,8 @@ def _render_figure1(pan_settings, pan_preview, active_res, glob, auto_bounds):
                 if is_normalized: y_label_text = r"$G(t) / G_0$" if y_label_select.startswith("G") else r"$E(t) / E_0$"
                 else: y_label_text = r"$G(t)$ (MPa)" if y_label_select.startswith("G") else r"$E(t)$ (MPa)"
 
+                labels = curve_labels(active_res)
+
                 for idx, r in enumerate(active_res):
                     t_raw = r['Raw']['t']
                     g_norm = r['Raw']['g']
@@ -158,7 +161,7 @@ def _render_figure1(pan_settings, pan_preview, active_res, glob, auto_bounds):
                     t_plot = t_raw / x_factor
                     g_plot = g_norm if is_normalized else g_norm * G0
                     color = glob['color_palette'][idx % len(glob['color_palette'])]
-                    label_name = f"{r['Temp']}°C"
+                    label_name = labels[r['Curve_ID']]
 
                     if curve_style == "Continuous Lines (Raw)":
                         ax1.plot(t_plot, g_plot, '-', linewidth=rel_line_width, color=color, label=label_name)
@@ -180,7 +183,7 @@ def _render_figure1(pan_settings, pan_preview, active_res, glob, auto_bounds):
                             ax1.plot(t_plot, g_fit_plot, ':', color='black', linewidth=1.0, alpha=0.7)
 
                     if show_tau_star:
-                        tau_star = r.get('Tau_1e', np.nan)
+                        tau_star = r.get('Crossing_Time', np.nan)
                         if not np.isnan(tau_star):
                             tau_star_plot = tau_star / x_factor
                             intersection_level = 1/np.e if is_normalized else G0/np.e
@@ -188,7 +191,7 @@ def _render_figure1(pan_settings, pan_preview, active_res, glob, auto_bounds):
                             if not is_normalized:
                                 ax1.hlines(intersection_level, xmin=t_plot.min() * 0.8, xmax=tau_star_plot, colors=color, linestyles='--', linewidths=0.8, alpha=0.5)
                             if annotate_tau_star:
-                                ax1.text(tau_star_plot * 1.15, intersection_level + (0.02 if is_normalized else intersection_level * 0.02), r"$\tau^* = %.1f\ \mathrm{%s}$" % (tau_star_plot, x_label), fontsize=7, color=color)
+                                ax1.text(tau_star_plot * 1.15, intersection_level + (0.02 if is_normalized else intersection_level * 0.02), r"$\tau^* = %.1f\ \mathrm{%s}$" % (r['Tau_1e'] / x_factor, x_label), fontsize=7, color=color)
 
                 if show_tau_star and is_normalized:
                     ax1.axhline(1/np.e, color='gray', linestyle='--', linewidth=1.0)
@@ -285,7 +288,7 @@ def _render_figure2(pan_settings, pan_preview, active_res, kinetics_df, glob, au
         with pan_preview:
             st.markdown("---")
             st.subheader(f"🔥 Figure 2: {tau_kin_model} Plot")
-            active_k = kinetics_df[kinetics_df['Include']==True]
+            active_k = kinetics_df[kinetics_df['Include']==True] if 'Include' in kinetics_df else pd.DataFrame()
             if not active_k.empty and len(active_k) >= 2:
                 k_engine_pub = KineticsEngine()
                 temps_list = active_k['Temp'].tolist()
@@ -419,7 +422,7 @@ def _render_figure3(pan_settings, pan_preview, kinetics_df, glob, auto_bounds):
         with pan_preview:
             st.markdown("---")
             st.subheader(f"⚛️ Figure 3: Eyring Plot")
-            active_k = kinetics_df[kinetics_df['Include']==True]
+            active_k = kinetics_df[kinetics_df['Include']==True] if 'Include' in kinetics_df else pd.DataFrame()
             if not active_k.empty and len(active_k) >= 2:
                 k_engine_pub = KineticsEngine()
                 temps_list = active_k['Temp'].tolist()
@@ -513,12 +516,13 @@ def _render_figure4(pan_settings, pan_preview, active_res, kinetics_df, glob, au
         with pan_preview:
             st.markdown("---")
             st.subheader(f"🌡️ Figure 4: Van 't Hoff Plot")
-            active_k = kinetics_df[kinetics_df['Include']==True]
+            st.caption("Fit uses observed reference moduli; these may differ from zero-time plateau moduli after a cutoff.")
+            active_k = kinetics_df[kinetics_df['Include']==True] if 'Include' in kinetics_df else pd.DataFrame()
             if not active_k.empty and len(active_k) >= 2:
                 k_engine_pub = KineticsEngine()
                 temps_list = active_k['Temp'].tolist()
-                g0_map = {r['Temp']: r['Raw']['G0'] for r in active_res}
-                active_g0s = [g0_map.get(t, 1.0) for t in temps_list]
+                g0_map = {r['Curve_ID']: r['Raw']['G0'] for r in active_res}
+                active_g0s = [g0_map[cid] for cid in active_k['Curve_ID']]
                 fit_res_pub = k_engine_pub.fit_van_t_hoff(temps_list, active_g0s)
                 if fit_res_pub:
                     c1, c2, c3 = st.columns(3)
@@ -545,11 +549,7 @@ def _render_figure4(pan_settings, pan_preview, active_res, kinetics_df, glob, au
                         ax4.scatter(x_data, y_data, s=vh_marker_size**2, alpha=0.8, edgecolors='black', linewidth=0.8, color='steelblue', zorder=3)
                         x_range = np.linspace(x_data.min() * 0.95, x_data.max() * 1.05, 100)
                         T_range = 1000.0 / x_range
-                        exponent = -(fit_res_pub['dH_diss'] * 1000.0) / (8.314462 * T_range) + fit_res_pub['dS_diss'] / 8.314462
-                        if 'A' in fit_res_pub:
-                            y_fit = (fit_res_pub['A'] * T_range) / (1.0 + np.exp(np.clip(exponent, -50.0, 50.0)))
-                        else:
-                            y_fit = fit_res_pub['G0_max'] / (1.0 + np.exp(np.clip(exponent, -50.0, 50.0)))
+                        y_fit = predict_van_t_hoff(T_range, **fit_res_pub['Params'])
                         label_fit = r"$\Delta H_{diss} = %.1f\ \mathrm{kJ\ mol}^{-1}$" % fit_res_pub['dH_diss']
                         ax4.plot(x_range, y_fit, '--', color='red', linewidth=vh_line_width, label=label_fit, zorder=2)
 
@@ -599,9 +599,9 @@ def render_publication(tab_pub, PLOTLY_STYLE: dict, Tg_input: float, G_prime_inp
                     auto_kin_ymax = float(active_k_temp['ln(Tau)'].max() + 0.5)
                     
                     g0_vals = []
-                    if 'analysis_results' in st.session_state:
-                        for t in active_k_temp['Temp']:
-                            match = next((r for r in st.session_state['analysis_results'] if r.get('Temp') == t), None)
+                    if active_res:
+                        for cid in active_k_temp['Curve_ID']:
+                            match = next((r for r in active_res if r['Curve_ID'] == cid), None)
                             if match and 'Raw' in match and 'G0' in match['Raw']:
                                 g0_vals.append(match['Raw']['G0'])
                     if g0_vals:

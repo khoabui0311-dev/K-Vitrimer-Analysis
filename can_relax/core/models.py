@@ -1,5 +1,22 @@
 import numpy as np
 
+
+def conditional_relaxation(name, t, params, reference_time):
+    """Predict G(t)/G(reference_time) in log space without resetting physical time."""
+    t = np.asarray(t, dtype=float)
+    def log_decay(x):
+        if name == 'Maxwell':
+            return -x / params[0]
+        if name == 'Single_KWW':
+            return -(x / params[0]) ** params[1]
+        if name == 'Dual_KWW':
+            A, tau1, beta1, tau2, beta2 = params
+            with np.errstate(divide='ignore'):
+                return np.logaddexp(np.log(A) - (x/tau1)**beta1,
+                                    np.log1p(-A) - (x/tau2)**beta2)
+        raise ValueError('Unknown relaxation model')
+    return np.exp(log_decay(t) - log_decay(np.asarray(reference_time)))
+
 class Maxwell:
     def func(self, t, tau):
         # Safety: Prevent division by zero

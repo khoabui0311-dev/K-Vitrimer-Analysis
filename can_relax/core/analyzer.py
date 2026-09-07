@@ -30,11 +30,18 @@ class CurveAnalyzer:
         bic = n_params * np.log(n) + n * np.log(rss/n)
         return float(r2), float(aicc), float(bic)
 
-    def fit_one_temp(self, temp: float, df_raw: pd.DataFrame, Tg: Optional[float] = None, fit_model: Optional[str] = None) -> Dict[str, Any]:
+    def fit_one_temp(self, temp: float, df_raw: pd.DataFrame, Tg: Optional[float] = None, fit_model: Optional[str] = None,
+                     plateau_mode: str = 'Zero', fixed_plateau: float = 0.0) -> Dict[str, Any]:
         """
         Runs analysis for one temperature.
         If Tg is provided and temp < Tg, returns a 'Frozen' status.
         """
+        if plateau_mode not in ('Zero', 'Fit', 'Fixed'):
+            raise ValueError('Unknown plateau mode')
+        if plateau_mode != 'Zero' and fit_model not in ('Maxwell', 'Single_KWW'):
+            raise ValueError('Plateau fitting requires Maxwell or Single_KWW')
+        if plateau_mode == 'Fixed' and (not np.isfinite(fixed_plateau) or fixed_plateau < 0):
+            raise ValueError('Fixed plateau must be finite and nonnegative (MPa)')
         # --- PHYSICS BARRIER CHECK ---
         if Tg is not None:
             if temp < Tg:
@@ -52,6 +59,8 @@ class CurveAnalyzer:
         t, g, G0 = self.processor.trim_curve(t_raw, g_raw)
         if t is None: 
             return {'Temp': temp, 'Valid': False, 'Reason': 'Data Quality (Too short/noisy)'}
+        if plateau_mode == 'Fixed' and fixed_plateau >= G0:
+            return {'Temp': temp, 'Valid': False, 'Reason': 'Fixed plateau must be below the retained reference modulus'}
 
         result = {
             'Temp': temp,
@@ -64,58 +73,87 @@ class CurveAnalyzer:
         quality = self.auto.compute_signal_quality(t, g)
         result['Quality'] = quality
 
-        # 3. Fit Models
-        # Only fit the specified model (or all if fit_model is None)
-        models_to_fit = [fit_model] if fit_model is not None else ['Maxwell', 'Single_KWW', 'Dual_KWW']
-
-        # Single KWW
-        if 'Single_KWW' in models_to_fit:
-            model_s = self.models['Single_KWW']
+        # Fit the measured ratio f(t)/f(t_ref), preserving the loading origin.
+        from can_relax.core.models import conditional_relaxation
+        models_to_fit = [fit_model] if fit_model is not None else list(self.models)
+        if any(name not in self.models for name in models_to_fit):
+            raise ValueError("Unknown relaxation model")
+        result['Preprocessing'] = {
+            'time_origin': 'elapsed_since_loading', 'reference_time': float(t[0]),
+            'reference_modulus': G0, 'input_points': len(df_raw), 'retained_points': len(t),
+            'plateau_mode': plateau_mode, 'fixed_plateau_MPa': fixed_plateau if plateau_mode == 'Fixed' else None,
+        }
+        result['Warnings'] = []
+        if t[0] > 0:
+            result['Warnings'].append('Fit uses a retained-reference ratio; G0 is the observed reference modulus, not an inferred plateau.')
+        for name in models_to_fit:
+            model = self.models[name]
+            n_params = len(model.get_initial_guess(t, g))
+            base_count = n_params
+            if plateau_mode == 'Fit':
+                n_params += 1
+            def prediction(x, *params):
+                # q = G_inf / G(reference), not G_inf / G(0).
+                q = params[-1] if plateau_mode == 'Fit' else (fixed_plateau / G0 if plateau_mode == 'Fixed' else 0.0)
+                return q + (1-q) * conditional_relaxation(name, x, params[:base_count], t[0])
             try:
-                popt_s, _ = curve_fit(model_s.func, t, g, p0=model_s.get_initial_guess(t, g), bounds=model_s.get_bounds(), maxfev=5000)
-                pred_s = model_s.func(t, *popt_s)
-                r2_s, aic_s, bic_s = self._calculate_metrics(g, pred_s, 2)  # 2 params: tau, beta
-                result['Fits']['Single_KWW'] = {'popt': popt_s, 'r2': r2_s, 'aic': aic_s, 'bic': bic_s, 'curve': pred_s}
-            except Exception:
-                result['Fits']['Single_KWW'] = {'r2': 0, 'aic': np.inf, 'bic': np.inf, 'curve': g, 'popt': [np.nan, np.nan]}
-
-        # Maxwell
-        if 'Maxwell' in models_to_fit:
-            model_m = self.models['Maxwell']
-            try:
-                popt_m, _ = curve_fit(model_m.func, t, g, p0=model_m.get_initial_guess(t, g), bounds=model_m.get_bounds(), maxfev=5000)
-                pred_m = model_m.func(t, *popt_m)
-                r2_m, aic_m, bic_m = self._calculate_metrics(g, pred_m, 1)  # 1 param: tau
-                result['Fits']['Maxwell'] = {'popt': popt_m, 'r2': r2_m, 'aic': aic_m, 'bic': bic_m, 'curve': pred_m}
-            except Exception:
-                result['Fits']['Maxwell'] = {'r2': 0, 'aic': np.inf, 'bic': np.inf, 'curve': g, 'popt': [np.nan]}
-
-        # Dual KWW
-        if 'Dual_KWW' in models_to_fit:
-            model_d = self.models['Dual_KWW']
-            try:
-                p0_d = model_d.get_initial_guess(t, g)
-                popt_d, _ = curve_fit(model_d.func, t, g, p0=p0_d, bounds=model_d.get_bounds(), maxfev=10000)
-                # --- Label-switching fix: always enforce tau1 < tau2 ---
-                A, tau1, beta1, tau2, beta2 = popt_d
-                if tau1 > tau2:
-                    # Swap modes so tau1 is always the fast (short) mode
-                    A, tau1, beta1, tau2, beta2 = (1.0 - A), tau2, beta2, tau1, beta1
-                    popt_d = np.array([A, tau1, beta1, tau2, beta2])
-                pred_d = model_d.func(t, *popt_d)
-                r2_d, aic_d, bic_d = self._calculate_metrics(g, pred_d, 5)  # 5 params: A, tau1, beta1, tau2, beta2
-                result['Fits']['Dual_KWW'] = {'popt': popt_d, 'r2': r2_d, 'aic': aic_d, 'bic': bic_d, 'curve': pred_d}
-            except Exception:
-                result['Fits']['Dual_KWW'] = {'r2': 0, 'aic': np.inf, 'bic': np.inf, 'curve': g, 'popt': [np.nan]*5}
-
-
-        # 4. Pick Best
-        if result['Fits']:
-            best_model = min(result['Fits'], key=lambda k: result['Fits'][k]['aic'])
-        else:
-            best_model = fit_model if fit_model is not None else 'Maxwell'
+                guess = np.maximum(model.get_initial_guess(t, g), np.asarray(model.get_bounds()[0]) + 1e-8)
+                bounds = model.get_bounds()
+                if plateau_mode == 'Fit':
+                    guess = np.r_[guess, np.clip(g[-1] * .8, .001, .95)]
+                    bounds = (list(bounds[0]) + [0.0], list(bounds[1]) + [1.0 - 1e-9])
+                popt, covariance = curve_fit(prediction, t, g, p0=guess,
+                    bounds=bounds, maxfev=15000, x_scale='jac')
+                if name == 'Dual_KWW' and popt[1] > popt[3]:
+                    A, tau1, beta1, tau2, beta2 = popt
+                    popt = np.array([1-A, tau2, beta2, tau1, beta1])
+                    # Covariance ordering is transformed with the same mode permutation.
+                    jac = np.zeros((5, 5)); jac[0, 0] = -1
+                    jac[1, 3] = jac[2, 4] = jac[3, 1] = jac[4, 2] = 1
+                    covariance = jac @ covariance @ jac.T
+                pred = prediction(t, *popt)
+                if not np.all(np.isfinite(popt)) or not np.all(np.isfinite(pred)):
+                    raise ValueError('Nonfinite fit parameters or predictions')
+                r2, aicc, bic = self._calculate_metrics(g, pred, n_params)
+                q = float(popt[-1]) if plateau_mode == 'Fit' else (fixed_plateau/G0 if plateau_mode == 'Fixed' else 0.0)
+                flags = []
+                taus = [popt[1], popt[3]] if name == 'Dual_KWW' else [popt[0]]
+                if any(tau < t[0] or tau > t[-1] for tau in taus):
+                    flags.append('Tau outside measurement window; review before kinetics.')
+                errors = np.sqrt(np.maximum(np.diag(covariance), 0))
+                tau_indices = [1, 3] if name == 'Dual_KWW' else [0]
+                if any(not np.isfinite(errors[i]) or errors[i] > .5*popt[i] for i in tau_indices):
+                    flags.append('Tau has large local fit uncertainty.')
+                if name == 'Dual_KWW' and min(popt[0], 1-popt[0]) < .05:
+                    flags.append('Dual-KWW component below 5% amplitude; its time may be unresolved.')
+                if plateau_mode == 'Fit':
+                    if not np.isfinite(errors[-1]) or errors[-1] > .05:
+                        flags.append('Plateau is poorly constrained by local fit uncertainty.')
+                    if pred[-1] - q > .05*(1-q):
+                        flags.append('Fitted plateau has not been approached within the measurement window.')
+                result['Fits'][name] = {'success': True, 'popt': popt[:base_count], 'r2': r2,
+                    'aic': aicc, 'bic': bic, 'curve': pred, 'covariance': covariance[:base_count, :base_count],
+                    'full_covariance': covariance, 'n_params': n_params, 'residuals': g-pred,
+                    'plateau_mode': plateau_mode, 'G_inf': q*G0,
+                    'G_inf_std': float(errors[-1]*G0) if plateau_mode == 'Fit' else None,
+                    'flags': flags}
+            except (RuntimeError, ValueError, FloatingPointError) as exc:
+                result['Fits'][name] = {'success': False, 'error': str(exc),
+                    'r2': np.nan, 'aic': np.inf, 'bic': np.inf,
+                    'curve': np.full_like(g, np.nan), 'popt': np.full(n_params, np.nan)}
+        successful = [name for name, fit in result['Fits'].items() if fit['success']]
+        if not successful:
+            result.update(Valid=False, Best_Model=None, Reason='All requested fits failed',
+                          Auto_Explanation='No successful fit; excluded from downstream analysis.')
+            return result
+        best_model = min(successful, key=lambda name: result['Fits'][name]['aic'])
         result['Best_Model'] = best_model
-        
+        result['Warnings'].extend(result['Fits'][best_model]['flags'])
+        params = result['Fits'][best_model]['popt']
+        taus = [params[1], params[3]] if best_model == 'Dual_KWW' else [params[0]]
+        if any(tau < t[0] or tau > t[-1] for tau in taus):
+            result['Warnings'].append('A fitted relaxation time lies outside the retained measurement window; parameter recovery may be weakly constrained.')
+
         # 5. Auto Explanation (With WLF Warning)
         if best_model in result['Fits'] and result['Fits'][best_model]['r2'] > 0:
             best_r2 = result['Fits'][best_model]['r2']

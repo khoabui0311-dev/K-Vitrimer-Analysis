@@ -5,7 +5,7 @@ import plotly.graph_objects as go
 import matplotlib.pyplot as plt
 import io
 import matplotlib.ticker as ticker
-from can_relax.core.kinetics import KineticsEngine
+from can_relax.core.kinetics import KineticsEngine, predict_van_t_hoff
 
 def _render_sample_inputs():
     st.subheader("Sample Input")
@@ -25,7 +25,7 @@ def _render_sample_inputs():
                 with col_tg:
                     tg_val = st.number_input(f"Tg (°C)", value=st.session_state.comparison_samples.get(sample_key, {}).get('tg', 50.0), key=f"tg_{sample_idx}")
                 with col_gp:
-                    gp_val = st.number_input(f"G' (MPa)", value=st.session_state.comparison_samples.get(sample_key, {}).get('g_prime', 1.0), key=f"gp_{sample_idx}")
+                    gp_val = st.number_input(f"G' (MPa)", min_value=0.01, value=st.session_state.comparison_samples.get(sample_key, {}).get('g_prime', 1.0), key=f"gp_{sample_idx}")
                 
                 st.markdown("**Upload Data** or enter manually:")
                 uploaded_csv = st.file_uploader("Upload fit_parameters.csv", type=['csv'], key=f"file_{sample_idx}", label_visibility="collapsed")
@@ -236,7 +236,7 @@ def _render_vant_hoff_plot(results, PLOTLY_STYLE):
             x_range = np.linspace(inv_T.min()*0.9, inv_T.max()*1.1, 100)
             T_range = 1000.0 / x_range
             exponent = -(r['vh_fit']['dH_diss']*1000.0)/(8.314462*T_range) + r['vh_fit']['dS_diss']/8.314462
-            y_fit = r['vh_fit'].get('A', r['vh_fit']['G0_max']) * T_range / (1.0 + np.exp(np.clip(exponent, -50.0, 50.0))) if 'A' in r['vh_fit'] else r['vh_fit']['G0_max'] / (1.0 + np.exp(np.clip(exponent, -50.0, 50.0)))
+            y_fit = predict_van_t_hoff(T_range, **r['vh_fit']['Params'])
             ax_vh.plot(x_range, y_fit, '--', color=color)
             
         ax_vh.set_yscale('log' if vh_y_scale == "Log" else 'linear')

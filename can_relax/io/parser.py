@@ -1,143 +1,154 @@
-import pandas as pd
-import re
+"""Validated wide relaxation input; canonical units are seconds, MPa and Celsius."""
 import pathlib
-import logging
+import re
 
-# Set up a logger for this module
-logger = logging.getLogger("Parser")
+import numpy as np
+import pandas as pd
+
+_NUMBER = r"[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?"
+_FACTORS = {
+    "time": {"s": 1., "sec": 1., "seconds": 1., "min": 60., "minutes": 60.},
+    "mod": {"pa": 1e-6, "kpa": 1e-3, "mpa": 1.},
+    "temp": {"c": 1., "°c": 1., "degc": 1., "celsius": 1.},
+}
+
 
 def _load_file_robustly(file_path):
-    """Attempt to load a file robustly as CSV or Excel."""
-    path_obj = pathlib.Path(file_path)
-    df_raw = None
+    path = pathlib.Path(file_path)
+    if path.suffix.lower() in (".csv", ".txt"):
+        try:
+            return pd.read_csv(path, sep=None, engine="python", header=None)
+        except UnicodeDecodeError:
+            return pd.read_csv(path, sep=None, engine="python", header=None, encoding="latin-1")
+    if path.suffix.lower() in (".xlsx", ".xls"):
+        return pd.read_excel(path, header=None)
+    raise ValueError("Unsupported file type; use CSV, TXT, XLSX or XLS.")
 
-    try:
-        if path_obj.suffix.lower() in ['.csv', '.txt']:
-            try:
-                # Try default UTF-8
-                df_raw = pd.read_csv(file_path, sep=None, engine='python')
-            except Exception:
-                try:
-                    # Try Latin-1 (Common for Excel CSVs)
-                    df_raw = pd.read_csv(file_path, sep=None, engine='python', encoding='latin-1')
-                except Exception:
-                    # Try reading as Excel (in case it's an .xlsx named .csv)
-                    try:
-                        df_raw = pd.read_excel(file_path)
-                    except Exception as e:
-                        logger.debug("Failed reading as Excel fallback: %s", e)
-        else:
-            df_raw = pd.read_excel(file_path)
 
-    except Exception as e:
-        logger.error(f"[ERROR] [PARSER] Critical failure opening file: {e}")
-    
-    return df_raw
+def _kind(label):
+    text = str(label).strip().lower()
+    if re.search(r"temp|celsius|°c", text):
+        return "temp"
+    if re.search(r"modulus|storage|g'|g_prime|stress|\b(?:mpa|kpa|pa)\b", text):
+        return "mod"
+    if re.search(r"time|\b(?:sec|seconds?|min|minutes?|s)\b", text):
+        return "time"
+    return None
 
-def _identify_columns(df_raw):
-    """Identify column types using regex."""
-    cols = list(df_raw.columns)
-    temp_pat = re.compile(r"temp|deg|°c", re.IGNORECASE)
-    time_pat = re.compile(r"time|sec|s\b", re.IGNORECASE)
-    mod_pat  = re.compile(r"modulus|storage|g'|g_prime|mpa|pa|stress", re.IGNORECASE)
 
-    col_type = {}
-    for c in cols:
-        s = str(c).lower()
-        if temp_pat.search(s): col_type[c] = 'temp'
-        elif mod_pat.search(s): col_type[c] = 'mod'
-        elif time_pat.search(s): col_type[c] = 'time'
-        else: col_type[c] = None
-        
-    return col_type, cols
+def _header_unit(label, kind):
+    text = str(label).strip().lower()
+    groups = re.findall(r"\(([^)]+)\)|\[([^]]+)\]", text)
+    if groups:
+        unit = next(part for part in groups[0] if part).strip()
+        if unit not in _FACTORS[kind]:
+            raise ValueError(f"Unsupported {kind} unit {unit!r} in header {label!r}.")
+        return unit
+    # Recognized unit suffixes are units; legacy A/B/number suffixes are IDs.
+    suffix = text.rsplit("_", 1)[-1] if "_" in text else None
+    if suffix in _FACTORS[kind]:
+        return suffix
+    if suffix in ("h", "hr", "hours", "ms", "gpa", "psi", "k", "f"):
+        raise ValueError(f"Unsupported {kind} unit {suffix!r} in header {label!r}.")
+    clean = re.sub(r"_[a-z0-9]+$", "", text)
+    tokens = clean.split()
+    for token in tokens:
+        if token in _FACTORS[kind]:
+            return token
+    if len(tokens) > 1 and tokens[-1] not in ("modulus", "temperature", "time"):
+        raise ValueError(f"Unrecognized unit in header {label!r}; use parentheses for units.")
+    return None
 
-def _find_matching_columns(i, cols, col_type):
-    """Find the best matching Time and Modulus columns for a given Temperature column."""
-    next_temp_idx = len(cols)
-    for idx in range(i + 1, len(cols)):
-        if col_type[cols[idx]] == 'temp':
-            next_temp_idx = idx
-            break
-    
-    time_col = None
-    mod_col = None
-    
-    # Search within the block
-    for idx in range(i + 1, next_temp_idx):
-        if col_type[cols[idx]] == 'time' and time_col is None:
-            time_col = cols[idx]
-        if col_type[cols[idx]] == 'mod' and mod_col is None:
-            mod_col = cols[idx]
-            
-    # Fallback to sliding window search
-    if time_col is None:
-        best_dist = len(cols)
-        for idx in range(max(0, i - 5), min(len(cols), i + 5)):
-            if idx != i and col_type[cols[idx]] == 'time':
-                dist = abs(idx - i)
-                if dist < best_dist:
-                    best_dist = dist
-                    time_col = cols[idx]
-                    
-    if mod_col is None:
-        best_dist = len(cols)
-        for idx in range(max(0, i - 5), min(len(cols), i + 5)):
-            if idx != i and col_type[cols[idx]] == 'mod':
-                dist = abs(idx - i)
-                if dist < best_dist:
-                    best_dist = dist
-                    mod_col = cols[idx]
-                    
-    return time_col, mod_col
 
-def _extract_curves(df_raw, col_type, cols):
-    """Extract valid Temp/Time/Modulus curves from the raw dataframe."""
-    curves = {}
-    logger.info(f"[PARSER] Scanning {len(cols)} columns...")
-    
-    for i, c in enumerate(cols):
-        if col_type[c] != 'temp': continue
-        
-        time_col, mod_col = _find_matching_columns(i, cols, col_type)
-        
-        if time_col and mod_col:
-            temp_val = None
-            try:
-                sub_df = df_raw[[c, time_col, mod_col]].dropna().copy()
-                sub_df.columns = ['Temp', 'Time', 'Modulus']
-                
-                val_str = str(sub_df['Temp'].iloc[0])
-                nums = re.findall(r"[-+]?\d*\.\d+|\d+", val_str)
-                
-                if nums:
-                    temp_val = float(nums[0])
-                    sub_df['Time'] = pd.to_numeric(sub_df['Time'], errors='coerce')
-                    sub_df['Modulus'] = pd.to_numeric(sub_df['Modulus'], errors='coerce')
-                    final_df = sub_df[['Time', 'Modulus']].dropna()
-                    
-                    if not final_df.empty:
-                        curves[temp_val] = final_df
-                        logger.info(f"  [OK] Found curve: {temp_val}C")
-            except Exception as e:
-                logger.debug("Failed extracting curve for %s: %s", temp_val, e)
-                continue
-                
-    if not curves:
-        logger.warning(f"[PARSER] No curves found. Columns detected: {cols}")
-        
-    return curves
+def _quantity(value, kind, header_unit=None):
+    match = re.fullmatch(rf"\s*({_NUMBER})\s*([^\d]*)\s*", str(value))
+    if not match:
+        raise ValueError(f"Invalid {kind} value: {value!r}.")
+    number = float(match.group(1))
+    unit = match.group(2).strip().lower()
+    if unit and unit not in _FACTORS[kind]:
+        raise ValueError(f"Unsupported {kind} unit {unit!r} in {value!r}.")
+    if unit and header_unit and _FACTORS[kind][unit] != _FACTORS[kind][header_unit]:
+        raise ValueError(f"Conflicting {kind} units in header and value {value!r}.")
+    if not np.isfinite(number):
+        raise ValueError(f"Non-finite {kind} value: {value!r}.")
+    return number * _FACTORS[kind].get(unit or header_unit, 1.)
+
+
+def _record(data, time_idx, mod_idx, labels, curve_id, temp_idx=None, temperature=None):
+    indices = [time_idx, mod_idx] + ([] if temp_idx is None else [temp_idx])
+    block = data.iloc[:, indices].dropna(how="all")
+    if block.empty:
+        raise ValueError(f"{curve_id}: curve contains no observations.")
+    if block.isna().any().any():
+        raise ValueError(f"{curve_id}: incomplete observation; each row needs time, modulus and temperature.")
+    time_unit = _header_unit(labels[time_idx], "time")
+    mod_unit = _header_unit(labels[mod_idx], "mod")
+    times = [_quantity(v, "time", time_unit) for v in block.iloc[:, 0]]
+    moduli = [_quantity(v, "mod", mod_unit) for v in block.iloc[:, 1]]
+    if temp_idx is not None:
+        temp_unit = _header_unit(labels[temp_idx], "temp")
+        temperatures = [_quantity(v, "temp", temp_unit) for v in block.iloc[:, 2]]
+        temperature = temperatures[0]
+        if not np.allclose(temperatures, temperature, rtol=0, atol=1e-8):
+            raise ValueError(f"{curve_id}: temperature must be constant within a curve.")
+    if temperature <= -273.15:
+        raise ValueError(f"{curve_id}: temperature must exceed absolute zero.")
+    if any(t < 0 for t in times):
+        raise ValueError(f"{curve_id}: elapsed time cannot be negative.")
+    return {"Temp": float(temperature), "Curve_ID": curve_id,
+            "Data": pd.DataFrame({"Time": times, "Modulus": moduli})}
+
+
+def parse_curve_records(file_path):
+    """Return ordered {Temp, Curve_ID, Data} records, preserving replicates.
+
+    Temp is Celsius; Data contains Time (seconds) and Modulus (MPa). Missing unit
+    labels mean canonical units. Curve_ID is a stable file-local positional ID.
+    Invalid schemas, values, incomplete rows and ambiguous units raise ValueError.
+    """
+    raw = _load_file_robustly(file_path).dropna(axis=1, how="all")
+    if raw.empty:
+        raise ValueError("The file contains no data.")
+    labels = list(raw.iloc[0])
+    kinds = [_kind(label) for label in labels]
+    records = []
+    if "temp" in kinds and "time" in kinds:
+        if len(labels) % 3:
+            raise ValueError("Triplet layout requires repeated Temp, Time, Modulus columns.")
+        for start in range(0, len(labels), 3):
+            block_kinds = kinds[start:start + 3]
+            if sorted(str(k) for k in block_kinds) != ["mod", "temp", "time"]:
+                raise ValueError("Each triplet must contain exactly one Temp, Time and Modulus column.")
+            records.append(_record(raw.iloc[1:], start + block_kinds.index("time"),
+                                   start + block_kinds.index("mod"), labels,
+                                   f"curve_{len(records) + 1:03d}",
+                                   temp_idx=start + block_kinds.index("temp")))
+    else:
+        if len(raw) < 3 or len(labels) % 2:
+            raise ValueError("Expected Temp/Time/Modulus triplets or temperature headers above Time/Modulus pairs.")
+        quantity_labels = list(raw.iloc[1])
+        for start in range(0, len(labels), 2):
+            temperature = _quantity(labels[start], "temp")
+            if not pd.isna(labels[start + 1]):
+                if _quantity(labels[start + 1], "temp") != temperature:
+                    raise ValueError("A time/modulus pair has conflicting temperature headers.")
+            if [_kind(v) for v in quantity_labels[start:start + 2]] != ["time", "mod"]:
+                raise ValueError("Each temperature header must sit above a Time, Modulus pair.")
+            records.append(_record(raw.iloc[2:], start, start + 1, quantity_labels,
+                                   f"curve_{len(records) + 1:03d}", temperature=temperature))
+    return records
+
 
 def parse_wide_format_data(file_path):
-    """
-    Robustly parses a wide-format file (CSV/XLSX) into a dictionary of DataFrames.
-    Returns: { temperature_float: pd.DataFrame(columns=['Time', 'Modulus']) }
-    """
-    df_raw = _load_file_robustly(file_path)
-    if df_raw is None:
-        logger.error("[ERROR] [PARSER] Could not read file. Checked UTF-8, Latin-1, and Excel formats.")
-        return {}
+    """Return {temperature: Data}; reject duplicates instead of overwriting them.
 
-    col_type, cols = _identify_columns(df_raw)
-    curves = _extract_curves(df_raw, col_type, cols)
-    
+    Use parse_curve_records for multiple measurements at the same temperature.
+    """
+    curves = {}
+    for record in parse_curve_records(file_path):
+        temperature = record["Temp"]
+        if temperature in curves:
+            raise ValueError(f"Duplicate temperature {temperature:g} °C; use parse_curve_records to preserve replicates.")
+        curves[temperature] = record["Data"]
     return curves

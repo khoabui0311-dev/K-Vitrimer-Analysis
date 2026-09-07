@@ -16,7 +16,9 @@ class SpectrumAnalyzer:
 
     def compute_continuous_spectrum(self, t, g, num_modes=50, alpha=0.1, optimize_alpha=False, subtract_G_eq=True):
         """
-        Calculates H(tau) using Tikhonov Regularization (Ridge Regression).
+        Calculates discrete modal weights w_j using nonnegative Ridge regression.
+        Reconstruction: G(t) = G_eq + sum_j w_j exp(-t/tau_j).
+        Weights have input modulus units; they are not density per log-time bin.
         t: Time array (s)
         g: Modulus array (normalized G/G0 or absolute G)
         num_modes: Number of tau bins (resolution)
@@ -24,6 +26,13 @@ class SpectrumAnalyzer:
         optimize_alpha: If True, uses the L-curve corner method to find the optimal alpha.
         subtract_G_eq: If True, detects and subtracts the non-zero equilibration modulus tail value.
         """
+        t, g = np.asarray(t, dtype=float), np.asarray(g, dtype=float)
+        if (t.ndim != 1 or g.shape != t.shape or len(t) < 3
+                or not np.all(np.isfinite(t)) or not np.all(np.isfinite(g))
+                or np.any(t < 0) or np.any(np.diff(t) <= 0) or g[0] <= 0):
+            raise ValueError('Spectrum requires finite, increasing nonnegative times and positive initial modulus')
+        if num_modes < 2 or alpha <= 0 or not np.isfinite(alpha):
+            raise ValueError('Use at least two modes and positive finite alpha')
         # 1. Detect and subtract G_eq (equilibration modulus tail)
         if subtract_G_eq:
             # Average of last 5% of data points as equilibration modulus
@@ -35,20 +44,21 @@ class SpectrumAnalyzer:
             g_offset = g - G_eq
             # Normalize to the initial offset value for stable inversion
             G_init_offset = g_offset[0]
-            if G_init_offset > 0.01:
+            if G_init_offset > 0:
                 g_target = g_offset / G_init_offset
             else:
                 g_target = g_offset
+                G_init_offset = 1.0
         else:
             G_eq = 0.0
-            G_init_offset = 1.0
-            g_target = g
+            G_init_offset = float(g[0])
+            g_target = g / G_init_offset
             
         self.last_G_eq = G_eq
         self.last_G_init_offset = G_init_offset
 
         # 2. Define Tau Grid (Logarithmically spaced)
-        tau_min = t.min() / 2.0
+        tau_min = t[t > 0].min() / 2.0
         tau_max = t.max() * 5.0
         tau_grid = np.logspace(np.log10(tau_min), np.log10(tau_max), num_modes)
         
@@ -63,7 +73,7 @@ class SpectrumAnalyzer:
             H_grid = []
             
             for a in alpha_grid:
-                solver = Ridge(alpha=a, positive=True, fit_intercept=False)
+                solver = Ridge(alpha=a, positive=True, fit_intercept=False, tol=1e-10, max_iter=10000)
                 solver.fit(A, g_target)
                 H_val = solver.coef_
                 
@@ -103,11 +113,15 @@ class SpectrumAnalyzer:
             H_values = H_grid[best_idx]
             self.last_alpha = best_alpha
         else:
-            solver = Ridge(alpha=alpha, positive=True, fit_intercept=False)
+            solver = Ridge(alpha=alpha, positive=True, fit_intercept=False, tol=1e-10, max_iter=10000)
             solver.fit(A, g_target)
             H_values = solver.coef_
             self.last_alpha = alpha
             
+        # Return discrete modal weights in the INPUT modulus units, not density.
+        H_values = H_values * G_init_offset
+        self.last_reconstruction = A @ H_values + G_eq
+        self.last_relative_rmse = float(np.sqrt(np.mean((self.last_reconstruction - g)**2)) / g[0])
         return tau_grid, H_values
 
     def get_weighted_avg_tau(self, tau_grid, H_values):

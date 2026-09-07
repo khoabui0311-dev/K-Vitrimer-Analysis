@@ -1,3 +1,4 @@
+from can_relax.core.observations import relaxation_crossing
 """
 tab_virtual_lab.py
 ------------------
@@ -133,8 +134,7 @@ def _render_simulation_charts(sim, params, PLOTLY_STYLE):
             sim_results.append((T, t, g_true))
             if T > params['Tg_sim']:
                 try:
-                    target = 0.36788 * g_true[0]
-                    t_fit = np.interp(target, g_true[::-1], t[::-1])
+                    t_fit = relaxation_crossing(t, g_true)['tau']
                     if 1e-5 < t_fit < 1e12:
                         fitted_taus.append(t_fit)
                         valid_temps.append(T)

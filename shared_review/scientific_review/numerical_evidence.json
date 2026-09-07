@@ -1,0 +1,110 @@
+{
+  "spectrum_truncated_maxwell": [
+    {
+      "subtract": false,
+      "true_tau": 1000,
+      "window": 300,
+      "estimated_Geq": 0.0,
+      "geometric_mean_tau": 990.7297984101622,
+      "peak_tau": 1500.0000000000005,
+      "relative_rmse": 0.003166525309928438,
+      "warning_triggered": true,
+      "alpha": 0.20309176209047347
+    },
+    {
+      "subtract": true,
+      "true_tau": 1000,
+      "window": 300,
+      "estimated_Geq": 0.786924693648715,
+      "geometric_mean_tau": 140.4941943058475,
+      "peak_tau": 147.94128817912946,
+      "relative_rmse": 0.011343856246592402,
+      "warning_triggered": false,
+      "alpha": 1.511775070615663e-05
+    }
+  ],
+  "tts_normalization": {
+    "first_measured_time": 30,
+    "reference_tau": 50,
+    "taus": [
+      50.0,
+      200.0
+    ],
+    "shifted_time": 100,
+    "shifted_normalized_moduli": [
+      0.5274944720928751,
+      0.3581099460882363
+    ],
+    "absolute_vertical_mismatch": 0.16938452600463882
+  },
+  "false_dissociation": {
+    "true_modulus": "0.01*T_K, no dissociation",
+    "elapsed_start": 30,
+    "temperatures_C": [
+      100.0,
+      110.0,
+      120.0,
+      130.0,
+      140.0,
+      150.0,
+      160.0,
+      170.0,
+      180.0
+    ],
+    "reference_moduli": [
+      3.4418327699150146,
+      3.270262562525086,
+      2.9125268346101736,
+      2.324791905333653,
+      1.5491374493978254,
+      0.772370003730561,
+      0.244344969001167,
+      0.03848534993093138,
+      0.002127948602322405
+    ],
+    "fit": {
+      "A": 0.009173948888735179,
+      "dH_diss": 140.70089375512617,
+      "dS_diss": 344.523320655988,
+      "R2": 0.9966333868336625
+    }
+  },
+  "viscosity": {
+    "beta": 0.5,
+    "eta_over_Gtau": 2.0,
+    "reported_Tv_C": 100,
+    "corrected_Tv_C_constant_shape": 110.30791379618921
+  },
+  "plateau_fit": {
+    "truth": "0.3+0.7*exp(-t/10)",
+    "best_model": "Dual_KWW",
+    "fits": {
+      "Maxwell": {
+        "popt": [
+          25.038148989047208
+        ],
+        "r2": 0.7428270065081253,
+        "aicc": -746.5435560452199
+      },
+      "Single_KWW": {
+        "popt": [
+          75.5259531742695,
+          0.32155812361215275
+        ],
+        "r2": 0.905392970600711,
+        "aicc": -944.5062853660647
+      },
+      "Dual_KWW": {
+        "popt": [
+          0.6999999998315205,
+          9.999999996106457,
+          0.9999999999603604,
+          825546145390.2565,
+          0.9620360921096538
+        ],
+        "r2": 1.0,
+        "aicc": -7957.109473941229
+      }
+    }
+  }
+}
