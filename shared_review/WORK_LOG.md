@@ -76,3 +76,33 @@
   remain separate work. No commit or deployment made.
 - Final fit-warning propagation and UI cleanup recheck: 11 plateau/workflow tests
   passed in 28.23 seconds. `git diff --check` passed (line-ending notices only).
+
+## Import compatibility fix — 2026-09-07
+- Investigated the reported incomplete-observation error. Triplet temperature is
+  now treated as constant curve metadata and may be entered once or sparsely.
+  Nonblank temperature values must still agree. Rows with neither time nor modulus
+  are treated as padding, including rows with a repeated temperature. Whitespace-only
+  cells are treated as blank. No partially populated observations are discarded.
+- A missing time or modulus now reports the original file row number and correction
+  guidance; pair layouts no longer incorrectly demand a temperature on each row.
+- Added CSV/XLSX sparse metadata and padding tests, plus conflicting/missing
+  temperature and incomplete-pair diagnostics. Targeted parser tests: 19 passed.
+- The user's specific input file was not available; these tests reproduce supported
+  spreadsheet layouts that previously triggered the reported error.
+- Full regression suite: 123 passed in 22.68 seconds. `git diff --check` passed.
+
+## Supplied workbook follow-up — 2026-09-07
+- Read VU2.xlsx and VUEG.xlsx without modifying either original. VU2 contains a
+  leading time-only acquisition row in all seven triplets; VUEG parses directly.
+- Parser now skips leading time-only rows when later measurements exist and
+  returns Import_Warnings, displayed by the app and retained in provenance.
+  Interior/trailing missing modulus, missing time, or wholly incomplete curves
+  remain errors. Original times and column ordering are preserved.
+- VUEG starts around 1020 seconds: loading origin requires experimental context;
+  no assumption or automatic time reset was made. Headers have no explicit units,
+  so existing canonical-unit defaults still apply.
+- Added regression coverage for leading acquisition rows, reordered Step time /
+  Modulus columns and continued rejection of other partial observations.
+- Verified actual imports: VU2 has seven curves with 5399 observations each and
+  one notice per curve; VUEG has four curves with 450 observations each and no
+  import notices. Parser and Streamlit workflow tests: 25 passed in 18.59 seconds.

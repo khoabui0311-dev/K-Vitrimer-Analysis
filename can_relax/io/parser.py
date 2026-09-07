@@ -77,26 +77,44 @@ def _quantity(value, kind, header_unit=None):
 
 def _record(data, time_idx, mod_idx, labels, curve_id, temp_idx=None, temperature=None):
     indices = [time_idx, mod_idx] + ([] if temp_idx is None else [temp_idx])
-    block = data.iloc[:, indices].dropna(how="all")
+    block = data.iloc[:, indices].replace(r'^\s*$', np.nan, regex=True)
+    # Temperature is constant curve metadata. Spreadsheets commonly enter it
+    # once (including merged cells), or fill it beyond a shorter curve's end.
+    if temp_idx is not None:
+        temp_unit = _header_unit(labels[temp_idx], "temp")
+        temperatures = [_quantity(v, "temp", temp_unit) for v in block.iloc[:, 2].dropna()]
+        if not temperatures:
+            raise ValueError(f"{curve_id}: missing temperature; enter a constant temperature at least once in this triplet.")
+        temperature = temperatures[0]
+        if not np.allclose(temperatures, temperature, rtol=0, atol=1e-8):
+            raise ValueError(f"{curve_id}: temperature must be constant within a curve.")
+    block = block.loc[~block.iloc[:, :2].isna().all(axis=1)]
     if block.empty:
         raise ValueError(f"{curve_id}: curve contains no observations.")
-    if block.isna().any().any():
-        raise ValueError(f"{curve_id}: incomplete observation; each row needs time, modulus and temperature.")
+    import_warnings = []
+    leading = 0
+    for _, row in block.iterrows():
+        if pd.notna(row.iloc[0]) and pd.isna(row.iloc[1]):
+            leading += 1
+        else:
+            break
+    if leading and leading < len(block):
+        rows = ', '.join(str(int(i)+1) for i in block.index[:leading])
+        import_warnings.append(f'{curve_id}: skipped leading time-only row(s) {rows} with no modulus; recorded time origin preserved.')
+        block = block.iloc[leading:]
+    incomplete = block.iloc[:, :2].isna().any(axis=1)
+    if incomplete.any():
+        rows = ', '.join(str(int(i) + 1) for i in block.index[incomplete][:5])
+        raise ValueError(f"{curve_id}: incomplete observation at file row(s) {rows}; each observation needs both time and modulus. Fill the missing value or clear both cells for an unused row.")
     time_unit = _header_unit(labels[time_idx], "time")
     mod_unit = _header_unit(labels[mod_idx], "mod")
     times = [_quantity(v, "time", time_unit) for v in block.iloc[:, 0]]
     moduli = [_quantity(v, "mod", mod_unit) for v in block.iloc[:, 1]]
-    if temp_idx is not None:
-        temp_unit = _header_unit(labels[temp_idx], "temp")
-        temperatures = [_quantity(v, "temp", temp_unit) for v in block.iloc[:, 2]]
-        temperature = temperatures[0]
-        if not np.allclose(temperatures, temperature, rtol=0, atol=1e-8):
-            raise ValueError(f"{curve_id}: temperature must be constant within a curve.")
     if temperature <= -273.15:
         raise ValueError(f"{curve_id}: temperature must exceed absolute zero.")
     if any(t < 0 for t in times):
         raise ValueError(f"{curve_id}: elapsed time cannot be negative.")
-    return {"Temp": float(temperature), "Curve_ID": curve_id,
+    return {"Temp": float(temperature), "Curve_ID": curve_id, "Import_Warnings": import_warnings,
             "Data": pd.DataFrame({"Time": times, "Modulus": moduli})}
 
 
@@ -105,9 +123,12 @@ def parse_curve_records(file_path):
 
     Temp is Celsius; Data contains Time (seconds) and Modulus (MPa). Missing unit
     labels mean canonical units. Curve_ID is a stable file-local positional ID.
+    Triplet temperatures may be entered once or repeated consistently. Empty
+    time/modulus pairs are padding; a partially filled pair is an error.
+    Leading time-only acquisition rows are skipped with Import_Warnings.
     Invalid schemas, values, incomplete rows and ambiguous units raise ValueError.
     """
-    raw = _load_file_robustly(file_path).dropna(axis=1, how="all")
+    raw = _load_file_robustly(file_path).replace(r'^\s*$', np.nan, regex=True).dropna(axis=1, how="all")
     if raw.empty:
         raise ValueError("The file contains no data.")
     labels = list(raw.iloc[0])

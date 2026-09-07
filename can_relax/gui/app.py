@@ -256,6 +256,8 @@ with tab_analysis:
         idx = 0
         for record in curves:
             temp, df = record["Temp"], record["Data"].copy()
+            for notice in record.get('Import_Warnings', []):
+                st.warning(notice)
             df["Time"] = df["Time"] - time_origin
             # Apply short-time cutoff if set
             if time_cutoff > 0.0:
@@ -264,6 +266,7 @@ with tab_analysis:
             # Pass Tg and selected fit_model for cached filtering and fast fit
             out = cached_fit_one_temp(temp, df, Tg_input, fit_model, plateau_mode, fixed_plateau)
             if out.get('Valid', False):
+                out['Warnings'].extend(record.get('Import_Warnings', []))
                 out['Best_Model'] = fit_model 
                 out['Curve_ID'] = record['Curve_ID']
                 crossing = relaxation_crossing(out['Raw']['t'], out['Raw']['g'])
