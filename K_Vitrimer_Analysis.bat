@@ -28,12 +28,12 @@ if not exist "%~dp0can_relax\gui\app.py" (
 
 echo Installing/checking dependencies...
 python -m pip install --quiet --upgrade pip
-pip install --quiet -r "%~dp0requirements.txt"
+python -m pip install --quiet -r "%~dp0requirements.txt"
 
 if errorlevel 1 (
-  echo [WARNING] Some dependencies may not have installed correctly.
-  echo The app may still work. Continuing...
-  echo.
+  echo [ERROR] Dependency installation failed.
+  pause
+  exit /b 1
 )
 
 echo.

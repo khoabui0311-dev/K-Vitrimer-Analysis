@@ -9,14 +9,14 @@ def render_credits_tab(tab_credits):
             ### 🔬 K Vitrimer Analysis
             **Kinetic Analysis of Vitrimer Relaxation & Kinetics**
 
-            v2.0 | Professional Edition | June 2026
+            v1.0 | Professional Edition
 
             ---
 
             ### 👨‍🔬 Developer
 
-            **Vo Khoa Bui, PhD**  
-            Postdoctoral Researcher  
+            **Vo Khoa Bui, PhD**
+            Postdoctoral Researcher
             LPPY Laboratory, CY Cergy Paris University, France
 
             ---
@@ -50,11 +50,11 @@ def render_credits_tab(tab_credits):
             - **Maxwell Model**: Single exponential relaxation
             - **Kohlrausch-Williams-Watts (KWW)**: Stretched exponential for complex systems
             - **Arrhenius & Eyring Kinetics**: Temperature-dependent relaxation time and activation enthalpy/entropy analysis
-            - **Van 't Hoff Kinetics**: Temperature-dependent plateau modulus decrosslinking thermodynamics (in **MPa**)
+            - **Temperature–modulus fit**: Empirical occupancy-form fit to observed reference moduli (in **MPa**); thermodynamic interpretation requires independent equilibrium evidence
             - **VFT & Coupled WLF-Arrhenius Kinetics**: Glass transition dynamics and dual glassy-to-chemical transition relaxation
             - **Time-Temperature Superposition (TTS)**: Mastercurve generation
-            - **Tikhonov Relaxation Spectrum**: Continuous distribution of relaxation times $H(\tau)$ using positive-constrained Ridge Regression with Hansen's L-curve corner detection and equilibration modulus ($G_{eq}$) baseline subtraction
-            - **Statistical Model Selection**: Automated BIC and AICc selection for kinetics fits
+            - **Tikhonov Relaxation Spectrum**: Discrete modal weights using nonnegative Ridge regression, a secant-distance L-curve heuristic and optional measured-tail subtraction
+            - **Statistical Model Selection**: AICc and BIC diagnostics for relaxation fits; kinetics model is selected manually
 
             ---
 
@@ -64,19 +64,19 @@ def render_credits_tab(tab_credits):
             - **Scientific Computing**: NumPy, SciPy, Pandas
             - **Visualization**: Plotly, Matplotlib
             - **Machine Learning**: Scikit-learn
-            - **Data Processing**: Openpyxl, Pypdf
-            - **Language**: Python 3.13+
+            - **Data Processing**: Openpyxl
+            - **Language**: Python 3.11+
 
             ---
 
             ### 📖 Application Features
 
-            ✅ **Analysis Tab**: Import & fit relaxation curves with support for MPa and Pa modulus types  
-            ✅ **Virtual Lab**: Simulate synthetic curves with custom parameters  
-            ✅ **Publish**: Export publication-ready figures (PNG/PDF/SVG) for all 5 temperature kinetics models  
-            ✅ **Kinetics**: Temperature-dependent analysis with Arrhenius, Eyring, VFT, Van 't Hoff, and Coupled WLF-Arrhenius fitting  
-            ✅ **Mastercurve**: Time-Temperature Superposition for multi-temperature data  
-            ✅ **Spectrum**: Continuous relaxation time distribution analysis with L-curve corner optimization and $G_{eq}$ subtraction  
+            ✅ **Analysis Tab**: Import & fit relaxation curves with support for MPa and Pa modulus types
+            ✅ **Virtual Lab**: Simulate synthetic curves with custom parameters
+            ✅ **Publish**: Export TIFF/JPEG relaxation, Arrhenius/VFT, Eyring and modulus-temperature figures
+            ✅ **Kinetics**: Temperature-dependent analysis with Arrhenius, Eyring, VFT, Van 't Hoff, and Coupled WLF-Arrhenius fitting
+            ✅ **Mastercurve**: Time-Temperature Superposition for multi-temperature data
+            ✅ **Spectrum**: Discrete relaxation weights with L-curve parameter selection and $G_{eq}$ subtraction
 
             ---
 
@@ -88,12 +88,12 @@ def render_credits_tab(tab_credits):
 
             ### 📬 Contact & Support
 
-            **Email**: khoabui0311@gmail.com  
+            **Email**: khoabui0311@gmail.com
             **LinkedIn**: https://www.linkedin.com/in/buivokhoa/
 
-            **Institutional Affiliation**:  
-            CY Cergy Paris University  
-            Laboratoire de Physique et Polymères (LPPY)  
+            **Institutional Affiliation**:
+            CY Cergy Paris University
+            Laboratoire de Physique et Polymères (LPPY)
             Cergy, France
 
             ---

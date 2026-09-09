@@ -1,0 +1,179 @@
+============================= test session starts =============================
+platform win32 -- Python 3.11.13, pytest-9.0.3, pluggy-1.6.0 -- C:\Users\vbui\OneDrive - CY Cergy Paris Universit�\K-Vitrimer-Analysis-main\.venv\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\vbui\OneDrive - CY Cergy Paris Universit�\K-Vitrimer-Analysis-main
+configfile: pytest.ini
+testpaths: tests
+plugins: anyio-4.13.0
+collecting ... collected 133 items
+
+tests/test_app_workflow.py::test_example_analysis_and_configuration_invalidation PASSED [  0%]
+tests/test_app_workflow.py::test_replicates_incomplete_raw_curves_and_dataset_replacement PASSED [  1%]
+tests/test_correctness_batch.py::test_late_start_kww_recovery[0] PASSED  [  2%]
+tests/test_correctness_batch.py::test_late_start_kww_recovery[0.01] PASSED [  3%]
+tests/test_correctness_batch.py::test_late_start_kww_recovery[1] PASSED  [  3%]
+tests/test_correctness_batch.py::test_late_start_kww_recovery[30] PASSED [  4%]
+tests/test_correctness_batch.py::test_late_start_kww_recovery[100] PASSED [  5%]
+tests/test_correctness_batch.py::test_failed_fit_not_valid PASSED        [  6%]
+tests/test_correctness_batch.py::test_crossing_not_reached_or_ambiguous PASSED [  6%]
+tests/test_correctness_batch.py::test_crossing_interval_and_plot_position_are_distinct PASSED [  7%]
+tests/test_correctness_batch.py::test_spectrum_reconstructs_input_units[True-0.006] PASSED [  8%]
+tests/test_correctness_batch.py::test_spectrum_reconstructs_input_units[True-0.6] PASSED [  9%]
+tests/test_correctness_batch.py::test_spectrum_reconstructs_input_units[True-60] PASSED [  9%]
+tests/test_correctness_batch.py::test_spectrum_reconstructs_input_units[False-0.006] PASSED [ 10%]
+tests/test_correctness_batch.py::test_spectrum_reconstructs_input_units[False-0.6] PASSED [ 11%]
+tests/test_correctness_batch.py::test_spectrum_reconstructs_input_units[False-60] PASSED [ 12%]
+tests/test_correctness_batch.py::test_data_content_invalidation PASSED   [ 12%]
+tests/test_correctness_batch.py::test_nonfinite_optimizer_result_is_rejected PASSED [ 13%]
+tests/test_correctness_batch.py::test_tts_preserves_replicate_shift_entries PASSED [ 14%]
+tests/test_correctness_batch.py::test_labels_disambiguate_only_visible_replicates PASSED [ 15%]
+tests/test_correctness_batch.py::test_dual_kww_late_start_recovers_separated_modes PASSED [ 15%]
+tests/test_kinetics.py::test_arrhenius_Ea_recovery PASSED                [ 16%]
+tests/test_kinetics.py::test_arrhenius_high_Ea PASSED                    [ 17%]
+tests/test_kinetics.py::test_arrhenius_minimum_points_guard PASSED       [ 18%]
+tests/test_kinetics.py::test_eyring_dH_recovery PASSED                   [ 18%]
+tests/test_kinetics.py::test_eyring_returns_dS PASSED                    [ 19%]
+tests/test_kinetics.py::test_eyring_minimum_points_guard PASSED          [ 20%]
+tests/test_kinetics.py::test_vft_recovery PASSED                         [ 21%]
+tests/test_kinetics.py::test_vft_minimum_points_guard PASSED             [ 21%]
+tests/test_kinetics.py::test_coupled_runs_with_tg PASSED                 [ 22%]
+tests/test_kinetics.py::test_coupled_minimum_points_guard PASSED         [ 23%]
+tests/test_kinetics.py::test_invalid_inputs_return_none[temps0-values0-fit_arrhenius] PASSED [ 24%]
+tests/test_kinetics.py::test_invalid_inputs_return_none[temps0-values0-fit_eyring] PASSED [ 24%]
+tests/test_kinetics.py::test_invalid_inputs_return_none[temps0-values0-fit_vft] PASSED [ 25%]
+tests/test_kinetics.py::test_invalid_inputs_return_none[temps0-values0-fit_van_t_hoff] PASSED [ 26%]
+tests/test_kinetics.py::test_invalid_inputs_return_none[temps0-values0-fit_coupled_kinetics] PASSED [ 27%]
+tests/test_kinetics.py::test_invalid_inputs_return_none[temps1-values1-fit_arrhenius] PASSED [ 27%]
+tests/test_kinetics.py::test_invalid_inputs_return_none[temps1-values1-fit_eyring] PASSED [ 28%]
+tests/test_kinetics.py::test_invalid_inputs_return_none[temps1-values1-fit_vft] PASSED [ 29%]
+tests/test_kinetics.py::test_invalid_inputs_return_none[temps1-values1-fit_van_t_hoff] PASSED [ 30%]
+tests/test_kinetics.py::test_invalid_inputs_return_none[temps1-values1-fit_coupled_kinetics] PASSED [ 30%]
+tests/test_kinetics.py::test_invalid_inputs_return_none[temps2-values2-fit_arrhenius] PASSED [ 31%]
+tests/test_kinetics.py::test_invalid_inputs_return_none[temps2-values2-fit_eyring] PASSED [ 32%]
+tests/test_kinetics.py::test_invalid_inputs_return_none[temps2-values2-fit_vft] PASSED [ 33%]
+tests/test_kinetics.py::test_invalid_inputs_return_none[temps2-values2-fit_van_t_hoff] PASSED [ 33%]
+tests/test_kinetics.py::test_invalid_inputs_return_none[temps2-values2-fit_coupled_kinetics] PASSED [ 34%]
+tests/test_kinetics.py::test_invalid_inputs_return_none[temps3-values3-fit_arrhenius] PASSED [ 35%]
+tests/test_kinetics.py::test_invalid_inputs_return_none[temps3-values3-fit_eyring] PASSED [ 36%]
+tests/test_kinetics.py::test_invalid_inputs_return_none[temps3-values3-fit_vft] PASSED [ 36%]
+tests/test_kinetics.py::test_invalid_inputs_return_none[temps3-values3-fit_van_t_hoff] PASSED [ 37%]
+tests/test_kinetics.py::test_invalid_inputs_return_none[temps3-values3-fit_coupled_kinetics] PASSED [ 38%]
+tests/test_kinetics.py::test_invalid_inputs_return_none[temps4-values4-fit_arrhenius] PASSED [ 39%]
+tests/test_kinetics.py::test_invalid_inputs_return_none[temps4-values4-fit_eyring] PASSED [ 39%]
+tests/test_kinetics.py::test_invalid_inputs_return_none[temps4-values4-fit_vft] PASSED [ 40%]
+tests/test_kinetics.py::test_invalid_inputs_return_none[temps4-values4-fit_van_t_hoff] PASSED [ 41%]
+tests/test_kinetics.py::test_invalid_inputs_return_none[temps4-values4-fit_coupled_kinetics] PASSED [ 42%]
+tests/test_kinetics.py::test_invalid_inputs_return_none[temps5-values5-fit_arrhenius] PASSED [ 42%]
+tests/test_kinetics.py::test_invalid_inputs_return_none[temps5-values5-fit_eyring] PASSED [ 43%]
+tests/test_kinetics.py::test_invalid_inputs_return_none[temps5-values5-fit_vft] PASSED [ 44%]
+tests/test_kinetics.py::test_invalid_inputs_return_none[temps5-values5-fit_van_t_hoff] PASSED [ 45%]
+tests/test_kinetics.py::test_invalid_inputs_return_none[temps5-values5-fit_coupled_kinetics] PASSED [ 45%]
+tests/test_kinetics.py::test_invalid_inputs_return_none[temps6-values6-fit_arrhenius] PASSED [ 46%]
+tests/test_kinetics.py::test_invalid_inputs_return_none[temps6-values6-fit_eyring] PASSED [ 47%]
+tests/test_kinetics.py::test_invalid_inputs_return_none[temps6-values6-fit_vft] PASSED [ 48%]
+tests/test_kinetics.py::test_invalid_inputs_return_none[temps6-values6-fit_van_t_hoff] PASSED [ 48%]
+tests/test_kinetics.py::test_invalid_inputs_return_none[temps6-values6-fit_coupled_kinetics] PASSED [ 49%]
+tests/test_kinetics.py::test_two_observations_do_not_claim_uncertainty[fit_arrhenius-Ea_std] PASSED [ 50%]
+tests/test_kinetics.py::test_two_observations_do_not_claim_uncertainty[fit_eyring-dH_std] PASSED [ 51%]
+tests/test_kinetics.py::test_van_t_hoff_predictions_match_equation_and_result PASSED [ 51%]
+tests/test_kinetics.py::test_coupled_prediction_stable_beyond_exp_range PASSED [ 52%]
+tests/test_kinetics.py::test_coupled_requires_residual_degrees_of_freedom[60.0-4] PASSED [ 53%]
+tests/test_kinetics.py::test_coupled_requires_residual_degrees_of_freedom[None-5] PASSED [ 54%]
+tests/test_kinetics.py::test_van_t_hoff_requires_four_temperatures PASSED [ 54%]
+tests/test_kinetics.py::test_coupled_fit_uses_shared_prediction[60.0] PASSED [ 55%]
+tests/test_kinetics.py::test_coupled_fit_uses_shared_prediction[None] PASSED [ 56%]
+tests/test_literature.py::test_literature_transesterification_reproduction PASSED [ 57%]
+tests/test_parser.py::test_parse_wide_format_data_csv PASSED             [ 57%]
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "C:\Users\vbui\OneDrive - CY Cergy Paris Universit�\K-Vitrimer-Analysis-main\.venv\Lib\site-packages\pytest\__main__.py", line 9, in <module>
+    raise SystemExit(pytest.console_main())
+                     ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vbui\OneDrive - CY Cergy Paris Universit�\K-Vitrimer-Analysis-main\.venv\Lib\site-packages\_pytest\config\__init__.py", line 223, in console_main
+    code = main()
+           ^^^^^^
+  File "C:\Users\vbui\OneDrive - CY Cergy Paris Universit�\K-Vitrimer-Analysis-main\.venv\Lib\site-packages\_pytest\config\__init__.py", line 199, in main
+    ret: ExitCode | int = config.hook.pytest_cmdline_main(config=config)
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vbui\OneDrive - CY Cergy Paris Universit�\K-Vitrimer-Analysis-main\.venv\Lib\site-packages\pluggy\_hooks.py", line 512, in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vbui\OneDrive - CY Cergy Paris Universit�\K-Vitrimer-Analysis-main\.venv\Lib\site-packages\pluggy\_manager.py", line 120, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vbui\OneDrive - CY Cergy Paris Universit�\K-Vitrimer-Analysis-main\.venv\Lib\site-packages\pluggy\_callers.py", line 167, in _multicall
+    raise exception
+  File "C:\Users\vbui\OneDrive - CY Cergy Paris Universit�\K-Vitrimer-Analysis-main\.venv\Lib\site-packages\pluggy\_callers.py", line 121, in _multicall
+    res = hook_impl.function(*args)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vbui\OneDrive - CY Cergy Paris Universit�\K-Vitrimer-Analysis-main\.venv\Lib\site-packages\_pytest\main.py", line 365, in pytest_cmdline_main
+    return wrap_session(config, _main)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vbui\OneDrive - CY Cergy Paris Universit�\K-Vitrimer-Analysis-main\.venv\Lib\site-packages\_pytest\main.py", line 353, in wrap_session
+    config.hook.pytest_sessionfinish(
+  File "C:\Users\vbui\OneDrive - CY Cergy Paris Universit�\K-Vitrimer-Analysis-main\.venv\Lib\site-packages\pluggy\_hooks.py", line 512, in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vbui\OneDrive - CY Cergy Paris Universit�\K-Vitrimer-Analysis-main\.venv\Lib\site-packages\pluggy\_manager.py", line 120, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vbui\OneDrive - CY Cergy Paris Universit�\K-Vitrimer-Analysis-main\.venv\Lib\site-packages\pluggy\_callers.py", line 167, in _multicall
+    raise exception
+  File "C:\Users\vbui\OneDrive - CY Cergy Paris Universit�\K-Vitrimer-Analysis-main\.venv\Lib\site-packages\pluggy\_callers.py", line 139, in _multicall
+    teardown.throw(exception)
+  File "C:\Users\vbui\OneDrive - CY Cergy Paris Universit�\K-Vitrimer-Analysis-main\.venv\Lib\site-packages\_pytest\logging.py", line 873, in pytest_sessionfinish
+    return (yield)
+            ^^^^^
+  File "C:\Users\vbui\OneDrive - CY Cergy Paris Universit�\K-Vitrimer-Analysis-main\.venv\Lib\site-packages\pluggy\_callers.py", line 139, in _multicall
+    teardown.throw(exception)
+  File "C:\Users\vbui\OneDrive - CY Cergy Paris Universit�\K-Vitrimer-Analysis-main\.venv\Lib\site-packages\_pytest\terminal.py", line 960, in pytest_sessionfinish
+    result = yield
+             ^^^^^
+  File "C:\Users\vbui\OneDrive - CY Cergy Paris Universit�\K-Vitrimer-Analysis-main\.venv\Lib\site-packages\pluggy\_callers.py", line 139, in _multicall
+    teardown.throw(exception)
+  File "C:\Users\vbui\OneDrive - CY Cergy Paris Universit�\K-Vitrimer-Analysis-main\.venv\Lib\site-packages\_pytest\warnings.py", line 118, in pytest_sessionfinish
+    return (yield)
+            ^^^^^
+  File "C:\Users\vbui\OneDrive - CY Cergy Paris Universit�\K-Vitrimer-Analysis-main\.venv\Lib\site-packages\pluggy\_callers.py", line 121, in _multicall
+    res = hook_impl.function(*args)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vbui\OneDrive - CY Cergy Paris Universit�\K-Vitrimer-Analysis-main\.venv\Lib\site-packages\_pytest\tmpdir.py", line 326, in pytest_sessionfinish
+    cleanup_dead_symlinks(basetemp)
+  File "C:\Users\vbui\OneDrive - CY Cergy Paris Universit�\K-Vitrimer-Analysis-main\.venv\Lib\site-packages\_pytest\pathlib.py", line 357, in cleanup_dead_symlinks
+    for left_dir in root.iterdir():
+  File "C:\Users\vbui\AppData\Local\spyder-6\Lib\pathlib.py", line 931, in iterdir
+    for name in os.listdir(self):
+                ^^^^^^^^^^^^^^^^
+PermissionError: [WinError 5] Access is denied: 'C:\\Users\\vbui\\OneDrive - CY Cergy Paris Universit�\\K-Vitrimer-Analysis-main\\.pytest_tmp_audit'
+Traceback (most recent call last):
+  File "C:\Users\vbui\AppData\Local\spyder-6\Lib\shutil.py", line 612, in _rmtree_unsafe
+    with os.scandir(path) as scandir_it:
+         ^^^^^^^^^^^^^^^^
+PermissionError: [WinError 5] Access is denied: 'C:\\Users\\vbui\\AppData\\Local\\Temp\\tmpdse_b5mt'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\vbui\AppData\Local\spyder-6\Lib\weakref.py", line 666, in _exitfunc
+    f()
+  File "C:\Users\vbui\AppData\Local\spyder-6\Lib\weakref.py", line 590, in __call__
+    return info.func(*info.args, **(info.kwargs or {}))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vbui\AppData\Local\spyder-6\Lib\tempfile.py", line 933, in _cleanup
+    cls._rmtree(name, ignore_errors=ignore_errors)
+  File "C:\Users\vbui\AppData\Local\spyder-6\Lib\tempfile.py", line 929, in _rmtree
+    _shutil.rmtree(name, onerror=onerror)
+  File "C:\Users\vbui\AppData\Local\spyder-6\Lib\shutil.py", line 787, in rmtree
+    return _rmtree_unsafe(path, onerror)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\vbui\AppData\Local\spyder-6\Lib\shutil.py", line 615, in _rmtree_unsafe
+    onerror(os.scandir, path, sys.exc_info())
+  File "C:\Users\vbui\AppData\Local\spyder-6\Lib\tempfile.py", line 890, in onerror
+    _resetperms(path)
+  File "C:\Users\vbui\AppData\Local\spyder-6\Lib\tempfile.py", line 287, in _resetperms
+    _dont_follow_symlinks(_os.chmod, path, 0o700)
+  File "C:\Users\vbui\AppData\Local\spyder-6\Lib\tempfile.py", line 278, in _dont_follow_symlinks
+    func(path, *args)
+PermissionError: [WinError 5] Access is denied: 'C:\\Users\\vbui\\AppData\\Local\\Temp\\tmpdse_b5mt'
+tests/test_parser.py::test_documented_pair_headers_preserve_replicates_and_signed_temperatures[.csv] ERROR [ 58%]

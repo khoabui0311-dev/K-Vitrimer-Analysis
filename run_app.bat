@@ -1,5 +1,6 @@
 @echo off
 setlocal
+cd /d "%~dp0"
 set VENV_DIR=.venv
 
 where python >NUL 2>&1
@@ -12,6 +13,7 @@ if errorlevel 1 (
 if not exist "%VENV_DIR%\Scripts\python.exe" (
   echo Creating virtual environment in %VENV_DIR% ...
   python -m venv "%VENV_DIR%"
+  if errorlevel 1 exit /b 1
 )
 
 echo Activating virtual environment...
@@ -25,7 +27,7 @@ if errorlevel 1 (
 
 echo Installing/upgrading dependencies...
 python -m pip install --upgrade pip
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 
 if errorlevel 1 (
   echo Dependency installation failed.
@@ -34,6 +36,6 @@ if errorlevel 1 (
 )
 
 echo Launching K Vitrimer Analysis...
-streamlit run can_relax/gui/app.py
+python -m streamlit run can_relax/gui/app.py
 
 endlocal

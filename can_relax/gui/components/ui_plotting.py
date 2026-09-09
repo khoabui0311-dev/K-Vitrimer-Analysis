@@ -5,6 +5,8 @@ import plotly.graph_objects as go
 import matplotlib.pyplot as plt
 import io
 from PIL import Image
+from can_relax.gui.exporting import figure_bytes, MIME_TYPES
+from can_relax.core.state import analysis_identity
 
 def _initialize_session_state():
     default_df = pd.DataFrame({
@@ -34,31 +36,36 @@ def _render_data_input():
             key="plot_uploader"
         )
         
-        if uploaded_plot_file:
+        upload_id = analysis_identity(uploaded_plot_file.getvalue(), {'name': uploaded_plot_file.name}) if uploaded_plot_file else None
+        if uploaded_plot_file and upload_id != st.session_state.get('plot_upload_id'):
             try:
-                if uploaded_plot_file.name.endswith(".csv"):
+                if uploaded_plot_file.name.lower().endswith(".csv"):
                     loaded_df = pd.read_csv(uploaded_plot_file)
                 else:
                     loaded_df = pd.read_excel(uploaded_plot_file)
                 
                 std_cols = {}
                 for col in loaded_df.columns:
-                    c_lower = col.lower().strip()
+                    c_lower = str(col).lower().strip()
                     if "cat" in c_lower: std_cols[col] = "Category"
                     elif "val" in c_lower or "y" == c_lower: std_cols[col] = "Value"
                     elif "err" in c_lower or "sd" in c_lower or "std" in c_lower or "dev" in c_lower: std_cols[col] = "Standard Deviation"
                 
                 loaded_df = loaded_df.rename(columns=std_cols)
                 
+                if loaded_df.columns.duplicated().any():
+                    raise ValueError('Multiple columns map to the same measurement field.')
                 required_cols = ["Category", "Value", "Standard Deviation"]
                 for col in required_cols:
                     if col not in loaded_df.columns:
                         if col == "Standard Deviation": loaded_df[col] = 0.0
                         elif col == "Category": loaded_df[col] = [f"Bar {i+1}" for i in range(len(loaded_df))]
-                        else: loaded_df[col] = 1.0
+                        else: raise ValueError('Missing Value column; no bar heights were imported.')
                 
                 st.session_state.plotting_df = loaded_df[required_cols].copy()
-                st.success("✅ File loaded successfully!")
+                st.session_state.plot_upload_id = upload_id
+                st.session_state.pop('plot_editor', None)
+                st.success('File loaded successfully!')
             except Exception as e:
                 st.error(f"Error loading file: {e}")
 
@@ -127,8 +134,11 @@ def _render_axes_settings(df_data):
             auto_ymin = 10 ** np.floor(np.log10(min_pos_val)) if min_pos_val > 0 else 0.1
             auto_ymax = 10 ** np.ceil(np.log10(max_val)) if max_val > 0 else 10.0
         else:
-            auto_ymin = 0.0
-            auto_ymax = float(max_val * 1.1)
+            lower = float((df_data['Value'] - df_data['Standard Deviation'].fillna(0)).min())
+            auto_ymin = min(0., lower * 1.1)
+            auto_ymax = max(0., float(max_val) * 1.1)
+            if auto_ymax <= auto_ymin:
+                auto_ymax = auto_ymin + 1.
 
         if custom_y_lims:
             y_lim_cols = st.columns(2)
@@ -216,6 +226,8 @@ def _render_export_settings():
         else:
             default_w, default_h, disable_w_h = 12.7, 10.0, False
 
+        if st.session_state.get('plot_size_preset') != comp_preset:
+            st.session_state.update(plot_w=float(default_w), plot_h=float(default_h), plot_size_preset=comp_preset)
         sz_cols = st.columns(2)
         with sz_cols[0]:
             exp['fig_width_cm'] = st.number_input("Width (cm)", 1.0, 50.0, float(default_w), 0.1, disabled=disable_w_h, key="plot_w")
@@ -351,6 +363,20 @@ def render_plotting_tab(tab_plotting):
                     st.warning("⚠️ No data available to plot. Please add rows in the Data Entry tab.")
                     return
 
+                df_data = df_data.copy()
+                try:
+                    df_data['Value'] = pd.to_numeric(df_data['Value'], errors='raise')
+                    df_data['Standard Deviation'] = pd.to_numeric(df_data['Standard Deviation'], errors='raise').fillna(0)
+                    if not np.isfinite(df_data[['Value', 'Standard Deviation']].to_numpy(dtype=float)).all():
+                        raise ValueError('Values and errors must be finite.')
+                    if (df_data['Standard Deviation'] < 0).any():
+                        raise ValueError('Error bars must be nonnegative.')
+                    df_data['Category'] = df_data['Category'].astype(str)
+                    if df_data['Category'].duplicated().any():
+                        raise ValueError('Use distinct category labels to prevent overlapping bars.')
+                except (ValueError, TypeError) as exc:
+                    st.error(f'Cannot plot data: {exc}')
+                    return
                 categories = df_data["Category"].tolist()
                 _render_color_settings(categories)
                 
@@ -359,6 +385,11 @@ def render_plotting_tab(tab_plotting):
                 annots = _render_annotations_settings(axes['y_axis_scale'])
                 typo = _render_typography_settings()
                 exp = _render_export_settings()
+                if (not np.isfinite([axes['ymin_input'], axes['ymax_input']]).all()
+                        or axes['ymin_input'] >= axes['ymax_input']
+                        or (axes['y_axis_scale'] == 'Log' and axes['ymin_input'] <= 0)):
+                    st.error('Use finite increasing axis limits, positive for a logarithmic axis.')
+                    return
 
             with col_preview:
                 st.subheader("📝 Previews")
@@ -397,45 +428,15 @@ def render_plotting_tab(tab_plotting):
                 if btn_export:
                     fig_exp = _plot_matplotlib(categories, values, std_devs, bar_colors, style, axes, annots, typo, exp)
                     plt.tight_layout()
-                    buf = io.BytesIO()
                     fmt_lower = exp['export_format'].lower()
-                    
-                    if exp['colorspace_mode'].startswith("CMYK"):
-                        buf_png_tmp = io.BytesIO()
-                        fig_exp.savefig(buf_png_tmp, format='png', dpi=exp['export_dpi'], bbox_inches='tight')
-                        buf_png_tmp.seek(0)
-                        img_cmyk = Image.open(buf_png_tmp).convert('CMYK')
-                        if fmt_lower == "pdf":
-                            img_cmyk.save(buf, format='PDF', dpi=(exp['export_dpi'], exp['export_dpi']))
-                            mime_type = "application/pdf"
-                        elif fmt_lower == "tiff":
-                            img_cmyk.save(buf, format='TIFF', dpi=(exp['export_dpi'], exp['export_dpi']), compression='tiff_lzw')
-                            mime_type = "image/tiff"
-                        elif fmt_lower in ["jpg", "jpeg"]:
-                            img_cmyk.save(buf, format='JPEG', dpi=(exp['export_dpi'], exp['export_dpi']), quality=95)
-                            mime_type = "image/jpeg"
-                        else:
-                            Image.open(buf_png_tmp).save(buf, format='PNG', dpi=(exp['export_dpi'], exp['export_dpi']))
-                            fmt_lower = "png"
-                            mime_type = "image/png"
-                            st.info("ℹ️ Note: PNG does not support CMYK natively. Saved as RGB PNG.")
-                    else:
-                        if fmt_lower == "pdf":
-                            fig_exp.savefig(buf, format='pdf', bbox_inches='tight')
-                            mime_type = "application/pdf"
-                        elif fmt_lower == "svg":
-                            fig_exp.savefig(buf, format='svg', bbox_inches='tight')
-                            mime_type = "image/svg+xml"
-                        else:
-                            fig_exp.savefig(buf, format=fmt_lower, dpi=exp['export_dpi'], bbox_inches='tight')
-                            mime_type = f"image/{fmt_lower}"
-
-                    buf.seek(0)
-                    plt.close(fig_exp)
-                    plt.close(fig_mpl)
-                    
-                    filename = f"bar_chart_plot.{fmt_lower}"
-                    st.download_button(label=f"⬇️ Download Figure ({exp['export_format'].upper()} - {exp['colorspace_mode']})", data=buf, file_name=filename, mime=mime_type, width='stretch')
-                    st.success(f"🎉 Plot successfully generated! Click above to download `{filename}`.")
+                    try:
+                        content = figure_bytes(fig_exp, fmt_lower, exp['export_dpi'], exp['colorspace_mode'], tight=True)
+                        st.download_button(f'Download {fmt_lower.upper()}', content, f'bar_chart_plot.{fmt_lower}',
+                                           mime=MIME_TYPES[fmt_lower], on_click='ignore')
+                    except ValueError as exc:
+                        st.error(str(exc))
+                    finally:
+                        plt.close(fig_exp)
+                        plt.close(fig_mpl)
                 else:
                     plt.close(fig_mpl)

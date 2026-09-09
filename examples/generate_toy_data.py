@@ -3,7 +3,8 @@ import pandas as pd
 import numpy as np
 import os
 
-def generate_toy_data():
+def generate_toy_data(seed=0):
+    rng = np.random.default_rng(seed)
     t = np.logspace(-2, 4, 200)
     data = {}
     
@@ -12,7 +13,7 @@ def generate_toy_data():
         tau = 100 * (10 ** (3 * (150 - T) / 30))  # Fake Arrhenius
         g = 0.9 * np.exp(-(t/tau)**0.8) + 0.05
         # Add some noise
-        noise = np.random.normal(0, 0.005, size=len(t))
+        noise = rng.normal(0, 0.005, size=len(t))
         g = g + noise
         
         data[f"Temp_{T}C"] = [T]*len(t)

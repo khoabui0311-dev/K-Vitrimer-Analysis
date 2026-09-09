@@ -14,46 +14,12 @@ from scipy.optimize import curve_fit
 from scipy.stats import linregress
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
-import matplotlib.mathtext as mathtext
-
-# Patch MathTextParser to safely handle invalid MathText without crashing
-if not hasattr(mathtext.MathTextParser, '_patched_by_us'):
-    _original_parse = mathtext.MathTextParser.parse
-    def _safe_parse(self, s, *args, **kwargs):
-        if not s or str(s).strip() == "" or str(s).strip() == "$$":
-            return _original_parse(self, " ", *args, **kwargs)
-        try:
-            return _original_parse(self, s, *args, **kwargs)
-        except Exception:
-            return _original_parse(self, " ", *args, **kwargs)
-    mathtext.MathTextParser.parse = _safe_parse
-    mathtext.MathTextParser._patched_by_us = True
-
-import matplotlib.backends.backend_agg as backend_agg
-if not hasattr(backend_agg.RendererAgg, '_patched_by_us'):
-    _orig_get_text_width_height_descent = backend_agg.RendererAgg.get_text_width_height_descent
-    def _safe_get_text_width_height_descent(self, s, prop, ismath):
-        if not s: return 0.0, 0.0, 0.0
-        try:
-            return _orig_get_text_width_height_descent(self, s, prop, ismath)
-        except Exception:
-            return 0.0, 0.0, 0.0
-    backend_agg.RendererAgg.get_text_width_height_descent = _safe_get_text_width_height_descent
-    
-    _orig_draw_text = backend_agg.RendererAgg.draw_text
-    def _safe_draw_text(self, gc, x, y, s, prop, angle, ismath=False, mtext=None):
-        if not s: return
-        try:
-            _orig_draw_text(self, gc, x, y, s, prop, angle, ismath, mtext)
-        except Exception:
-            pass
-    backend_agg.RendererAgg.draw_text = _safe_draw_text
-    backend_agg.RendererAgg._patched_by_us = True
 
 # Import proper modules from can_relax
 from can_relax.io.parser import parse_curve_records as parser_module_func
 from can_relax.core.observations import relaxation_crossing
 from can_relax.core.state import analysis_identity, clear_analysis, clear_derived
+from can_relax.core.selection import prepare_curve
 from can_relax.gui.labels import curve_labels
 from pathlib import Path
 from can_relax.core.simulator import MaterialSimulator
@@ -214,7 +180,8 @@ with tab_analysis:
         G_prime_input = st.number_input("Rubbery G' (MPa)", 0.01, 5000.0, 1.0, help="Used for Tv calculation")
         Tg_input = st.number_input("Tg (°C)", value=50.0, help="Curves below this temperature are skipped")
         time_origin = st.number_input("Loading time origin (s)", value=0.0, help="Subtract this instrument clock value to obtain elapsed time since loading. Cutoffs do not reset this origin.")
-        time_cutoff = st.number_input("Short-Time Cutoff (s)", 0.0, 1000.0, 0.0, step=0.1, help="Discard data points where time < this threshold to remove loading transients/machinery artifacts")
+        time_cutoff = st.number_input("Short-Time Cutoff (s)", min_value=0.0, value=0.0, step=0.1, help="Exclude elapsed times below this value after subtracting the loading origin. This does not reset time to zero.")
+        st.caption('Elapsed time = recorded time − loading origin. Cutoff removes early elapsed times; it does not move the loading origin. Defaults apply to all curves; individual adjustments are available in Data review.')
         st.markdown("---")
         fit_model = st.selectbox("Model", ["Maxwell", "Single_KWW", "Dual_KWW"], key="analysis_fit_model")
         plateau_mode = st.selectbox('Long-time plateau', ['Zero', 'Fit', 'Fixed'],
@@ -234,18 +201,77 @@ with tab_analysis:
     run_btn = st.sidebar.button("▶ Run Analysis", type="primary", width='stretch')
 
     source_bytes = uploaded_file.getvalue() if uploaded_file else (Path("examples/toy_data.csv").read_bytes() if use_example_data else b'')
+    curves = []
+    review_settings = {}
+    exclusions = {}
+    if source_bytes:
+        try:
+            curves = parse_uploaded_file(uploaded_file) if uploaded_file else parser_module_func('examples/toy_data.csv')
+        except (ValueError, OSError) as exc:
+            clear_analysis(st.session_state)
+            st.error(f'Input rejected: {exc}')
+            st.stop()
+        dataset_id = analysis_identity(source_bytes, {})
+        if st.session_state.get('review_dataset') != dataset_id:
+            st.session_state['review_dataset'] = dataset_id
+            st.session_state['point_exclusions'] = {}
+        exclusions = st.session_state['point_exclusions']
+        with st.expander('Data review: timing and incorrect points', expanded=False):
+            st.caption('Set the actual loading clock time for each curve. Leave origin at 0 if recorded times are already elapsed times. Unchecking Keep excludes a measurement without changing the source file. Run Analysis after edits.')
+            timing = pd.DataFrame([{'Curve_ID': r['Curve_ID'], 'Temperature (C)': r['Temp'],
+                                    'Loading origin (s)': time_origin, 'Cutoff (s)': time_cutoff} for r in curves])
+            timing_id = f'{dataset_id}_{time_origin}_{time_cutoff}'
+            if st.session_state.get('review_timing_id') != timing_id:
+                st.session_state['review_timing_id'] = timing_id
+                st.session_state['review_timing_table'] = timing
+            timing = st.session_state['review_timing_table'].copy()
+            edited_timing = st.data_editor(timing, hide_index=True, disabled=['Curve_ID', 'Temperature (C)'],
+                column_config={'Cutoff (s)': st.column_config.NumberColumn(min_value=0, required=True),
+                               'Loading origin (s)': st.column_config.NumberColumn(required=True)},
+                key=f'timing_{dataset_id}_{time_origin}_{time_cutoff}')
+            st.session_state['review_timing_table'] = edited_timing.copy()
+            review_settings = {row['Curve_ID']: {'origin': float(row['Loading origin (s)']), 'cutoff': float(row['Cutoff (s)'])}
+                               for _, row in edited_timing.iterrows()}
+            if any(not np.isfinite(s['origin']) or not np.isfinite(s['cutoff']) or s['cutoff'] < 0 for s in review_settings.values()):
+                clear_analysis(st.session_state)
+                st.error('Each curve needs a finite loading origin and a nonnegative cutoff.')
+                st.stop()
+            if curves:
+                curve_ids = [r['Curve_ID'] for r in curves]
+                chosen_id = st.selectbox('Review curve', curve_ids, key=f'review_curve_{dataset_id}',
+                    format_func=lambda cid: f"{cid} / {next(r['Temp'] for r in curves if r['Curve_ID'] == cid):g} °C")
+                chosen = next(r for r in curves if r['Curve_ID'] == chosen_id)
+                settings = review_settings[chosen_id]
+                try:
+                    _, preview, _ = prepare_curve(chosen['Data'], **settings, excluded=exclusions.get(chosen_id, []))
+                except ValueError as exc:
+                    clear_analysis(st.session_state)
+                    st.error(str(exc))
+                    st.stop()
+                edited_points = st.data_editor(preview, hide_index=True, height=300,
+                    disabled=[c for c in preview.columns if c != 'Keep'],
+                    key=f'points_{dataset_id}_{chosen_id}_{settings}')
+                exclusions[chosen_id] = edited_points.loc[~edited_points['Keep'], 'Point'].astype(int).tolist()
+                _, preview, audit = prepare_curve(chosen['Data'], **settings, excluded=exclusions[chosen_id])
+                raw_plot = go.Figure()
+                accepted = preview['Keep'] & preview['In time window']
+                for mask, label, color in [(accepted, 'Selected', '#238b45'), (~accepted, 'Excluded', '#d73027')]:
+                    points = preview.loc[mask]
+                    raw_plot.add_trace(go.Scatter(x=points['Elapsed time (s)'], y=points['Modulus'],
+                        mode='markers', name=label, marker=dict(color=color), customdata=points['Point'],
+                        hovertemplate='Point %{customdata}<br>Elapsed time %{x} s<br>Modulus %{y} MPa<extra>%{fullData.name}</extra>'))
+                raw_plot.update_layout(xaxis_title='Elapsed time (s)', yaxis_title='Modulus (MPa)', height=300)
+                st.plotly_chart(raw_plot, width='stretch')
+                st.caption(f"{audit['points_after_manual_selection']} of {len(preview)} measurements selected. Point numbers refer to imported observations, before sorting or downsampling. Automatic peak/drift preprocessing still follows this selection.")
+                st.download_button('Download reviewed points CSV', preview.to_csv(index=False), f'{chosen_id}_review.csv')
     current_id = analysis_identity(source_bytes, {'model': fit_model, 'Tg': Tg_input,
-        'cutoff': time_cutoff, 'origin': time_origin, 'plateau_mode': plateau_mode, 'fixed_plateau': fixed_plateau})
+        'cutoff': time_cutoff, 'origin': time_origin, 'plateau_mode': plateau_mode, 'fixed_plateau': fixed_plateau,
+        'curve_timing': review_settings, 'point_exclusions': {cid: ids for cid, ids in exclusions.items() if ids}})
     if st.session_state.get('analysis_id') != current_id:
         clear_analysis(st.session_state)
     # PROCESS: clear old state before parsing so a failed upload cannot retain old results.
     if (uploaded_file or use_example_data) and run_btn:
         clear_analysis(st.session_state)
-        try:
-            curves = parse_uploaded_file(uploaded_file) if uploaded_file else parser_module_func("examples/toy_data.csv")
-        except (ValueError, OSError) as exc:
-            st.error(f"Input rejected: {exc}")
-            st.stop()
         if not curves:
             st.error("No curves found. Check the documented CSV/XLSX layouts.")
             st.stop()
@@ -258,18 +284,21 @@ with tab_analysis:
             temp, df = record["Temp"], record["Data"].copy()
             for notice in record.get('Import_Warnings', []):
                 st.warning(notice)
-            df["Time"] = df["Time"] - time_origin
-            # Apply short-time cutoff if set
-            if time_cutoff > 0.0:
-                df = df[df['Time'] >= time_cutoff].copy()
+            try:
+                df, _, selection_audit = prepare_curve(df, **review_settings[record['Curve_ID']],
+                    excluded=exclusions.get(record['Curve_ID'], []))
+            except ValueError as exc:
+                st.error(f"{record['Curve_ID']}: {exc}")
+                st.stop()
             
             # Pass Tg and selected fit_model for cached filtering and fast fit
             out = cached_fit_one_temp(temp, df, Tg_input, fit_model, plateau_mode, fixed_plateau)
             if out.get('Valid', False):
+                out['Preprocessing']['manual_selection'] = selection_audit
                 out['Warnings'].extend(record.get('Import_Warnings', []))
                 out['Best_Model'] = fit_model 
                 out['Curve_ID'] = record['Curve_ID']
-                crossing = relaxation_crossing(out['Raw']['t'], out['Raw']['g'])
+                crossing = relaxation_crossing(out['Raw']['full_t'], out['Raw']['full_g'])
                 out['Crossing'] = crossing
                 out['Tau_1e'] = crossing['tau']
                 out['Crossing_Time'] = crossing['crossing_time']
@@ -291,6 +320,7 @@ with tab_analysis:
         metadata = {'analysis_id': current_id, 'model': fit_model, 'Tg_C': Tg_input,
             'plateau_mode': plateau_mode, 'fixed_plateau_MPa': fixed_plateau if plateau_mode == 'Fixed' else None,
             'cutoff_s': time_cutoff, 'loading_origin_s': time_origin,
+            'curve_timing': review_settings, 'excluded_point_numbers': exclusions,
             'units': {'time': 's', 'modulus': 'MPa', 'temperature': 'C'},
             'curves': [{'curve_id': r['Curve_ID'], 'temperature_C': r['Temp'],
                         'preprocessing': r['Preprocessing'], 'warnings': r['Warnings'],
@@ -530,6 +560,7 @@ with tab_analysis:
                                 dS = fit_res["dS"]
                                 
                                 mc1, mc2, mc3 = st.columns(3)
+                                st.caption("Apparent Eyring parameters assume tau is an inverse molecular rate with transmission coefficient one. Entropy sign alone does not identify a mechanism.")
                                 mc1.metric("\u0394H\u2021 (Enthalpy)", f"{dH:.1f} \u00b1 {dH_std:.1f} kJ/mol")
                                 mc2.metric("\u0394S\u2021 (Entropy)", f"{dS:.1f} J/mol\u00b7K")
                                 mc3.metric("R\u00b2", f"{r_sq:.4f}")
@@ -543,7 +574,7 @@ with tab_analysis:
                                 mc1.metric("\u0394H_diss", f"{dH_diss:.1f} kJ/mol")
                                 mc2.metric("\u0394S_diss", f"{dS_diss:.1f} J/mol\u00b7K")
                                 mc3.metric("R\u00b2", f"{r_sq:.4f}")
-                                st.caption(f"Amplitude A: {amplitude_A:.6g} MPa/K; fitted to observed reference moduli.")
+                                st.caption(f"Amplitude A: {amplitude_A:.6g} MPa/K; empirical fit to observed reference moduli. These parameters do not establish dissociation thermodynamics.")
                                 
                             elif fit_res["Type"] == "Coupled":
                                 Ea_chem = fit_res["Ea_chem"]
@@ -551,6 +582,7 @@ with tab_analysis:
                                 T0_glass = fit_res["T0_glass"]
                                 
                                 mc1, mc2, mc3 = st.columns(3)
+                                st.caption("Phenomenological Arrhenius-plus-VFT fit. T0 is fixed using Tg minus 50 K and constrained below the data range; this is not the full molecular theory.")
                                 mc1.metric("Ea_chem", f"{Ea_chem:.1f} kJ/mol")
                                 mc2.metric("T\u2080 (Glass)", f"{T0_glass:.1f} \u00b0C")
                                 mc3.metric("R\u00b2", f"{r_sq:.4f}")
@@ -625,13 +657,17 @@ with tab_analysis:
                             format_func=lambda cid: 'Mean of all selected replicates' if cid is None else plot_labels[cid],
                             key=f'tts_reference_{selection_id}_{ref_temp_sel}')
                     st.caption('Reference tau uses the arithmetic mean of selected replicates at this temperature, unless a specific curve is chosen.')
-                    master_config = (selection_id, ref_temp_sel, reference_id)
+                    normalization = st.selectbox('TTS modulus convention', ['observed', 'model_initial', 'absolute'],
+                        format_func=lambda v: {'observed': 'Observed reference normalization', 'model_initial': 'Model-extrapolated zero-time normalization', 'absolute': 'Absolute modulus (MPa)'}[v])
+                    tts_component = 'fast' if kinetic_component == 'Fast (tau1)' else 'slow'
+                    master_config = (selection_id, ref_temp_sel, reference_id, normalization, tts_component)
+                    st.caption('Horizontal shifts alone do not establish superposition. Different acquisition starts can prevent overlap after observed-reference normalization.')
                     if st.session_state.get('master_config') != master_config:
                         st.session_state.pop('master_data', None)
                     # Generate mastercurve
                     if st.button("Generate Mastercurve"):
                         try:
-                            master_data = tts_engine.generate_mastercurve(active_results, ref_temp=ref_temp_sel, ref_curve_id=reference_id)
+                            master_data = tts_engine.generate_mastercurve(active_results, ref_temp=ref_temp_sel, ref_curve_id=reference_id, normalization=normalization, component=tts_component)
                             st.session_state.master_data = master_data
                             st.session_state.master_config = master_config
                             st.success(f"✅ Mastercurve at Tref = {master_data['T_ref']}°C")
@@ -656,8 +692,9 @@ with tab_analysis:
                         ))
                         
                         fig_mc.update_xaxes(type="log", title=f"Shifted Time (s) @ Tref={master['T_ref']}°C")
-                        fig_mc.update_yaxes(title="G(t) / G(reference)")
-                        fig_mc.update_layout(height=500, title="Time-Temperature Superposition Mastercurve")
+                        fig_mc.update_yaxes(title={'observed': 'G(t) / G(reference)', 'model_initial': 'G(t) / G(0), model extrapolation', 'absolute': 'G(t) (MPa)'}[master['Normalization']])
+                        st.caption(master['Warning'])
+                        fig_mc.update_layout(height=500, title="Curves shifted by fitted relaxation time")
                         st.plotly_chart(fig_mc, width='stretch')
                         
                         # Display shift factors
@@ -698,7 +735,7 @@ with tab_analysis:
                 spec_outputs.append({'Temp': r['Temp'], 'Curve_ID': r['Curve_ID'],
                     'tau_grid': tau_grid, 'H': H, 'last_alpha': last_alpha,
                     'last_G_eq': last_G_eq, 'G0': r['Raw']['G0'],
-                    'reconstruction_error': reconstruction_error, 't_max': float(t[-1])})
+                    'reconstruction_error': reconstruction_error, 't_max': float(t[-1]), 'tail_fraction': float(np.mean(g[-max(1, len(g)//20):])/g[0])})
             with c_spec:
                 fig_h = go.Figure()
                 incomplete_warnings = []
@@ -721,7 +758,7 @@ with tab_analysis:
                     with c_ctrl:
                         st.caption(f"{item['Temp']}°C: α={item['last_alpha']:.2e} (G_eq: {last_G_eq_plot:.2e})")
                     
-                    st.caption(f"{item['Curve_ID']}: reconstruction RMSE / reference modulus = {item['reconstruction_error']:.2%}")
+                    st.caption(f"{item['Curve_ID']}: reconstruction RMSE / reference modulus = {item['reconstruction_error']:.2%}; measured tail / reference = {item['tail_fraction']:.2%} (before baseline subtraction).")
                     # --- Incomplete relaxation detection ---
                     tau_dom = spectrum_engine_local.get_weighted_avg_tau(tau_grid, H)
                     # Find t_max for this temperature from active results
@@ -735,7 +772,7 @@ with tab_analysis:
 
                 fig_h.update_xaxes(type="log", title="Relaxation Time τ (s)")
                 fig_h.update_yaxes(title="Discrete modal weight (MPa)" if mod_plot_type == "Absolute" else "Discrete modal weight / G(reference)")
-                st.caption("Weights sum discrete exponential modes; they are not a continuous density. Tail subtraction assumes the measured tail estimates equilibrium.")
+                st.caption("Weights sum discrete exponential modes; they are not a continuous density. Tail subtraction assumes the measured tail estimates equilibrium and can hide unresolved slow decay. Absence of a window badge does not establish complete relaxation.")
                 st.plotly_chart(fig_h, width="stretch")
 
                 if incomplete_warnings:

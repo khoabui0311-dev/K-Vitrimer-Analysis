@@ -14,6 +14,8 @@ import plotly.graph_objects as go
 import matplotlib.pyplot as plt
 
 from can_relax.core.kinetics import KineticsEngine
+from can_relax.core.extrapolation import maxwell_equivalent_tv
+from can_relax.gui.exporting import figure_bytes, MIME_TYPES
 
 def _render_controls():
     """Renders the sidebar controls and returns the simulation parameters."""
@@ -113,6 +115,8 @@ def _calculate_targets(params):
 
 def _render_simulation_charts(sim, params, PLOTLY_STYLE):
     """Renders the simulation charts and returns results for export."""
+    for key in ('sim_fig_relax', 'sim_results_cache', 'sim_fig_kinetics', 'sim_kinetics_cache'):
+        st.session_state.pop(key, None)
     exp_temps = params['exp_temps']
     if not exp_temps:
         return None, None, None
@@ -132,7 +136,7 @@ def _render_simulation_charts(sim, params, PLOTLY_STYLE):
         try:
             t, g_true, _ = sim.simulate_curve(T, params['sim_model'], sim_params)
             sim_results.append((T, t, g_true))
-            if T > params['Tg_sim']:
+            if T >= params['Tg_sim']:
                 try:
                     t_fit = relaxation_crossing(t, g_true)['tau']
                     if 1e-5 < t_fit < 1e12:
@@ -179,7 +183,7 @@ def _render_simulation_charts(sim, params, PLOTLY_STYLE):
                 G_Pa = params['G_modulus'] * 1e6
                 tau_Tv = 1e12 / G_Pa
                 ln_tau_target = np.log(tau_Tv)
-                Tv_rec = (1000.0 / ((ln_tau_target - intercept) / slope)) - 273.15 if slope != 0 else 0
+                Tv_rec = maxwell_equivalent_tv(fit_res['Params']['slope'], intercept, params['G_modulus'])
 
                 fig_k = go.Figure()
                 fig_k.add_trace(go.Scatter(
@@ -246,7 +250,8 @@ def render(sim, PLOTLY_STYLE: dict):
     """
     Render the Virtual Lab tab.
     """
-    st.subheader("🧪 Virtual Lab")
+    st.subheader('🧪 Virtual Lab')
+    st.caption('Tv anchors the primary characteristic time using G*tau = 10^12 Pa s. KWW shape and dual-mode contributions change the integral viscosity. Recovered Tv below uses the observed 1/e interval and may differ from this anchor.')
     col_ctrl, col_dash = st.columns([0.3, 0.7])
 
     with col_ctrl:
@@ -279,18 +284,13 @@ def _export_relax(sim_results, fmt, dpi, width, height):
     ax_mpl.legend(frameon=True, fontsize=8)
     ax_mpl.tick_params(labelsize=10)
     plt.tight_layout()
-    buf = io.BytesIO()
-    if fmt.lower() in ['bmp', 'tiff']:
-        buf_tmp = io.BytesIO()
-        fig_mpl.savefig(buf_tmp, format='png', dpi=dpi, bbox_inches='tight')
-        buf_tmp.seek(0)
-        from PIL import Image
-        Image.open(buf_tmp).save(buf, format=fmt.upper())
-    else:
-        fig_mpl.savefig(buf, format=fmt, dpi=dpi, bbox_inches='tight')
-    buf.seek(0)
-    st.download_button("⬇️ Download Relaxation", buf, f"Simulation_Relaxation.{fmt}", key="dl_sim_relax")
-    plt.close(fig_mpl)
+    try:
+        content = figure_bytes(fig_mpl, fmt, dpi, tight=True)
+        st.download_button('Download Relaxation', content, f'Simulation_Relaxation.{fmt}', mime=MIME_TYPES[fmt], key='dl_sim_relax', on_click='ignore')
+    except ValueError as exc:
+        st.error(str(exc))
+    finally:
+        plt.close(fig_mpl)
 
 
 def _export_arrhenius(valid_temps, fitted_taus, G_modulus, fmt, dpi, width, height):
@@ -311,7 +311,7 @@ def _export_arrhenius(valid_temps, fitted_taus, G_modulus, fmt, dpi, width, heig
     G_Pa = G_modulus * 1e6
     tau_Tv = 1e12 / G_Pa
     ln_tau_target = np.log(tau_Tv)
-    Tv_rec = (1000.0 / ((ln_tau_target - intercept) / slope)) - 273.15 if slope != 0 else 0
+    Tv_rec = maxwell_equivalent_tv(fit_res['Params']['slope'], intercept, G_modulus)
 
     fig_arr = plt.figure(figsize=(width, height))
     ax_arr = fig_arr.add_subplot(111)
@@ -320,7 +320,7 @@ def _export_arrhenius(valid_temps, fitted_taus, G_modulus, fmt, dpi, width, heig
     y_fit = slope * x_range + intercept
     ax_arr.plot(x_range, y_fit, '--', color='red', linewidth=2,
                 label=f'Eₐ = {Ea_rec:.1f} kJ/mol\nR² = {r_sq:.4f}', zorder=2)
-    Tv_x = (ln_tau_target - intercept) / slope
+    Tv_x = 1000.0 / (Tv_rec + 273.15) if np.isfinite(Tv_rec) else np.nan
     ax_arr.plot([Tv_x], [ln_tau_target], marker='*', markersize=18,
                 color='gold', markeredgecolor='black', markeredgewidth=1.5,
                 label=f'Tᵥ = {Tv_rec:.1f}°C', zorder=4)
@@ -330,15 +330,10 @@ def _export_arrhenius(valid_temps, fitted_taus, G_modulus, fmt, dpi, width, heig
     ax_arr.legend(frameon=True, fontsize=8)
     ax_arr.tick_params(labelsize=10)
     plt.tight_layout()
-    buf = io.BytesIO()
-    if fmt.lower() in ['bmp', 'tiff']:
-        buf_tmp = io.BytesIO()
-        fig_arr.savefig(buf_tmp, format='png', dpi=dpi, bbox_inches='tight')
-        buf_tmp.seek(0)
-        from PIL import Image
-        Image.open(buf_tmp).save(buf, format=fmt.upper())
-    else:
-        fig_arr.savefig(buf, format=fmt, dpi=dpi, bbox_inches='tight')
-    buf.seek(0)
-    st.download_button("⬇️ Download Arrhenius", buf, f"Simulation_Arrhenius.{fmt}", key="dl_sim_arr")
-    plt.close(fig_arr)
+    try:
+        content = figure_bytes(fig_arr, fmt, dpi, tight=True)
+        st.download_button('Download Arrhenius', content, f'Simulation_Arrhenius.{fmt}', mime=MIME_TYPES[fmt], key='dl_sim_arr', on_click='ignore')
+    except ValueError as exc:
+        st.error(str(exc))
+    finally:
+        plt.close(fig_arr)

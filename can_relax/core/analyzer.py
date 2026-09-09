@@ -49,23 +49,24 @@ class CurveAnalyzer:
                     'Temp': temp,
                     'Valid': False,
                     'Reason': 'GLASSY / FROZEN (Below Tg)',
-                    'Auto_Explanation': f"Temperature ({temp}°C) is below Tg ({Tg}°C). Material is glassy; no relaxation flow expected."
+                    'Auto_Explanation': f"Temperature ({temp}°C) is below Tg ({Tg}°C). Excluded by the selected below-Tg analysis policy."
                 }
         
         t_raw = df_raw['Time'].values
         g_raw = df_raw['Modulus'].values
         
         # 1. Processing
-        t, g, G0 = self.processor.trim_curve(t_raw, g_raw)
-        if t is None: 
+        t_full, g_full, G0 = self.processor.trim_curve(t_raw, g_raw, max_points=None)
+        if t_full is None:
             return {'Temp': temp, 'Valid': False, 'Reason': 'Data Quality (Too short/noisy)'}
+        t, g = self.processor.downsample(t_full, g_full)
         if plateau_mode == 'Fixed' and fixed_plateau >= G0:
             return {'Temp': temp, 'Valid': False, 'Reason': 'Fixed plateau must be below the retained reference modulus'}
 
         result = {
             'Temp': temp,
             'Valid': True,
-            'Raw': {'t': t, 'g': g, 'G0': G0},
+            'Raw': {'t': t, 'g': g, 'G0': G0, 'full_t': t_full, 'full_g': g_full},
             'Fits': {}
         }
         
@@ -81,6 +82,7 @@ class CurveAnalyzer:
         result['Preprocessing'] = {
             'time_origin': 'elapsed_since_loading', 'reference_time': float(t[0]),
             'reference_modulus': G0, 'input_points': len(df_raw), 'retained_points': len(t),
+            'retained_points_before_downsampling': len(t_full),
             'plateau_mode': plateau_mode, 'fixed_plateau_MPa': fixed_plateau if plateau_mode == 'Fixed' else None,
         }
         result['Warnings'] = []

@@ -12,13 +12,18 @@ class TTSEngine:
     def __init__(self):
         pass
 
-    def generate_mastercurve(self, results, ref_temp=None, ref_curve_id=None):
+    def generate_mastercurve(self, results, ref_temp=None, ref_curve_id=None,
+                             normalization='observed', component='slow'):
         """
         Shifts curves horizontally to create a Mastercurve.
         Shift Factor a_T = tau(T) / tau(T_ref)
         Average all replicates at ref_temp unless ref_curve_id explicitly selects one.
         """
         if not results: return None
+        if normalization not in ('observed', 'model_initial', 'absolute'):
+            raise ValueError('Unknown mastercurve normalization')
+        if component not in ('fast', 'slow'):
+            raise ValueError('Component must be fast or slow')
         for res in results:
             fit = res.get('Fits', {}).get(res.get('Best_Model'), {})
             if not res.get('Valid', False) or not fit.get('success', False):
@@ -48,7 +53,7 @@ class TTSEngine:
             # We use tau2 (slow mode, index 3) as the canonical network exchange time.
             # tau1 is guaranteed < tau2 after the label-switching fix in analyzer.py.
             # This is consistent with the Kinetics tab which also uses popt[3].
-            if best == 'Dual_KWW': return popt[3]
+            if best == 'Dual_KWW': return popt[3 if component == 'slow' else 1]
             raise ValueError('Unknown relaxation model')
 
         if ref_curve_id is not None:
@@ -74,6 +79,7 @@ class TTSEngine:
         master_t = []
         master_g = []
         shift_factors = {}
+        vertical_factors = {}
 
         for res in sorted_res:
             T = res['Temp']
@@ -92,9 +98,23 @@ class TTSEngine:
             # Logarithmic shift: log(t) - log(aT)
             t_shifted = res['Raw']['t'] / aT
             g_raw = res['Raw']['g']
+            factor = 1.0
+            if normalization == 'absolute':
+                factor = float(res['Raw']['G0'])
+            elif normalization == 'model_initial':
+                from can_relax.core.models import conditional_relaxation
+                fit = res['Fits'][res['Best_Model']]
+                q = fit.get('G_inf', 0.) / res['Raw']['G0']
+                with np.errstate(over='ignore', invalid='ignore'):
+                    initial_ratio = q + (1-q)*conditional_relaxation(
+                        res['Best_Model'], 0., fit['popt'], res['Raw']['t'][0])
+                if not np.isfinite(initial_ratio) or initial_ratio <= 0:
+                    raise ValueError('Zero-time modulus extrapolation is not numerically resolved.')
+                factor = float(1/initial_ratio)
+            vertical_factors[curve_id] = factor
 
             master_t.append(t_shifted)
-            master_g.append(g_raw)
+            master_g.append(g_raw * factor)
 
         # Concatenate
         full_t = np.concatenate(master_t)
@@ -110,5 +130,8 @@ class TTSEngine:
             "Reference_curve_ids": [r.get('Curve_ID', str(r['Temp'])) for r in ref_results],
             "Master_t": full_t[sort_idx],
             "Master_g": full_g[sort_idx],
-            "Shifts": shift_factors
+            "Shifts": shift_factors,
+            "Vertical_factors": vertical_factors,
+            "Normalization": normalization, "Component": component,
+            "Warning": 'Shifted curves are not a validated mastercurve. Check overlap, shape changes and normalization; zero-time normalization is model extrapolation.'
         }

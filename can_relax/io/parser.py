@@ -1,6 +1,7 @@
 """Validated wide relaxation input; canonical units are seconds, MPa and Celsius."""
 import pathlib
 import re
+from zipfile import BadZipFile
 
 import numpy as np
 import pandas as pd
@@ -20,16 +21,21 @@ def _load_file_robustly(file_path):
             return pd.read_csv(path, sep=None, engine="python", header=None)
         except UnicodeDecodeError:
             return pd.read_csv(path, sep=None, engine="python", header=None, encoding="latin-1")
-    if path.suffix.lower() in (".xlsx", ".xls"):
-        return pd.read_excel(path, header=None)
-    raise ValueError("Unsupported file type; use CSV, TXT, XLSX or XLS.")
+    if path.suffix.lower() == ".xlsx":
+        try:
+            return pd.read_excel(path, header=None)
+        except (BadZipFile, ImportError) as exc:
+            raise ValueError(f'Cannot read XLSX workbook: {exc}') from exc
+    raise ValueError("Unsupported file type; use CSV, TXT or XLSX (convert legacy XLS first).")
 
 
 def _kind(label):
     text = str(label).strip().lower()
+    if re.search(r"storage|loss|g_prime|g['′]|frequency|stress", text):
+        raise ValueError("Expected time-domain relaxation modulus. Convert stress using the imposed strain; storage/loss modulus and frequency data are not relaxation modulus.")
     if re.search(r"temp|celsius|°c", text):
         return "temp"
-    if re.search(r"modulus|storage|g'|g_prime|stress|\b(?:mpa|kpa|pa)\b", text):
+    if re.search(r"modulus|\b(?:mpa|kpa|pa)\b", text):
         return "mod"
     if re.search(r"time|\b(?:sec|seconds?|min|minutes?|s)\b", text):
         return "time"
@@ -72,7 +78,10 @@ def _quantity(value, kind, header_unit=None):
         raise ValueError(f"Conflicting {kind} units in header and value {value!r}.")
     if not np.isfinite(number):
         raise ValueError(f"Non-finite {kind} value: {value!r}.")
-    return number * _FACTORS[kind].get(unit or header_unit, 1.)
+    converted = number * _FACTORS[kind].get(unit or header_unit, 1.)
+    if not np.isfinite(converted):
+        raise ValueError(f"Non-finite {kind} value after unit conversion: {value!r}.")
+    return converted
 
 
 def _record(data, time_idx, mod_idx, labels, curve_id, temp_idx=None, temperature=None):

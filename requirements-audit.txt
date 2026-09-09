@@ -1,0 +1,4 @@
+-r requirements-dev.txt
+flake8>=7,<8
+bandit>=1.9,<2
+radon>=6,<7

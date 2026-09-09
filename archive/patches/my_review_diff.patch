@@ -1,0 +1,1688 @@
+﻿diff --git a/README.md b/README.md
+index 8f5a93b..bad3053 100644
+--- a/README.md
++++ b/README.md
+@@ -31,14 +31,56 @@ Upload data as a single **Wide-Format CSV** or **XLSX** file. The first row must
+ | 0.05 | 1.45 | 0.05 | 1.30 | 0.05 | 1.10 |
+ | ... | ... | ... | ... | ... | ... |
+ 
+-*(Note: The parser is robust and will automatically clean "Pa", "MPa", "s", and string headers as long as the underlying data is numeric).*
+-
+-### 2. Unit Conventions
+-The internal physics engine (Arrhenius, VFT, Mastercurve) relies on standard units. While the parser attempts to auto-detect and correct obvious deviations, for best results please ensure your data follows these conventions:
+-
+-*   **Temperature**: **┬░C** (Celsius). The software internally converts to Kelvin (K) where required by physics models (e.g., Arrhenius 1000/T, Eyring).
+-*   **Time**: **Seconds (s)**. Relaxation times ($\tau$) extracted from the models will naturally be in seconds.
+-*   **Modulus**: **MPa** (Megapascals). While $G(t) / G_0$ normalization is used for fitting, absolute values in MPa are used for the continuous relaxation spectrum $H(\tau)$ and plateau modulus $G_p$.
++Alternatively, use repeating triplets with headers `Temp_A,Time_A,Modulus_A`,
++`Temp_B,Time_B,Modulus_B`, etc. Each temperature column must be constant within
++its curve. Empty trailing rows are allowed; partially missing measurements are rejected.
++Replicates at the same temperature remain separate curves with file-local identifiers.
++
++### 2. Unit conventions
++
++- Unlabelled values mean **Celsius, seconds, and MPa**.
++- Labelled seconds/minutes and Pa/kPa/MPa are converted to seconds and MPa.
++  Labels can occur in headers (e.g. `Time (min)`, `Modulus (Pa)`) or cells
++  (e.g. `2 min`, `500000 Pa`). Conflicting or unsupported units are rejected.
++- Temperature must be Celsius; Kelvin input is rejected rather than silently interpreted.
++- Signed temperatures, including negative integers, are preserved.
++
++### 3. Time origin, fitting, and interpretation
++
++Times default to elapsed time since loading. For an instrument clock, set **Loading
++ time origin (s)** to the clock reading at loading. The short-time cutoff applies to
++elapsed time and does not reset this origin.
++
++After trimming, curves are normalized by their **first retained measured modulus**,
++called G0 in the existing tables/CSV format. This is a reference observation, not an
++inferred zero-time plateau. Fits use `f(t) / f(t_reference)` so a cutoff does not
++silently change the Maxwell/KWW equation. Physical parameter order is unchanged.
++Van 't Hoff analysis uses these observed reference moduli; compare them cautiously
++when acquisition starts or cutoffs differ between temperatures.
++
++**Raw 1/e** is the interval from the first retained observation to an unambiguous
++crossing of its modulus divided by e. Missing or repeated crossings are excluded
++from raw kinetics. For truncated KWW data this interval is not intrinsic fitted tau.
++Publication markers use the crossing's elapsed-time position; their tau annotation
++shows the interval.
++
++Spectrum outputs are **discrete modal weights**, with the same modulus units as
++input: `G(t) = G_eq + sum(w_j * exp(-t/tau_j))`. They are not continuous density
++per logarithmic bin. Changing the bin count changes individual weights. Tail
++subtraction is an assumption about equilibrium, not proof that equilibrium was reached.
++Reconstruction error is displayed, and amplitude scaling is restored after inversion.
++
++Changing data or fitting settings clears previous analysis results. Re-run analysis;
++changing curve selection or mastercurve reference invalidates derived results.
++Download the provenance JSON alongside fit parameters to retain the data/configuration
++hash, unit convention, reference observations, and preprocessing settings.
++
++### 4. Validation and shared review
++
++Run `python -m pytest -q` after installing `requirements-dev.txt`.
++The shared review entry point is [shared_review/README.md](shared_review/README.md).
++Synthetic and workflow tests support software verification; they do not replace
++independent experimental validation or parameter-identifiability assessment.
+ 
+ ---
+ 
+diff --git a/can_relax/core/analyzer.py b/can_relax/core/analyzer.py
+index c710765..ae1ae90 100644
+--- a/can_relax/core/analyzer.py
++++ b/can_relax/core/analyzer.py
+@@ -64,58 +64,56 @@ class CurveAnalyzer:
+         quality = self.auto.compute_signal_quality(t, g)
+         result['Quality'] = quality
+ 
+-        # 3. Fit Models
+-        # Only fit the specified model (or all if fit_model is None)
+-        models_to_fit = [fit_model] if fit_model is not None else ['Maxwell', 'Single_KWW', 'Dual_KWW']
+-
+-        # Single KWW
+-        if 'Single_KWW' in models_to_fit:
+-            model_s = self.models['Single_KWW']
+-            try:
+-                popt_s, _ = curve_fit(model_s.func, t, g, p0=model_s.get_initial_guess(t, g), bounds=model_s.get_bounds(), maxfev=5000)
+-                pred_s = model_s.func(t, *popt_s)
+-                r2_s, aic_s, bic_s = self._calculate_metrics(g, pred_s, 2)  # 2 params: tau, beta
+-                result['Fits']['Single_KWW'] = {'popt': popt_s, 'r2': r2_s, 'aic': aic_s, 'bic': bic_s, 'curve': pred_s}
+-            except Exception:
+-                result['Fits']['Single_KWW'] = {'r2': 0, 'aic': np.inf, 'bic': np.inf, 'curve': g, 'popt': [np.nan, np.nan]}
+-
+-        # Maxwell
+-        if 'Maxwell' in models_to_fit:
+-            model_m = self.models['Maxwell']
+-            try:
+-                popt_m, _ = curve_fit(model_m.func, t, g, p0=model_m.get_initial_guess(t, g), bounds=model_m.get_bounds(), maxfev=5000)
+-                pred_m = model_m.func(t, *popt_m)
+-                r2_m, aic_m, bic_m = self._calculate_metrics(g, pred_m, 1)  # 1 param: tau
+-                result['Fits']['Maxwell'] = {'popt': popt_m, 'r2': r2_m, 'aic': aic_m, 'bic': bic_m, 'curve': pred_m}
+-            except Exception:
+-                result['Fits']['Maxwell'] = {'r2': 0, 'aic': np.inf, 'bic': np.inf, 'curve': g, 'popt': [np.nan]}
+-
+-        # Dual KWW
+-        if 'Dual_KWW' in models_to_fit:
+-            model_d = self.models['Dual_KWW']
++        # Fit the measured ratio f(t)/f(t_ref), preserving the loading origin.
++        from can_relax.core.models import conditional_relaxation
++        models_to_fit = [fit_model] if fit_model is not None else list(self.models)
++        if any(name not in self.models for name in models_to_fit):
++            raise ValueError("Unknown relaxation model")
++        result['Preprocessing'] = {
++            'time_origin': 'elapsed_since_loading', 'reference_time': float(t[0]),
++            'reference_modulus': G0, 'input_points': len(df_raw), 'retained_points': len(t),
++        }
++        result['Warnings'] = []
++        if t[0] > 0:
++            result['Warnings'].append('Fit uses a retained-reference ratio; G0 is the observed reference modulus, not an inferred plateau.')
++        for name in models_to_fit:
++            model = self.models[name]
++            n_params = len(model.get_initial_guess(t, g))
++            def prediction(x, *params):
++                return conditional_relaxation(name, x, params, t[0])
+             try:
+-                p0_d = model_d.get_initial_guess(t, g)
+-                popt_d, _ = curve_fit(model_d.func, t, g, p0=p0_d, bounds=model_d.get_bounds(), maxfev=10000)
+-                # --- Label-switching fix: always enforce tau1 < tau2 ---
+-                A, tau1, beta1, tau2, beta2 = popt_d
+-                if tau1 > tau2:
+-                    # Swap modes so tau1 is always the fast (short) mode
+-                    A, tau1, beta1, tau2, beta2 = (1.0 - A), tau2, beta2, tau1, beta1
+-                    popt_d = np.array([A, tau1, beta1, tau2, beta2])
+-                pred_d = model_d.func(t, *popt_d)
+-                r2_d, aic_d, bic_d = self._calculate_metrics(g, pred_d, 5)  # 5 params: A, tau1, beta1, tau2, beta2
+-                result['Fits']['Dual_KWW'] = {'popt': popt_d, 'r2': r2_d, 'aic': aic_d, 'bic': bic_d, 'curve': pred_d}
+-            except Exception:
+-                result['Fits']['Dual_KWW'] = {'r2': 0, 'aic': np.inf, 'bic': np.inf, 'curve': g, 'popt': [np.nan]*5}
+-
+-
+-        # 4. Pick Best
+-        if result['Fits']:
+-            best_model = min(result['Fits'], key=lambda k: result['Fits'][k]['aic'])
+-        else:
+-            best_model = fit_model if fit_model is not None else 'Maxwell'
++                guess = np.maximum(model.get_initial_guess(t, g), np.asarray(model.get_bounds()[0]) + 1e-8)
++                popt, covariance = curve_fit(prediction, t, g, p0=guess,
++                    bounds=model.get_bounds(), maxfev=15000, x_scale='jac')
++                if name == 'Dual_KWW' and popt[1] > popt[3]:
++                    A, tau1, beta1, tau2, beta2 = popt
++                    popt = np.array([1-A, tau2, beta2, tau1, beta1])
++                    # Covariance ordering is transformed with the same mode permutation.
++                    jac = np.zeros((5, 5)); jac[0, 0] = -1
++                    jac[1, 3] = jac[2, 4] = jac[3, 1] = jac[4, 2] = 1
++                    covariance = jac @ covariance @ jac.T
++                pred = prediction(t, *popt)
++                if not np.all(np.isfinite(popt)) or not np.all(np.isfinite(pred)):
++                    raise ValueError('Nonfinite fit parameters or predictions')
++                r2, aicc, bic = self._calculate_metrics(g, pred, n_params)
++                result['Fits'][name] = {'success': True, 'popt': popt, 'r2': r2,
++                    'aic': aicc, 'bic': bic, 'curve': pred, 'covariance': covariance}
++            except (RuntimeError, ValueError, FloatingPointError) as exc:
++                result['Fits'][name] = {'success': False, 'error': str(exc),
++                    'r2': np.nan, 'aic': np.inf, 'bic': np.inf,
++                    'curve': np.full_like(g, np.nan), 'popt': np.full(n_params, np.nan)}
++        successful = [name for name, fit in result['Fits'].items() if fit['success']]
++        if not successful:
++            result.update(Valid=False, Best_Model=None, Reason='All requested fits failed',
++                          Auto_Explanation='No successful fit; excluded from downstream analysis.')
++            return result
++        best_model = min(successful, key=lambda name: result['Fits'][name]['aic'])
+         result['Best_Model'] = best_model
+-        
++        params = result['Fits'][best_model]['popt']
++        taus = [params[1], params[3]] if best_model == 'Dual_KWW' else [params[0]]
++        if any(tau < t[0] or tau > t[-1] for tau in taus):
++            result['Warnings'].append('A fitted relaxation time lies outside the retained measurement window; parameter recovery may be weakly constrained.')
++
+         # 5. Auto Explanation (With WLF Warning)
+         if best_model in result['Fits'] and result['Fits'][best_model]['r2'] > 0:
+             best_r2 = result['Fits'][best_model]['r2']
+@@ -129,4 +127,4 @@ class CurveAnalyzer:
+             
+         result['Auto_Explanation'] = explanation
+         
+-        return result
+\ No newline at end of file
++        return result
+diff --git a/can_relax/core/kinetics.py b/can_relax/core/kinetics.py
+index ed40c93..77e28b8 100644
+--- a/can_relax/core/kinetics.py
++++ b/can_relax/core/kinetics.py
+@@ -7,6 +7,35 @@ H_PLANCK = 6.62607015e-34  # J*s
+ K_BOLTZMANN = 1.380649e-23  # J/K
+ LN_H_OVER_KB = np.log(H_PLANCK / K_BOLTZMANN)  # ~ -23.759978
+ 
++def predict_van_t_hoff(T_K, A, dH_diss, dS_diss):
++    """Predict modulus: A [MPa/K], dH [J/mol], dS [J/(mol K)], T [K]."""
++    T = np.asarray(T_K, dtype=float)
++    exponent = -dH_diss / (R_GAS * T) + dS_diss / R_GAS
++    return A * T * np.exp(-np.logaddexp(0.0, exponent))
++
++
++def predict_coupled(T_K, ln_A, Ea, ln_C, B, T0):
++    """Predict log(tau) stably; Ea [J/mol], temperatures and B [K]."""
++    T = np.asarray(T_K, dtype=float)
++    return np.logaddexp(ln_A + Ea / (R_GAS * T), ln_C + B / (T - T0))
++
++
++def _validated_inputs(temps_C, values, minimum):
++    """Require finite physical arrays and enough distinct temperatures."""
++    try:
++        temperatures = np.asarray(temps_C, dtype=float)
++        values = np.asarray(values, dtype=float)
++    except (TypeError, ValueError):
++        return None
++    if (temperatures.ndim != 1 or values.ndim != 1
++            or temperatures.shape != values.shape or len(values) < minimum
++            or not np.all(np.isfinite(temperatures)) or not np.all(np.isfinite(values))
++            or np.any(temperatures <= -273.15) or np.any(values <= 0)
++            or np.unique(temperatures).size < minimum):
++        return None
++    return temperatures + 273.15, values
++
++
+ class KineticsEngine:
+     def __init__(self):
+         pass
+@@ -16,9 +45,10 @@ class KineticsEngine:
+         Fits ln(tau) = ln(tau0) + Ea / (R * T)
+         Returns: Ea (kJ/mol), R2, and fit curve.
+         """
+-        if len(temps_C) < 2: return None
+-
+-        T_K = np.array(temps_C) + 273.15
++        inputs = _validated_inputs(temps_C, taus, 2)
++        if inputs is None:
++            return None
++        T_K, taus = inputs
+         inv_T = 1000.0 / T_K
+         ln_tau = np.log(np.array(taus))
+ 
+@@ -29,10 +59,11 @@ class KineticsEngine:
+         
+         Ea_J = slope_std * R_GAS
+         Ea_kJ = Ea_J / 1000.0
+-        Ea_std_kJ = (stderr_std * R_GAS) / 1000.0
++        Ea_std_kJ = (stderr_std * R_GAS) / 1000.0 if len(taus) > 2 else np.nan
+         
+         return {
+             "Type": "Arrhenius",
++            "Warning": "Two observations: uncertainty cannot be estimated." if len(taus) == 2 else None,
+             "Ea": Ea_kJ,
+             "Ea_std": Ea_std_kJ,
+             "R2": r_std**2,
+@@ -45,23 +76,25 @@ class KineticsEngine:
+         Fits Eyring equation: ln(tau * T) = ln(h / kB) - dS / R + dH / (R * T)
+         Returns: dH (kJ/mol), dS (J/mol*K), R2, and fit curve.
+         """
+-        if len(temps_C) < 2: return None
+-
+-        T_K = np.array(temps_C) + 273.15
++        inputs = _validated_inputs(temps_C, taus, 2)
++        if inputs is None:
++            return None
++        T_K, taus = inputs
+         inv_T = 1.0 / T_K
+-        y_val = np.log(np.array(taus) * T_K)
++        y_val = np.log(taus) + np.log(T_K)
+ 
+         slope, intercept, r_val, _, stderr = linregress(inv_T, y_val)
+ 
+         dH_J = slope * R_GAS
+         dH_kJ = dH_J / 1000.0
+-        dH_std_kJ = (stderr * R_GAS) / 1000.0
++        dH_std_kJ = (stderr * R_GAS) / 1000.0 if len(taus) > 2 else np.nan
+ 
+         # intercept = LN_H_OVER_KB - dS / R  =>  dS = R * (LN_H_OVER_KB - intercept)
+         dS = R_GAS * (LN_H_OVER_KB - intercept)
+ 
+         return {
+             "Type": "Eyring",
++            "Warning": "Two observations: uncertainty cannot be estimated." if len(taus) == 2 else None,
+             "dH": dH_kJ,
+             "dH_std": dH_std_kJ,
+             "dS": dS,
+@@ -73,22 +106,16 @@ class KineticsEngine:
+     def fit_van_t_hoff(self, temps_C, G0s):
+         """
+         Fits temperature dependence of plateau modulus G0 using Van 't Hoff:
+-        G0(T) = G0_max / (1 + exp(-dH_diss / (R * T) + dS_diss / R))
+-        Returns: dH_diss (kJ/mol), dS_diss (J/mol*K), G0_max (MPa/Pa), R2, and fit curve.
++        G0(T) = A*T / (1 + exp(-dH_diss / (R * T) + dS_diss / R))
++        Returns: dH_diss (kJ/mol), dS_diss (J/mol*K), A (MPa/K), R2, and fit curve.
+         """
+-        if len(temps_C) < 3: return None
+-
+-        T_K = np.array(temps_C) + 273.15
+-        G0s = np.array(G0s)
+-
+-        def van_t_hoff_func(T, A, dH, dS):
+-            exponent = -dH / (R_GAS * T) + dS / R_GAS
+-            exponent = np.clip(exponent, -50.0, 50.0)
+-            return (A * T) / (1.0 + np.exp(exponent))
++        inputs = _validated_inputs(temps_C, G0s, 4)
++        if inputs is None:
++            return None
++        T_K, G0s = inputs
+ 
+         try:
+-            # Initial guess: G0_max roughly occurs at high T? No, A*T is the max.
+-            # So A ~ np.max(G0s) / np.min(T_K)
++            # A*T is the fully associated modulus envelope.
+             A_p0 = float(np.max(G0s) / np.max(T_K) * 1.5)
+             # Transesterification/bond dissociation typically has dH around 60-120 kJ/mol
+             p0 = [A_p0, 80000.0, 150.0]
+@@ -97,8 +124,10 @@ class KineticsEngine:
+                 [np.max(G0s) / np.min(T_K) * 10.0, 500000.0, 500.0]
+             )
+ 
+-            popt, _ = curve_fit(van_t_hoff_func, T_K, G0s, p0=p0, bounds=bounds, maxfev=5000)
+-            pred = van_t_hoff_func(T_K, *popt)
++            popt, _ = curve_fit(predict_van_t_hoff, T_K, G0s, p0=p0, bounds=bounds, maxfev=5000)
++            pred = predict_van_t_hoff(T_K, *popt)
++            if not np.all(np.isfinite(popt)) or not np.all(np.isfinite(pred)):
++                return None
+ 
+             ss_res = np.sum((G0s - pred)**2)
+             ss_tot = np.sum((G0s - np.mean(G0s))**2)
+@@ -107,11 +136,12 @@ class KineticsEngine:
+             return {
+                 "Type": "Van_t_Hoff",
+                 "A": popt[0],
+-                "G0_max": popt[0],
+                 "dH_diss": popt[1] / 1000.0,  # to kJ/mol
+                 "dS_diss": popt[2],  # J/mol*K
+                 "R2": r2,
+-                "Params": {"G0_max": popt[0], "dH_diss": popt[1], "dS_diss": popt[2]},
++                "Units": {"A": "MPa/K", "dH_diss": "kJ/mol", "dS_diss": "J/(mol K)"},
++                "Parameter_units": {"A": "MPa/K", "dH_diss": "J/mol", "dS_diss": "J/(mol K)"},
++                "Params": {"A": popt[0], "dH_diss": popt[1], "dS_diss": popt[2]},
+                 "Plot": {"x": 1000.0 / T_K, "y": G0s, "y_pred": pred}
+             }
+         except Exception as e:
+@@ -122,11 +152,12 @@ class KineticsEngine:
+         """
+         Fits ln(tau) = A + B / (T - T0)
+         """
+-        if len(temps_C) < 4: return None
+-        
+-        T_K = np.array(temps_C) + 273.15
+-        ln_tau = np.log(np.array(taus))
+-        
++        inputs = _validated_inputs(temps_C, taus, 4)
++        if inputs is None:
++            return None
++        T_K, taus = inputs
++        ln_tau = np.log(taus)
++
+         def vft_func(T, A, B, T0):
+             return A + B / (T - T0)
+         
+@@ -138,6 +169,8 @@ class KineticsEngine:
+             
+             # Calc R2
+             pred = vft_func(T_K, *popt)
++            if not np.all(np.isfinite(popt)) or not np.all(np.isfinite(pred)):
++                return None
+             ss_res = np.sum((ln_tau - pred)**2)
+             ss_tot = np.sum((ln_tau - np.mean(ln_tau))**2)
+             r2 = 1.0 - (ss_res / ss_tot) if ss_tot > 0 else 0.0
+@@ -158,10 +191,18 @@ class KineticsEngine:
+         Fits ln(tau) = ln(A * exp(Ea / (R * T)) + C * exp(B / (T - T0)))
+         T0 is fixed to Tg - 50 K (if Tg is provided) or fit with bounds.
+         """
+-        if len(temps_C) < 4: return None
+-
+-        T_K = np.array(temps_C) + 273.15
+-        ln_tau = np.log(np.array(taus))
++        inputs = _validated_inputs(temps_C, taus, 5 if Tg is not None else 6)
++        if inputs is None:
++            return None
++        T_K, taus = inputs
++        ln_tau = np.log(taus)
++        if Tg is not None:
++            try:
++                Tg = float(Tg)
++            except (TypeError, ValueError):
++                return None
++            if not np.isfinite(Tg) or Tg <= -273.15:
++                return None
+ 
+         if Tg is not None:
+             T0_val = 273.15 + (Tg - 50.0)
+@@ -169,9 +210,7 @@ class KineticsEngine:
+             T0_val = min(T0_val, T_K.min() - 5.0)
+             
+             def coupled_fixed_T0(T, ln_A, Ea, ln_C, B):
+-                term1 = np.exp(ln_A + Ea / (R_GAS * T))
+-                term2 = np.exp(ln_C + B / (T - T0_val))
+-                return np.log(term1 + term2)
++                return predict_coupled(T, ln_A, Ea, ln_C, B, T0_val)
+ 
+             try:
+                 # Guesses: ln_A (chem), Ea (chem), ln_C (glass), B (glass VFT)
+@@ -182,6 +221,8 @@ class KineticsEngine:
+                 )
+                 popt, _ = curve_fit(coupled_fixed_T0, T_K, ln_tau, p0=p0, bounds=bounds, maxfev=5000)
+                 pred = coupled_fixed_T0(T_K, *popt)
++                if not np.all(np.isfinite(popt)) or not np.all(np.isfinite(pred)):
++                    return None
+ 
+                 ss_res = np.sum((ln_tau - pred)**2)
+                 ss_tot = np.sum((ln_tau - np.mean(ln_tau))**2)
+@@ -202,9 +243,7 @@ class KineticsEngine:
+         else:
+             # Fit T0 as a parameter
+             def coupled_free_T0(T, ln_A, Ea, ln_C, B, T0):
+-                term1 = np.exp(ln_A + Ea / (R_GAS * T))
+-                term2 = np.exp(np.clip(ln_C + B / (T - T0), -50, 50))
+-                return np.log(term1 + term2)
++                return predict_coupled(T, ln_A, Ea, ln_C, B, T0)
+ 
+             try:
+                 p0 = [np.log(min(taus)) - 10, 80000.0, np.log(max(taus)), 1500.0, T_K.min() - 50.0]
+@@ -214,6 +253,8 @@ class KineticsEngine:
+                 )
+                 popt, _ = curve_fit(coupled_free_T0, T_K, ln_tau, p0=p0, bounds=bounds, maxfev=10000)
+                 pred = coupled_free_T0(T_K, *popt)
++                if not np.all(np.isfinite(popt)) or not np.all(np.isfinite(pred)):
++                    return None
+ 
+                 ss_res = np.sum((ln_tau - pred)**2)
+                 ss_tot = np.sum((ln_tau - np.mean(ln_tau))**2)
+diff --git a/can_relax/core/models.py b/can_relax/core/models.py
+index 29b9482..f771b96 100644
+--- a/can_relax/core/models.py
++++ b/can_relax/core/models.py
+@@ -1,5 +1,22 @@
+ import numpy as np
+ 
++
++def conditional_relaxation(name, t, params, reference_time):
++    """Predict G(t)/G(reference_time) in log space without resetting physical time."""
++    t = np.asarray(t, dtype=float)
++    def log_decay(x):
++        if name == 'Maxwell':
++            return -x / params[0]
++        if name == 'Single_KWW':
++            return -(x / params[0]) ** params[1]
++        if name == 'Dual_KWW':
++            A, tau1, beta1, tau2, beta2 = params
++            with np.errstate(divide='ignore'):
++                return np.logaddexp(np.log(A) - (x/tau1)**beta1,
++                                    np.log1p(-A) - (x/tau2)**beta2)
++        raise ValueError('Unknown relaxation model')
++    return np.exp(log_decay(t) - log_decay(np.asarray(reference_time)))
++
+ class Maxwell:
+     def func(self, t, tau):
+         # Safety: Prevent division by zero
+@@ -55,4 +72,4 @@ class DualKWW:
+         return (
+             [0.0, 1e-9, 0.1, 1e-9, 0.1], 
+             [1.0, 1e12, 1.0, 1e12, 1.0]
+-        )
+\ No newline at end of file
++        )
+diff --git a/can_relax/core/processing.py b/can_relax/core/processing.py
+index 6fcd576..f379c9d 100644
+--- a/can_relax/core/processing.py
++++ b/can_relax/core/processing.py
+@@ -13,7 +13,10 @@ class DataProcessor:
+         Returns: (t_trimmed, g_normalized, G0) or (None, None, None)
+         """
+         # 1. Basic Cleaning (Remove NaNs, Infs, Negatives)
+-        mask = (g > 0) & np.isfinite(g) & np.isfinite(t)
++        t, g = np.asarray(t, dtype=float), np.asarray(g, dtype=float)
++        if t.ndim != 1 or g.shape != t.shape:
++            return None, None, None
++        mask = (g > 0) & (t >= 0) & np.isfinite(g) & np.isfinite(t)
+         t = t[mask]
+         g = g[mask]
+         
+@@ -24,6 +27,12 @@ class DataProcessor:
+         idx = np.argsort(t)
+         t = t[idx]
+         g = g[idx]
++        if len(np.unique(t)) != len(t):
++            # Replicated timestamps have no unique interpolation/reference meaning.
++            grouped = pd.DataFrame({'t': t, 'g': g}).groupby('t', sort=True).mean()
++            t, g = grouped.index.to_numpy(), grouped['g'].to_numpy()
++        if len(t) < self.min_points or t[-1] <= t[0]:
++            return None, None, None
+ 
+         # 3. Smoothing (Savitzky-Golay) to find the true peak
+         # Dynamic window size: smaller of 11 or 10% of data
+@@ -79,13 +88,11 @@ class DataProcessor:
+             return None, None, None
+ 
+         # 8. Normalize
+-        # Time starts at 0.01 (better numerical stability than 1e-6)
+-        t_final = t_clean - t_clean[0] + 0.01
++        # Preserve elapsed loading time. Trimming must not change the physical origin.
++        t_final = t_clean.copy()
+         
+-        # G0 should be the maximum value (peak of the curve after trimming start artifacts)
+-        # Taking max of first 10% of points to be robust against single outliers
+-        n_init = max(3, min(10, len(g_clean) // 10))
+-        G0 = np.max(g_clean[:n_init])
++        # Reference modulus is measured at the first retained time, not inferred at t=0.
++        G0 = float(g_clean[0])
+         
+         g_final = g_clean / G0
+ 
+@@ -94,7 +101,8 @@ class DataProcessor:
+         # while significantly reducing size to make KWW/Dual-KWW fitting and Tikhonov Ridge regression instant.
+         max_pts = 250
+         if len(t_final) > max_pts:
+-            bins = np.logspace(np.log10(t_final[0]), np.log10(t_final[-1]), max_pts)
++            positive = t_final[t_final > 0]
++            bins = np.geomspace(positive[0], t_final[-1], max_pts - 1)
+             indices = []
+             for b in bins:
+                 idx = np.abs(t_final - b).argmin()
+@@ -109,4 +117,4 @@ class DataProcessor:
+             t_final = t_final[indices]
+             g_final = g_final[indices]
+ 
+-        return t_final, g_final, G0
+\ No newline at end of file
++        return t_final, g_final, G0
+diff --git a/can_relax/core/spectrum.py b/can_relax/core/spectrum.py
+index c692053..ca7a691 100644
+--- a/can_relax/core/spectrum.py
++++ b/can_relax/core/spectrum.py
+@@ -16,7 +16,9 @@ class SpectrumAnalyzer:
+ 
+     def compute_continuous_spectrum(self, t, g, num_modes=50, alpha=0.1, optimize_alpha=False, subtract_G_eq=True):
+         """
+-        Calculates H(tau) using Tikhonov Regularization (Ridge Regression).
++        Calculates discrete modal weights w_j using nonnegative Ridge regression.
++        Reconstruction: G(t) = G_eq + sum_j w_j exp(-t/tau_j).
++        Weights have input modulus units; they are not density per log-time bin.
+         t: Time array (s)
+         g: Modulus array (normalized G/G0 or absolute G)
+         num_modes: Number of tau bins (resolution)
+@@ -24,6 +26,13 @@ class SpectrumAnalyzer:
+         optimize_alpha: If True, uses the L-curve corner method to find the optimal alpha.
+         subtract_G_eq: If True, detects and subtracts the non-zero equilibration modulus tail value.
+         """
++        t, g = np.asarray(t, dtype=float), np.asarray(g, dtype=float)
++        if (t.ndim != 1 or g.shape != t.shape or len(t) < 3
++                or not np.all(np.isfinite(t)) or not np.all(np.isfinite(g))
++                or np.any(t < 0) or np.any(np.diff(t) <= 0) or g[0] <= 0):
++            raise ValueError('Spectrum requires finite, increasing nonnegative times and positive initial modulus')
++        if num_modes < 2 or alpha <= 0 or not np.isfinite(alpha):
++            raise ValueError('Use at least two modes and positive finite alpha')
+         # 1. Detect and subtract G_eq (equilibration modulus tail)
+         if subtract_G_eq:
+             # Average of last 5% of data points as equilibration modulus
+@@ -35,20 +44,21 @@ class SpectrumAnalyzer:
+             g_offset = g - G_eq
+             # Normalize to the initial offset value for stable inversion
+             G_init_offset = g_offset[0]
+-            if G_init_offset > 0.01:
++            if G_init_offset > 0:
+                 g_target = g_offset / G_init_offset
+             else:
+                 g_target = g_offset
++                G_init_offset = 1.0
+         else:
+             G_eq = 0.0
+-            G_init_offset = 1.0
+-            g_target = g
++            G_init_offset = float(g[0])
++            g_target = g / G_init_offset
+             
+         self.last_G_eq = G_eq
+         self.last_G_init_offset = G_init_offset
+ 
+         # 2. Define Tau Grid (Logarithmically spaced)
+-        tau_min = t.min() / 2.0
++        tau_min = t[t > 0].min() / 2.0
+         tau_max = t.max() * 5.0
+         tau_grid = np.logspace(np.log10(tau_min), np.log10(tau_max), num_modes)
+         
+@@ -63,7 +73,7 @@ class SpectrumAnalyzer:
+             H_grid = []
+             
+             for a in alpha_grid:
+-                solver = Ridge(alpha=a, positive=True, fit_intercept=False)
++                solver = Ridge(alpha=a, positive=True, fit_intercept=False, tol=1e-10, max_iter=10000)
+                 solver.fit(A, g_target)
+                 H_val = solver.coef_
+                 
+@@ -103,11 +113,15 @@ class SpectrumAnalyzer:
+             H_values = H_grid[best_idx]
+             self.last_alpha = best_alpha
+         else:
+-            solver = Ridge(alpha=alpha, positive=True, fit_intercept=False)
++            solver = Ridge(alpha=alpha, positive=True, fit_intercept=False, tol=1e-10, max_iter=10000)
+             solver.fit(A, g_target)
+             H_values = solver.coef_
+             self.last_alpha = alpha
+             
++        # Return discrete modal weights in the INPUT modulus units, not density.
++        H_values = H_values * G_init_offset
++        self.last_reconstruction = A @ H_values + G_eq
++        self.last_relative_rmse = float(np.sqrt(np.mean((self.last_reconstruction - g)**2)) / g[0])
+         return tau_grid, H_values
+ 
+     def get_weighted_avg_tau(self, tau_grid, H_values):
+@@ -116,4 +130,4 @@ class SpectrumAnalyzer:
+         # Weighted log average
+         log_tau = np.log10(tau_grid)
+         avg_log_tau = np.average(log_tau, weights=H_values)
+-        return 10**avg_log_tau
+\ No newline at end of file
++        return 10**avg_log_tau
+diff --git a/can_relax/core/tts.py b/can_relax/core/tts.py
+index 4762cdb..bc6d756 100644
+--- a/can_relax/core/tts.py
++++ b/can_relax/core/tts.py
+@@ -18,6 +18,12 @@ class TTSEngine:
+         Shift Factor a_T = tau(T) / tau(T_ref)
+         """
+         if not results: return None
++        for res in results:
++            fit = res.get('Fits', {}).get(res.get('Best_Model'), {})
++            if not res.get('Valid', False) or not fit.get('success', False):
++                raise ValueError('Mastercurve requires successful fits for every selected curve')
++            if not np.all(np.isfinite(fit['popt'])):
++                raise ValueError('Mastercurve requires finite parameters')
+         
+         # 1. Sort results by Temperature
+         sorted_res = sorted(results, key=lambda x: x['Temp'])
+@@ -45,9 +51,11 @@ class TTSEngine:
+             # tau1 is guaranteed < tau2 after the label-switching fix in analyzer.py.
+             # This is consistent with the Kinetics tab which also uses popt[3].
+             if best == 'Dual_KWW': return popt[3]
+-            return 1.0
++            raise ValueError('Unknown relaxation model')
+ 
+         tau_ref = get_tau(ref_res)
++        if tau_ref <= 0 or not np.isfinite(tau_ref):
++            raise ValueError('Reference relaxation time must be finite and positive')
+         
+         master_t = []
+         master_g = []
+@@ -56,10 +64,15 @@ class TTSEngine:
+         for res in sorted_res:
+             T = res['Temp']
+             tau = get_tau(res)
++            if tau <= 0 or not np.isfinite(tau):
++                raise ValueError('Relaxation times must be finite and positive')
+             
+             # Calculate Shift Factor a_T
+             aT = tau / tau_ref
+-            shift_factors[T] = aT
++            curve_id = res.get('Curve_ID', str(T))
++            if curve_id in shift_factors:
++                raise ValueError('Each replicate must have a unique curve identifier')
++            shift_factors[curve_id] = aT
+             
+             # Shift Time: t_master = t / aT
+             # Logarithmic shift: log(t) - log(aT)
+@@ -81,4 +94,4 @@ class TTSEngine:
+             "Master_t": full_t[sort_idx],
+             "Master_g": full_g[sort_idx],
+             "Shifts": shift_factors
+-        }
+\ No newline at end of file
++        }
+diff --git a/can_relax/gui/app.py b/can_relax/gui/app.py
+index e398f5b..c68cb00 100644
+--- a/can_relax/gui/app.py
++++ b/can_relax/gui/app.py
+@@ -51,9 +51,12 @@ if not hasattr(backend_agg.RendererAgg, '_patched_by_us'):
+     backend_agg.RendererAgg._patched_by_us = True
+ 
+ # Import proper modules from can_relax
+-from can_relax.io.parser import parse_wide_format_data as parser_module_func
++from can_relax.io.parser import parse_curve_records as parser_module_func
++from can_relax.core.observations import relaxation_crossing
++from can_relax.core.state import analysis_identity, clear_analysis, clear_derived
++from pathlib import Path
+ from can_relax.core.simulator import MaterialSimulator
+-from can_relax.core.kinetics import KineticsEngine
++from can_relax.core.kinetics import KineticsEngine, predict_van_t_hoff, predict_coupled
+ from can_relax.core.tts import TTSEngine
+ from can_relax.core.analyzer import CurveAnalyzer
+ from can_relax.core.spectrum import SpectrumAnalyzer
+@@ -139,7 +142,7 @@ def parse_uploaded_file(uploaded_file):
+         return {}
+     
+     # Save to temporary file
+-    with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx' if 'xlsx' in uploaded_file.name else '.csv') as tmp:
++    with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx' if uploaded_file.name.lower().endswith('.xlsx') else '.csv') as tmp:
+         tmp.write(uploaded_file.getbuffer())
+         tmp_path = tmp.name
+     
+@@ -178,16 +181,12 @@ def cached_compute_continuous_spectrum(t, g, num_modes, alpha, optimize_alpha, s
+         t, g, num_modes=num_modes, alpha=alpha, 
+         optimize_alpha=optimize_alpha, subtract_G_eq=subtract_G_eq
+     )
+-    return tau_grid, H, engine.last_alpha, engine.last_G_eq
++    return tau_grid, H, engine.last_alpha, engine.last_G_eq, engine.last_relative_rmse
+ 
+ # Helper
+ def get_tau_1_over_e(t, g):
+-    target = 0.36788 * g[0] # Scale target by G0
+-    try:
+-        if g[0] > g[-1]: return np.interp(target, g[::-1], t[::-1])
+-    except Exception as e:
+-        print(f"Interpolation failed in get_tau_1_over_e: {e}")
+-    return np.nan
++    return relaxation_crossing(t, g)['tau']
++
+ 
+ # TABS
+ tab_analysis, tab_sim, tab_pub, tab_comparison, tab_plotting, tab_education, tab_credits = st.tabs([
+@@ -212,31 +211,41 @@ with tab_analysis:
+     with st.sidebar.expander("ÔÜÖ´©Å Physics & Fitting", expanded=True):
+         G_prime_input = st.number_input("Rubbery G' (MPa)", 0.01, 5000.0, 1.0, help="Used for Tv calculation")
+         Tg_input = st.number_input("Tg (┬░C)", value=50.0, help="Curves below this temperature are skipped")
++        time_origin = st.number_input("Loading time origin (s)", value=0.0, help="Subtract this instrument clock value to obtain elapsed time since loading. Cutoffs do not reset this origin.")
+         time_cutoff = st.number_input("Short-Time Cutoff (s)", 0.0, 1000.0, 0.0, step=0.1, help="Discard data points where time < this threshold to remove loading transients/machinery artifacts")
+         st.markdown("---")
+-        fit_model = st.selectbox("Model", ["Maxwell", "Single_KWW", "Dual_KWW"])
++        fit_model = st.selectbox("Model", ["Maxwell", "Single_KWW", "Dual_KWW"], key="analysis_fit_model")
+         kinetics_mode = st.radio("Kinetics Base:", ["Fit Parameter", "Raw 1/e"])
++        st.caption("Raw 1/e is the interval from the first retained observation. For a truncated KWW curve it is not the intrinsic fitted tau.")
+ 
+     # ÔöÇÔöÇ Always-visible Run button ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+     st.sidebar.markdown("---")
+     run_btn = st.sidebar.button("ÔûÂ Run Analysis", type="primary", width='stretch')
+ 
+-    # PROCESS
++    source_bytes = uploaded_file.getvalue() if uploaded_file else (Path("examples/toy_data.csv").read_bytes() if use_example_data else b'')
++    current_id = analysis_identity(source_bytes, {'model': fit_model, 'Tg': Tg_input,
++        'cutoff': time_cutoff, 'origin': time_origin})
++    if st.session_state.get('analysis_id') != current_id:
++        clear_analysis(st.session_state)
++    # PROCESS: clear old state before parsing so a failed upload cannot retain old results.
+     if (uploaded_file or use_example_data) and run_btn:
+-        # Use the wrapper to parse Streamlit UploadedFile
+-        if uploaded_file:
+-            curves = parse_uploaded_file(uploaded_file)
+-        else:
+-            curves = parser_module_func("examples/toy_data.csv")
+-        
+-        if not curves: st.error("Parsing failed. Data must be columns of Temp/Time/Modulus."); st.stop()
+-        
++        clear_analysis(st.session_state)
++        try:
++            curves = parse_uploaded_file(uploaded_file) if uploaded_file else parser_module_func("examples/toy_data.csv")
++        except (ValueError, OSError) as exc:
++            st.error(f"Input rejected: {exc}")
++            st.stop()
++        if not curves:
++            st.error("No curves found. Check the documented CSV/XLSX layouts.")
++            st.stop()
+         res = []
+         skipped = []
+         bar = st.progress(0)
+ 
+         idx = 0
+-        for temp, df in curves.items():
++        for record in curves:
++            temp, df = record["Temp"], record["Data"].copy()
++            df["Time"] = df["Time"] - time_origin
+             # Apply short-time cutoff if set
+             if time_cutoff > 0.0:
+                 df = df[df['Time'] >= time_cutoff].copy()
+@@ -245,7 +254,11 @@ with tab_analysis:
+             out = cached_fit_one_temp(temp, df, Tg_input, fit_model)
+             if out.get('Valid', False):
+                 out['Best_Model'] = fit_model 
+-                out['Tau_1e'] = get_tau_1_over_e(out['Raw']['t'], out['Raw']['g'])
++                out['Curve_ID'] = record['Curve_ID']
++                crossing = relaxation_crossing(out['Raw']['t'], out['Raw']['g'])
++                out['Crossing'] = crossing
++                out['Tau_1e'] = crossing['tau']
++                out['Crossing_Time'] = crossing['crossing_time']
+                 res.append(out)
+             else:
+                 reason = out.get('Reason', 'Below Tg')
+@@ -254,19 +267,36 @@ with tab_analysis:
+             bar.progress(idx/len(curves))
+             
+         st.session_state.results = res
++        st.session_state.analysis_id = current_id
+         if res: st.success(f"Processed {len(res)} curves.")
+         if skipped: st.warning(f"Skipped curves: {', '.join(skipped)}")
+ 
+     # DISPLAY
+     if 'results' in st.session_state and st.session_state.results:
+         all_results = st.session_state.results
++        metadata = {'analysis_id': current_id, 'model': fit_model, 'Tg_C': Tg_input,
++            'cutoff_s': time_cutoff, 'loading_origin_s': time_origin,
++            'units': {'time': 's', 'modulus': 'MPa', 'temperature': 'C'},
++            'curves': [{'curve_id': r['Curve_ID'], 'temperature_C': r['Temp'],
++                        'preprocessing': r['Preprocessing'], 'warnings': r['Warnings']}
++                       for r in all_results]}
++        st.download_button('Download analysis provenance JSON', json.dumps(metadata, indent=2),
++                           'analysis_provenance.json', mime='application/json')
++        for r in all_results:
++            for warning in r['Warnings']:
++                st.caption(f"{r['Curve_ID']}: {warning}")
+         
+         # Live Filter
+-        all_temps = sorted([r['Temp'] for r in all_results])
+-        col_sel, _ = st.columns([2, 1])
++        labels = {r['Curve_ID']: f"{r['Temp']:g} C / {r['Curve_ID']}" for r in all_results}
++        col_sel, _ = st.columns([1, 1])
+         with col_sel:
+-            selected_temps = st.multiselect("Select Curves:", all_temps, default=all_temps)
+-        active_results = [r for r in all_results if r['Temp'] in selected_temps]
++            selected_curves = st.multiselect("Select Curves:", list(labels), default=list(labels),
++                format_func=labels.get, key=f"selection_{current_id}")
++        active_results = [r for r in all_results if r['Curve_ID'] in selected_curves]
++        selection_id = analysis_identity(current_id.encode(), {'curves': selected_curves, 'kinetics': kinetics_mode})
++        if st.session_state.get('selection_id') != selection_id:
++            clear_derived(st.session_state)
++            st.session_state.selection_id = selection_id
+         st.session_state.active_results = active_results 
+ 
+         t1, t2, t3, t4 = st.tabs(["Curves", "Kinetics", "Mastercurve", "\U0001f308 Spectrum"])
+@@ -295,7 +325,7 @@ with tab_analysis:
+                     x=t_raw[::step],
+                     y=g_plot[::step],
+                     mode='markers',
+-                    name=f"{r['Temp']}C",
++                    name=f"{r['Temp']}C / {r['Curve_ID']}",
+                     marker=dict(size=6, opacity=0.8)
+                 ))
+                 if show_fits and fit_model in r['Fits']:
+@@ -305,7 +335,7 @@ with tab_analysis:
+                         x=t_raw,
+                         y=g_fit_plot,
+                         mode='lines',
+-                        name=f"Fit",
++                        name=f"Fit / {r['Curve_ID']}",
+                         line=dict(width=2, dash='dash', color='black')
+                     ))
+ 
+@@ -329,11 +359,11 @@ with tab_analysis:
+                         aic = r['Fits'][fit_model].get('aic', np.inf)
+                         bic = r['Fits'][fit_model].get('bic', np.inf)
+                         if fit_model == "Maxwell":
+-                            fit_details.append({"Temperature (\u00b0C)": temp, "G0 (MPa)": g0, "Tau (s)": p[0], "R\u00b2": r2, "AICc": aic, "BIC": bic})
++                            fit_details.append({"Curve ID": r["Curve_ID"], "Temperature (\u00b0C)": temp, "G0 (MPa)": g0, "Tau (s)": p[0], "R\u00b2": r2, "AICc": aic, "BIC": bic})
+                         elif fit_model == "Single_KWW":
+-                            fit_details.append({"Temperature (\u00b0C)": temp, "G0 (MPa)": g0, "Tau (s)": p[0], "Beta (\u03b2)": p[1], "R\u00b2": r2, "AICc": aic, "BIC": bic})
++                            fit_details.append({"Curve ID": r["Curve_ID"], "Temperature (\u00b0C)": temp, "G0 (MPa)": g0, "Tau (s)": p[0], "Beta (\u03b2)": p[1], "R\u00b2": r2, "AICc": aic, "BIC": bic})
+                         elif fit_model == "Dual_KWW":
+-                            fit_details.append({"Temperature (\u00b0C)": temp, "G0 (MPa)": g0, "Fraction A": p[0], "Tau 1 (s)": p[1], "Beta 1 (\u03b21)": p[2], "Tau 2 (s)": p[3], "Beta 2 (\u03b22)": p[4], "R\u00b2": r2, "AICc": aic, "BIC": bic})
++                            fit_details.append({"Curve ID": r["Curve_ID"], "Temperature (\u00b0C)": temp, "G0 (MPa)": g0, "Fraction A": p[0], "Tau 1 (s)": p[1], "Beta 1 (\u03b21)": p[2], "Tau 2 (s)": p[3], "Beta 2 (\u03b22)": p[4], "R\u00b2": r2, "AICc": aic, "BIC": bic})
+                 if fit_details:
+                     df_details = pd.DataFrame(fit_details)
+                     col_config = {
+@@ -360,7 +390,9 @@ with tab_analysis:
+ 
+         # 2. KINETICS
+         with t2:
++            st.caption("G0 denotes the first retained reference modulus, not an inferred zero-time plateau. Raw 1/e requires one observed crossing.")
+             k_data = []
++            st.session_state.kinetics_df = pd.DataFrame()
+             for r in active_results:
+                 t_val = np.nan
+                 if kinetics_mode == "Raw 1/e": t_val = r.get('Tau_1e', np.nan)
+@@ -371,8 +403,10 @@ with tab_analysis:
+                     elif fit_model == "Dual_KWW": idx = 3
+                     else: idx = 0
+                     t_val = p[idx]
+-                if t_val > 0:
+-                    k_data.append({"Include": True, "Temp": r['Temp'], "1000/T": 1000.0/(r['Temp']+273.15), "Tau": t_val, "ln(Tau)": np.log(t_val), "Type": "Main"})
++                if kinetics_mode == 'Raw 1/e' and r['Crossing']['status'] != 'observed':
++                    st.warning(f"{r['Temp']:g} C / {r['Curve_ID']}: 1/e {r['Crossing']['status']}; excluded from raw kinetics.")
++                if np.isfinite(t_val) and t_val > 0:
++                    k_data.append({"Curve_ID": r["Curve_ID"], "Include": True, "Temp": r['Temp'], "1000/T": 1000.0/(r['Temp']+273.15), "Tau": t_val, "ln(Tau)": np.log(t_val), "Type": "Main"})
+ 
+             if k_data:
+                 df_k = pd.DataFrame(k_data)
+@@ -380,7 +414,7 @@ with tab_analysis:
+                 with col_edit:
+                     st.markdown("##### Outlier Rejection")
+                     st.caption("Uncheck rows to exclude them from the fit.")
+-                    edited_df = st.data_editor(df_k, column_config={"Include": st.column_config.CheckboxColumn("Fit?", default=True)}, hide_index=True, height=280, width='stretch')
++                    edited_df = st.data_editor(df_k, column_config={"Include": st.column_config.CheckboxColumn("Fit?", default=True)}, hide_index=True, height=280, width='stretch', disabled=[c for c in df_k.columns if c != "Include"], key=f"kinetics_editor_{selection_id}")
+                     st.session_state.kinetics_df = edited_df
+                     
+                     st.markdown("---")
+@@ -403,13 +437,15 @@ with tab_analysis:
+                         elif kinetics_model_type == "Eyring (Transition State)":
+                             fit_res = k_engine.fit_eyring(active["Temp"].tolist(), active["Tau"].tolist())
+                         elif kinetics_model_type == "Van 't Hoff (Decrosslinking)":
+-                            g0_map = {r['Temp']: r['Raw']['G0'] for r in active_results}
+-                            active_G0s = [g0_map[t_val] for t_val in active["Temp"].tolist()]
++                            g0_map = {r['Curve_ID']: r['Raw']['G0'] for r in active_results}
++                            active_G0s = [g0_map[cid] for cid in active["Curve_ID"]]
+                             fit_res = k_engine.fit_van_t_hoff(active["Temp"].tolist(), active_G0s)
+                         elif kinetics_model_type == "Coupled WLF-Arrhenius":
+                             fit_res = k_engine.fit_coupled_kinetics(active["Temp"].tolist(), active["Tau"].tolist(), Tg=Tg_input)
+                             
+                         if fit_res:
++                            if fit_res.get("Warning"):
++                                st.warning(fit_res["Warning"])
+                             r_sq = fit_res.get("R2", 0.0)
+                             
+                             if fit_res["Type"] == "Arrhenius":
+@@ -450,13 +486,13 @@ with tab_analysis:
+                             elif fit_res["Type"] == "Van_t_Hoff":
+                                 dH_diss = fit_res["dH_diss"]
+                                 dS_diss = fit_res["dS_diss"]
+-                                G0_max = fit_res["G0_max"]
++                                amplitude_A = fit_res["A"]
+                                 
+                                 mc1, mc2, mc3 = st.columns(3)
+                                 mc1.metric("\u0394H_diss", f"{dH_diss:.1f} kJ/mol")
+                                 mc2.metric("\u0394S_diss", f"{dS_diss:.1f} J/mol\u00b7K")
+                                 mc3.metric("R\u00b2", f"{r_sq:.4f}")
+-                                st.caption(f"Estimated GÔéÇ,max: {G0_max:.3f} MPa")
++                                st.caption(f"Amplitude A: {amplitude_A:.6g} MPa/K; fitted to observed reference moduli.")
+                                 
+                             elif fit_res["Type"] == "Coupled":
+                                 Ea_chem = fit_res["Ea_chem"]
+@@ -497,7 +533,7 @@ with tab_analysis:
+                                 fig_k.add_trace(go.Scatter(x=fit_res["Plot"]["x"], y=fit_res["Plot"]["y"], mode='markers', name="Data"))
+                                 T_K_grid = np.linspace(273.15 + min(active["Temp"]), 273.15 + max(active["Temp"]), 50)
+                                 R_GAS_VAL = 8.314462
+-                                pred_grid = fit_res["Params"]["G0_max"] / (1.0 + np.exp(np.clip(-fit_res["Params"]["dH_diss"] / (R_GAS_VAL * T_K_grid) + fit_res["Params"]["dS_diss"] / R_GAS_VAL, -50.0, 50.0)))
++                                pred_grid = predict_van_t_hoff(T_K_grid, **fit_res["Params"])
+                                 fig_k.add_trace(go.Scatter(x=1000.0/T_K_grid, y=pred_grid, mode='lines', name="Van 't Hoff Fit", line=dict(dash='dash', color='red')))
+                                 fig_k.update_layout(xaxis_title="1000/T (K\u207b\u00b9)", yaxis_title="G\u2080 (MPa)")
+                                 
+@@ -506,9 +542,7 @@ with tab_analysis:
+                                 T_K_grid = np.linspace(273.15 + min(active["Temp"]), 273.15 + max(active["Temp"]), 50)
+                                 T0_val = fit_res["Params"]["T0"]
+                                 R_GAS_VAL = 8.314462
+-                                term1 = np.exp(fit_res["Params"]["ln_A"] + fit_res["Params"]["Ea"] / (R_GAS_VAL * T_K_grid))
+-                                term2 = np.exp(np.clip(fit_res["Params"]["ln_C"] + fit_res["Params"]["B"] / (T_K_grid - T0_val), -50, 50))
+-                                pred_grid = np.log(term1 + term2)
++                                pred_grid = predict_coupled(T_K_grid, **fit_res["Params"])
+                                 fig_k.add_trace(go.Scatter(x=1.0/T_K_grid, y=pred_grid, mode='lines', name="Coupled Fit", line=dict(dash='dash', color='red')))
+                                 fig_k.update_layout(xaxis_title="1/T (K\u207b\u00b9)", yaxis_title="ln(\u03c4)")
+                                 
+@@ -527,15 +561,19 @@ with tab_analysis:
+                 with col_tts_ctrl:
+                     st.markdown("##### TTS Settings")
+                     # Reference temperature selection
+-                    temps_available = [r['Temp'] for r in active_results]
++                    temps_available = sorted(set(r['Temp'] for r in active_results))
+                     mid_idx = len(temps_available) // 2
+                     ref_temp_sel = st.selectbox("Reference T (┬░C)", temps_available, index=mid_idx)
+                     
++                    master_config = (selection_id, ref_temp_sel)
++                    if st.session_state.get('master_config') != master_config:
++                        st.session_state.pop('master_data', None)
+                     # Generate mastercurve
+                     if st.button("Generate Mastercurve"):
+                         try:
+                             master_data = tts_engine.generate_mastercurve(active_results, ref_temp=ref_temp_sel)
+                             st.session_state.master_data = master_data
++                            st.session_state.master_config = master_config
+                             st.success(f"Ô£à Mastercurve at Tref = {master_data['T_ref']}┬░C")
+                         except Exception as e:
+                             st.error(f"Error: {e}")
+@@ -557,14 +595,14 @@ with tab_analysis:
+                         ))
+                         
+                         fig_mc.update_xaxes(type="log", title=f"Shifted Time (s) @ Tref={master['T_ref']}┬░C")
+-                        fig_mc.update_yaxes(title="G(t) (MPa)")
++                        fig_mc.update_yaxes(title="G(t) / G(reference)")
+                         fig_mc.update_layout(height=500, title="Time-Temperature Superposition Mastercurve")
+                         st.plotly_chart(fig_mc, width='stretch')
+                         
+                         # Display shift factors
+                         st.markdown("##### Shift Factors (aT)")
+                         shifts_df = pd.DataFrame([
+-                            {"Temperature (┬░C)": T, "log(aT)": np.log10(aT), "aT": f"{aT:.2e}"}
++                            {"Curve ID": T, "log(aT)": np.log10(aT), "aT": f"{aT:.2e}"}
+                             for T, aT in master['Shifts'].items()
+                         ])
+                         st.dataframe(shifts_df, hide_index=True, width='stretch')
+@@ -589,41 +627,16 @@ with tab_analysis:
+                 st.markdown("---")
+                 st.markdown("**Optimized Fit Details:**")
+                 
+-            # Get current spectrum configuration to check for modifications
+-            current_spec_config = {
+-                "opt_alpha": opt_alpha,
+-                "alpha_reg": alpha_reg,
+-                "sub_G_eq": sub_G_eq,
+-                "n_modes": n_modes,
+-                "active_temps": sorted([r['Temp'] for r in active_results])
+-            }
+-            
+-            # Retrieve or compute the spectrum outputs
+-            if ('spec_config' in st.session_state and 
+-                st.session_state.spec_config == current_spec_config and 
+-                'spec_results' in st.session_state):
+-                spec_outputs = st.session_state.spec_results
+-            else:
+-                spec_outputs = []
+-                for r in active_results:
+-                    t = r['Raw']['t']
+-                    g = r['Raw']['g']  # ALWAYS use normalized modulus to avoid cache misses when scaling toggles
+-                    
+-                    tau_grid, H, last_alpha, last_G_eq = cached_compute_continuous_spectrum(
+-                        t, g, num_modes=n_modes, alpha=alpha_reg, 
+-                        optimize_alpha=opt_alpha, subtract_G_eq=sub_G_eq
+-                    )
+-                    spec_outputs.append({
+-                        "Temp": r['Temp'],
+-                        "tau_grid": tau_grid,
+-                        "H": H,
+-                        "last_alpha": last_alpha,
+-                        "last_G_eq": last_G_eq,
+-                        "G0": r['Raw']['G0']
+-                    })
+-                st.session_state.spec_config = current_spec_config
+-                st.session_state.spec_results = spec_outputs
+-
++            spec_outputs = []
++            for r in active_results:
++                t, g = r['Raw']['t'], r['Raw']['g']
++                tau_grid, H, last_alpha, last_G_eq, reconstruction_error = cached_compute_continuous_spectrum(
++                    t, g, num_modes=n_modes, alpha=alpha_reg,
++                    optimize_alpha=opt_alpha, subtract_G_eq=sub_G_eq)
++                spec_outputs.append({'Temp': r['Temp'], 'Curve_ID': r['Curve_ID'],
++                    'tau_grid': tau_grid, 'H': H, 'last_alpha': last_alpha,
++                    'last_G_eq': last_G_eq, 'G0': r['Raw']['G0'],
++                    'reconstruction_error': reconstruction_error, 't_max': float(t[-1])})
+             with c_spec:
+                 fig_h = go.Figure()
+                 incomplete_warnings = []
+@@ -646,26 +659,28 @@ with tab_analysis:
+                     with c_ctrl:
+                         st.caption(f"{item['Temp']}┬░C: ╬▒={item['last_alpha']:.2e} (G_eq: {last_G_eq_plot:.2e})")
+                     
++                    st.caption(f"{item['Curve_ID']}: reconstruction RMSE / reference modulus = {item['reconstruction_error']:.2%}")
+                     # --- Incomplete relaxation detection ---
+                     tau_dom = spectrum_engine_local.get_weighted_avg_tau(tau_grid, H)
+                     # Find t_max for this temperature from active results
+-                    t_max_this = next((r['Raw']['t'][-1] for r in active_results if r['Temp'] == item['Temp']), None)
++                    t_max_this = item['t_max']
+                     if t_max_this is not None and tau_dom > t_max_this * 0.8:
+                         incomplete_warnings.append(
+                             f"**{item['Temp']}┬░C**: ¤ä_dom Ôëê {tau_dom:.1f} s > t_max = {t_max_this:.1f} s"
+                         )
+ 
+-                    fig_h.add_trace(go.Scatter(x=tau_grid, y=H_plot, mode='lines', name=f"{item['Temp']}C", fill='tozeroy'))
++                    fig_h.add_trace(go.Scatter(x=tau_grid, y=H_plot, mode='lines', name=f"{item['Temp']}C / {item['Curve_ID']}", fill='tozeroy'))
+ 
+                 fig_h.update_xaxes(type="log", title="Relaxation Time ¤ä (s)")
+-                fig_h.update_yaxes(title="H(¤ä)")
++                fig_h.update_yaxes(title="Discrete modal weight (MPa)" if mod_plot_type == "Absolute" else "Discrete modal weight / G(reference)")
++                st.caption("Weights sum discrete exponential modes; they are not a continuous density. Tail subtraction assumes the measured tail estimates equilibrium.")
+                 st.plotly_chart(fig_h, width="stretch")
+ 
+                 if incomplete_warnings:
+                     st.warning(
+                         "ÔÜá´©Å **Incomplete Relaxation Detected** ÔÇö The dominant relaxation time ¤ä exceeds the experiment window "
+                         "for the following curves. The spectrum may be **right-truncated**: the true peak could lie beyond t_max. "
+-                        "Consider extending the experiment duration or interpreting H(¤ä) as a lower bound.\n\n"
++                        "Consider extending the experiment duration; the inferred spectrum is sensitive to the observation window.\n\n"
+                         + "\n\n".join(f"- {w}" for w in incomplete_warnings)
+                     )
+ 
+diff --git a/can_relax/gui/tabs/tab_comparison.py b/can_relax/gui/tabs/tab_comparison.py
+index 6450f22..a867f48 100644
+--- a/can_relax/gui/tabs/tab_comparison.py
++++ b/can_relax/gui/tabs/tab_comparison.py
+@@ -5,7 +5,7 @@ import plotly.graph_objects as go
+ import matplotlib.pyplot as plt
+ import io
+ import matplotlib.ticker as ticker
+-from can_relax.core.kinetics import KineticsEngine
++from can_relax.core.kinetics import KineticsEngine, predict_van_t_hoff
+ 
+ def _render_sample_inputs():
+     st.subheader("Sample Input")
+@@ -25,7 +25,7 @@ def _render_sample_inputs():
+                 with col_tg:
+                     tg_val = st.number_input(f"Tg (┬░C)", value=st.session_state.comparison_samples.get(sample_key, {}).get('tg', 50.0), key=f"tg_{sample_idx}")
+                 with col_gp:
+-                    gp_val = st.number_input(f"G' (MPa)", value=st.session_state.comparison_samples.get(sample_key, {}).get('g_prime', 1.0), key=f"gp_{sample_idx}")
++                    gp_val = st.number_input(f"G' (MPa)", min_value=0.01, value=st.session_state.comparison_samples.get(sample_key, {}).get('g_prime', 1.0), key=f"gp_{sample_idx}")
+                 
+                 st.markdown("**Upload Data** or enter manually:")
+                 uploaded_csv = st.file_uploader("Upload fit_parameters.csv", type=['csv'], key=f"file_{sample_idx}", label_visibility="collapsed")
+@@ -236,7 +236,7 @@ def _render_vant_hoff_plot(results, PLOTLY_STYLE):
+             x_range = np.linspace(inv_T.min()*0.9, inv_T.max()*1.1, 100)
+             T_range = 1000.0 / x_range
+             exponent = -(r['vh_fit']['dH_diss']*1000.0)/(8.314462*T_range) + r['vh_fit']['dS_diss']/8.314462
+-            y_fit = r['vh_fit'].get('A', r['vh_fit']['G0_max']) * T_range / (1.0 + np.exp(np.clip(exponent, -50.0, 50.0))) if 'A' in r['vh_fit'] else r['vh_fit']['G0_max'] / (1.0 + np.exp(np.clip(exponent, -50.0, 50.0)))
++            y_fit = predict_van_t_hoff(T_range, **r['vh_fit']['Params'])
+             ax_vh.plot(x_range, y_fit, '--', color=color)
+             
+         ax_vh.set_yscale('log' if vh_y_scale == "Log" else 'linear')
+diff --git a/can_relax/gui/tabs/tab_pub_main.py b/can_relax/gui/tabs/tab_pub_main.py
+index 119bc87..bcd1008 100644
+--- a/can_relax/gui/tabs/tab_pub_main.py
++++ b/can_relax/gui/tabs/tab_pub_main.py
+@@ -10,7 +10,7 @@ import matplotlib.ticker as ticker
+ import io
+ from PIL import Image
+ import matplotlib.mathtext as mathtext
+-from can_relax.core.kinetics import KineticsEngine
++from can_relax.core.kinetics import KineticsEngine, predict_van_t_hoff
+ 
+ def save_and_download(fig, title_prefix, pub_colorspace, key_suffix):
+     buf_rgb_png = io.BytesIO()
+@@ -158,7 +158,7 @@ def _render_figure1(pan_settings, pan_preview, active_res, glob, auto_bounds):
+                     t_plot = t_raw / x_factor
+                     g_plot = g_norm if is_normalized else g_norm * G0
+                     color = glob['color_palette'][idx % len(glob['color_palette'])]
+-                    label_name = f"{r['Temp']}┬░C"
++                    label_name = f"{r['Temp']}┬░C / {r['Curve_ID']}"
+ 
+                     if curve_style == "Continuous Lines (Raw)":
+                         ax1.plot(t_plot, g_plot, '-', linewidth=rel_line_width, color=color, label=label_name)
+@@ -180,7 +180,7 @@ def _render_figure1(pan_settings, pan_preview, active_res, glob, auto_bounds):
+                             ax1.plot(t_plot, g_fit_plot, ':', color='black', linewidth=1.0, alpha=0.7)
+ 
+                     if show_tau_star:
+-                        tau_star = r.get('Tau_1e', np.nan)
++                        tau_star = r.get('Crossing_Time', np.nan)
+                         if not np.isnan(tau_star):
+                             tau_star_plot = tau_star / x_factor
+                             intersection_level = 1/np.e if is_normalized else G0/np.e
+@@ -188,7 +188,7 @@ def _render_figure1(pan_settings, pan_preview, active_res, glob, auto_bounds):
+                             if not is_normalized:
+                                 ax1.hlines(intersection_level, xmin=t_plot.min() * 0.8, xmax=tau_star_plot, colors=color, linestyles='--', linewidths=0.8, alpha=0.5)
+                             if annotate_tau_star:
+-                                ax1.text(tau_star_plot * 1.15, intersection_level + (0.02 if is_normalized else intersection_level * 0.02), r"$\tau^* = %.1f\ \mathrm{%s}$" % (tau_star_plot, x_label), fontsize=7, color=color)
++                                ax1.text(tau_star_plot * 1.15, intersection_level + (0.02 if is_normalized else intersection_level * 0.02), r"$\tau^* = %.1f\ \mathrm{%s}$" % (r['Tau_1e'] / x_factor, x_label), fontsize=7, color=color)
+ 
+                 if show_tau_star and is_normalized:
+                     ax1.axhline(1/np.e, color='gray', linestyle='--', linewidth=1.0)
+@@ -285,7 +285,7 @@ def _render_figure2(pan_settings, pan_preview, active_res, kinetics_df, glob, au
+         with pan_preview:
+             st.markdown("---")
+             st.subheader(f"­ƒöÑ Figure 2: {tau_kin_model} Plot")
+-            active_k = kinetics_df[kinetics_df['Include']==True]
++            active_k = kinetics_df[kinetics_df['Include']==True] if 'Include' in kinetics_df else pd.DataFrame()
+             if not active_k.empty and len(active_k) >= 2:
+                 k_engine_pub = KineticsEngine()
+                 temps_list = active_k['Temp'].tolist()
+@@ -419,7 +419,7 @@ def _render_figure3(pan_settings, pan_preview, kinetics_df, glob, auto_bounds):
+         with pan_preview:
+             st.markdown("---")
+             st.subheader(f"ÔÜø´©Å Figure 3: Eyring Plot")
+-            active_k = kinetics_df[kinetics_df['Include']==True]
++            active_k = kinetics_df[kinetics_df['Include']==True] if 'Include' in kinetics_df else pd.DataFrame()
+             if not active_k.empty and len(active_k) >= 2:
+                 k_engine_pub = KineticsEngine()
+                 temps_list = active_k['Temp'].tolist()
+@@ -513,12 +513,13 @@ def _render_figure4(pan_settings, pan_preview, active_res, kinetics_df, glob, au
+         with pan_preview:
+             st.markdown("---")
+             st.subheader(f"­ƒîí´©Å Figure 4: Van 't Hoff Plot")
+-            active_k = kinetics_df[kinetics_df['Include']==True]
++            st.caption("Fit uses observed reference moduli; these may differ from zero-time plateau moduli after a cutoff.")
++            active_k = kinetics_df[kinetics_df['Include']==True] if 'Include' in kinetics_df else pd.DataFrame()
+             if not active_k.empty and len(active_k) >= 2:
+                 k_engine_pub = KineticsEngine()
+                 temps_list = active_k['Temp'].tolist()
+-                g0_map = {r['Temp']: r['Raw']['G0'] for r in active_res}
+-                active_g0s = [g0_map.get(t, 1.0) for t in temps_list]
++                g0_map = {r['Curve_ID']: r['Raw']['G0'] for r in active_res}
++                active_g0s = [g0_map[cid] for cid in active_k['Curve_ID']]
+                 fit_res_pub = k_engine_pub.fit_van_t_hoff(temps_list, active_g0s)
+                 if fit_res_pub:
+                     c1, c2, c3 = st.columns(3)
+@@ -545,11 +546,7 @@ def _render_figure4(pan_settings, pan_preview, active_res, kinetics_df, glob, au
+                         ax4.scatter(x_data, y_data, s=vh_marker_size**2, alpha=0.8, edgecolors='black', linewidth=0.8, color='steelblue', zorder=3)
+                         x_range = np.linspace(x_data.min() * 0.95, x_data.max() * 1.05, 100)
+                         T_range = 1000.0 / x_range
+-                        exponent = -(fit_res_pub['dH_diss'] * 1000.0) / (8.314462 * T_range) + fit_res_pub['dS_diss'] / 8.314462
+-                        if 'A' in fit_res_pub:
+-                            y_fit = (fit_res_pub['A'] * T_range) / (1.0 + np.exp(np.clip(exponent, -50.0, 50.0)))
+-                        else:
+-                            y_fit = fit_res_pub['G0_max'] / (1.0 + np.exp(np.clip(exponent, -50.0, 50.0)))
++                        y_fit = predict_van_t_hoff(T_range, **fit_res_pub['Params'])
+                         label_fit = r"$\Delta H_{diss} = %.1f\ \mathrm{kJ\ mol}^{-1}$" % fit_res_pub['dH_diss']
+                         ax4.plot(x_range, y_fit, '--', color='red', linewidth=vh_line_width, label=label_fit, zorder=2)
+ 
+@@ -599,9 +596,9 @@ def render_publication(tab_pub, PLOTLY_STYLE: dict, Tg_input: float, G_prime_inp
+                     auto_kin_ymax = float(active_k_temp['ln(Tau)'].max() + 0.5)
+                     
+                     g0_vals = []
+-                    if 'analysis_results' in st.session_state:
+-                        for t in active_k_temp['Temp']:
+-                            match = next((r for r in st.session_state['analysis_results'] if r.get('Temp') == t), None)
++                    if active_res:
++                        for cid in active_k_temp['Curve_ID']:
++                            match = next((r for r in active_res if r['Curve_ID'] == cid), None)
+                             if match and 'Raw' in match and 'G0' in match['Raw']:
+                                 g0_vals.append(match['Raw']['G0'])
+                     if g0_vals:
+diff --git a/can_relax/gui/tabs/tab_virtual_lab.py b/can_relax/gui/tabs/tab_virtual_lab.py
+index b9d7c20..5fa8958 100644
+--- a/can_relax/gui/tabs/tab_virtual_lab.py
++++ b/can_relax/gui/tabs/tab_virtual_lab.py
+@@ -1,3 +1,4 @@
++from can_relax.core.observations import relaxation_crossing
+ """
+ tab_virtual_lab.py
+ ------------------
+@@ -133,8 +134,7 @@ def _render_simulation_charts(sim, params, PLOTLY_STYLE):
+             sim_results.append((T, t, g_true))
+             if T > params['Tg_sim']:
+                 try:
+-                    target = 0.36788 * g_true[0]
+-                    t_fit = np.interp(target, g_true[::-1], t[::-1])
++                    t_fit = relaxation_crossing(t, g_true)['tau']
+                     if 1e-5 < t_fit < 1e12:
+                         fitted_taus.append(t_fit)
+                         valid_temps.append(T)
+diff --git a/can_relax/io/parser.py b/can_relax/io/parser.py
+index b132c23..a147749 100644
+--- a/can_relax/io/parser.py
++++ b/can_relax/io/parser.py
+@@ -1,143 +1,154 @@
+-import pandas as pd
+-import re
++"""Validated wide relaxation input; canonical units are seconds, MPa and Celsius."""
+ import pathlib
+-import logging
++import re
++
++import numpy as np
++import pandas as pd
++
++_NUMBER = r"[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?"
++_FACTORS = {
++    "time": {"s": 1., "sec": 1., "seconds": 1., "min": 60., "minutes": 60.},
++    "mod": {"pa": 1e-6, "kpa": 1e-3, "mpa": 1.},
++    "temp": {"c": 1., "┬░c": 1., "degc": 1., "celsius": 1.},
++}
+ 
+-# Set up a logger for this module
+-logger = logging.getLogger("Parser")
+ 
+ def _load_file_robustly(file_path):
+-    """Attempt to load a file robustly as CSV or Excel."""
+-    path_obj = pathlib.Path(file_path)
+-    df_raw = None
+-
+-    try:
+-        if path_obj.suffix.lower() in ['.csv', '.txt']:
+-            try:
+-                # Try default UTF-8
+-                df_raw = pd.read_csv(file_path, sep=None, engine='python')
+-            except Exception:
+-                try:
+-                    # Try Latin-1 (Common for Excel CSVs)
+-                    df_raw = pd.read_csv(file_path, sep=None, engine='python', encoding='latin-1')
+-                except Exception:
+-                    # Try reading as Excel (in case it's an .xlsx named .csv)
+-                    try:
+-                        df_raw = pd.read_excel(file_path)
+-                    except Exception as e:
+-                        logger.debug("Failed reading as Excel fallback: %s", e)
+-        else:
+-            df_raw = pd.read_excel(file_path)
+-
+-    except Exception as e:
+-        logger.error(f"[ERROR] [PARSER] Critical failure opening file: {e}")
+-    
+-    return df_raw
+-
+-def _identify_columns(df_raw):
+-    """Identify column types using regex."""
+-    cols = list(df_raw.columns)
+-    temp_pat = re.compile(r"temp|deg|┬░c", re.IGNORECASE)
+-    time_pat = re.compile(r"time|sec|s\b", re.IGNORECASE)
+-    mod_pat  = re.compile(r"modulus|storage|g'|g_prime|mpa|pa|stress", re.IGNORECASE)
+-
+-    col_type = {}
+-    for c in cols:
+-        s = str(c).lower()
+-        if temp_pat.search(s): col_type[c] = 'temp'
+-        elif mod_pat.search(s): col_type[c] = 'mod'
+-        elif time_pat.search(s): col_type[c] = 'time'
+-        else: col_type[c] = None
+-        
+-    return col_type, cols
+-
+-def _find_matching_columns(i, cols, col_type):
+-    """Find the best matching Time and Modulus columns for a given Temperature column."""
+-    next_temp_idx = len(cols)
+-    for idx in range(i + 1, len(cols)):
+-        if col_type[cols[idx]] == 'temp':
+-            next_temp_idx = idx
+-            break
+-    
+-    time_col = None
+-    mod_col = None
+-    
+-    # Search within the block
+-    for idx in range(i + 1, next_temp_idx):
+-        if col_type[cols[idx]] == 'time' and time_col is None:
+-            time_col = cols[idx]
+-        if col_type[cols[idx]] == 'mod' and mod_col is None:
+-            mod_col = cols[idx]
+-            
+-    # Fallback to sliding window search
+-    if time_col is None:
+-        best_dist = len(cols)
+-        for idx in range(max(0, i - 5), min(len(cols), i + 5)):
+-            if idx != i and col_type[cols[idx]] == 'time':
+-                dist = abs(idx - i)
+-                if dist < best_dist:
+-                    best_dist = dist
+-                    time_col = cols[idx]
+-                    
+-    if mod_col is None:
+-        best_dist = len(cols)
+-        for idx in range(max(0, i - 5), min(len(cols), i + 5)):
+-            if idx != i and col_type[cols[idx]] == 'mod':
+-                dist = abs(idx - i)
+-                if dist < best_dist:
+-                    best_dist = dist
+-                    mod_col = cols[idx]
+-                    
+-    return time_col, mod_col
+-
+-def _extract_curves(df_raw, col_type, cols):
+-    """Extract valid Temp/Time/Modulus curves from the raw dataframe."""
+-    curves = {}
+-    logger.info(f"[PARSER] Scanning {len(cols)} columns...")
+-    
+-    for i, c in enumerate(cols):
+-        if col_type[c] != 'temp': continue
+-        
+-        time_col, mod_col = _find_matching_columns(i, cols, col_type)
+-        
+-        if time_col and mod_col:
+-            temp_val = None
+-            try:
+-                sub_df = df_raw[[c, time_col, mod_col]].dropna().copy()
+-                sub_df.columns = ['Temp', 'Time', 'Modulus']
+-                
+-                val_str = str(sub_df['Temp'].iloc[0])
+-                nums = re.findall(r"[-+]?\d*\.\d+|\d+", val_str)
+-                
+-                if nums:
+-                    temp_val = float(nums[0])
+-                    sub_df['Time'] = pd.to_numeric(sub_df['Time'], errors='coerce')
+-                    sub_df['Modulus'] = pd.to_numeric(sub_df['Modulus'], errors='coerce')
+-                    final_df = sub_df[['Time', 'Modulus']].dropna()
+-                    
+-                    if not final_df.empty:
+-                        curves[temp_val] = final_df
+-                        logger.info(f"  [OK] Found curve: {temp_val}C")
+-            except Exception as e:
+-                logger.debug("Failed extracting curve for %s: %s", temp_val, e)
+-                continue
+-                
+-    if not curves:
+-        logger.warning(f"[PARSER] No curves found. Columns detected: {cols}")
+-        
+-    return curves
++    path = pathlib.Path(file_path)
++    if path.suffix.lower() in (".csv", ".txt"):
++        try:
++            return pd.read_csv(path, sep=None, engine="python", header=None)
++        except UnicodeDecodeError:
++            return pd.read_csv(path, sep=None, engine="python", header=None, encoding="latin-1")
++    if path.suffix.lower() in (".xlsx", ".xls"):
++        return pd.read_excel(path, header=None)
++    raise ValueError("Unsupported file type; use CSV, TXT, XLSX or XLS.")
+ 
+-def parse_wide_format_data(file_path):
++
++def _kind(label):
++    text = str(label).strip().lower()
++    if re.search(r"temp|celsius|┬░c", text):
++        return "temp"
++    if re.search(r"modulus|storage|g'|g_prime|stress|\b(?:mpa|kpa|pa)\b", text):
++        return "mod"
++    if re.search(r"time|\b(?:sec|seconds?|min|minutes?|s)\b", text):
++        return "time"
++    return None
++
++
++def _header_unit(label, kind):
++    text = str(label).strip().lower()
++    groups = re.findall(r"\(([^)]+)\)|\[([^]]+)\]", text)
++    if groups:
++        unit = next(part for part in groups[0] if part).strip()
++        if unit not in _FACTORS[kind]:
++            raise ValueError(f"Unsupported {kind} unit {unit!r} in header {label!r}.")
++        return unit
++    # Recognized unit suffixes are units; legacy A/B/number suffixes are IDs.
++    suffix = text.rsplit("_", 1)[-1] if "_" in text else None
++    if suffix in _FACTORS[kind]:
++        return suffix
++    if suffix in ("h", "hr", "hours", "ms", "gpa", "psi", "k", "f"):
++        raise ValueError(f"Unsupported {kind} unit {suffix!r} in header {label!r}.")
++    clean = re.sub(r"_[a-z0-9]+$", "", text)
++    tokens = clean.split()
++    for token in tokens:
++        if token in _FACTORS[kind]:
++            return token
++    if len(tokens) > 1 and tokens[-1] not in ("modulus", "temperature", "time"):
++        raise ValueError(f"Unrecognized unit in header {label!r}; use parentheses for units.")
++    return None
++
++
++def _quantity(value, kind, header_unit=None):
++    match = re.fullmatch(rf"\s*({_NUMBER})\s*([^\d]*)\s*", str(value))
++    if not match:
++        raise ValueError(f"Invalid {kind} value: {value!r}.")
++    number = float(match.group(1))
++    unit = match.group(2).strip().lower()
++    if unit and unit not in _FACTORS[kind]:
++        raise ValueError(f"Unsupported {kind} unit {unit!r} in {value!r}.")
++    if unit and header_unit and _FACTORS[kind][unit] != _FACTORS[kind][header_unit]:
++        raise ValueError(f"Conflicting {kind} units in header and value {value!r}.")
++    if not np.isfinite(number):
++        raise ValueError(f"Non-finite {kind} value: {value!r}.")
++    return number * _FACTORS[kind].get(unit or header_unit, 1.)
++
++
++def _record(data, time_idx, mod_idx, labels, curve_id, temp_idx=None, temperature=None):
++    indices = [time_idx, mod_idx] + ([] if temp_idx is None else [temp_idx])
++    block = data.iloc[:, indices].dropna(how="all")
++    if block.empty:
++        raise ValueError(f"{curve_id}: curve contains no observations.")
++    if block.isna().any().any():
++        raise ValueError(f"{curve_id}: incomplete observation; each row needs time, modulus and temperature.")
++    time_unit = _header_unit(labels[time_idx], "time")
++    mod_unit = _header_unit(labels[mod_idx], "mod")
++    times = [_quantity(v, "time", time_unit) for v in block.iloc[:, 0]]
++    moduli = [_quantity(v, "mod", mod_unit) for v in block.iloc[:, 1]]
++    if temp_idx is not None:
++        temp_unit = _header_unit(labels[temp_idx], "temp")
++        temperatures = [_quantity(v, "temp", temp_unit) for v in block.iloc[:, 2]]
++        temperature = temperatures[0]
++        if not np.allclose(temperatures, temperature, rtol=0, atol=1e-8):
++            raise ValueError(f"{curve_id}: temperature must be constant within a curve.")
++    if temperature <= -273.15:
++        raise ValueError(f"{curve_id}: temperature must exceed absolute zero.")
++    if any(t < 0 for t in times):
++        raise ValueError(f"{curve_id}: elapsed time cannot be negative.")
++    return {"Temp": float(temperature), "Curve_ID": curve_id,
++            "Data": pd.DataFrame({"Time": times, "Modulus": moduli})}
++
++
++def parse_curve_records(file_path):
++    """Return ordered {Temp, Curve_ID, Data} records, preserving replicates.
++
++    Temp is Celsius; Data contains Time (seconds) and Modulus (MPa). Missing unit
++    labels mean canonical units. Curve_ID is a stable file-local positional ID.
++    Invalid schemas, values, incomplete rows and ambiguous units raise ValueError.
+     """
+-    Robustly parses a wide-format file (CSV/XLSX) into a dictionary of DataFrames.
+-    Returns: { temperature_float: pd.DataFrame(columns=['Time', 'Modulus']) }
++    raw = _load_file_robustly(file_path).dropna(axis=1, how="all")
++    if raw.empty:
++        raise ValueError("The file contains no data.")
++    labels = list(raw.iloc[0])
++    kinds = [_kind(label) for label in labels]
++    records = []
++    if "temp" in kinds and "time" in kinds:
++        if len(labels) % 3:
++            raise ValueError("Triplet layout requires repeated Temp, Time, Modulus columns.")
++        for start in range(0, len(labels), 3):
++            block_kinds = kinds[start:start + 3]
++            if sorted(str(k) for k in block_kinds) != ["mod", "temp", "time"]:
++                raise ValueError("Each triplet must contain exactly one Temp, Time and Modulus column.")
++            records.append(_record(raw.iloc[1:], start + block_kinds.index("time"),
++                                   start + block_kinds.index("mod"), labels,
++                                   f"curve_{len(records) + 1:03d}",
++                                   temp_idx=start + block_kinds.index("temp")))
++    else:
++        if len(raw) < 3 or len(labels) % 2:
++            raise ValueError("Expected Temp/Time/Modulus triplets or temperature headers above Time/Modulus pairs.")
++        quantity_labels = list(raw.iloc[1])
++        for start in range(0, len(labels), 2):
++            temperature = _quantity(labels[start], "temp")
++            if not pd.isna(labels[start + 1]):
++                if _quantity(labels[start + 1], "temp") != temperature:
++                    raise ValueError("A time/modulus pair has conflicting temperature headers.")
++            if [_kind(v) for v in quantity_labels[start:start + 2]] != ["time", "mod"]:
++                raise ValueError("Each temperature header must sit above a Time, Modulus pair.")
++            records.append(_record(raw.iloc[2:], start, start + 1, quantity_labels,
++                                   f"curve_{len(records) + 1:03d}", temperature=temperature))
++    return records
++
++
++def parse_wide_format_data(file_path):
++    """Return {temperature: Data}; reject duplicates instead of overwriting them.
++
++    Use parse_curve_records for multiple measurements at the same temperature.
+     """
+-    df_raw = _load_file_robustly(file_path)
+-    if df_raw is None:
+-        logger.error("[ERROR] [PARSER] Could not read file. Checked UTF-8, Latin-1, and Excel formats.")
+-        return {}
+-
+-    col_type, cols = _identify_columns(df_raw)
+-    curves = _extract_curves(df_raw, col_type, cols)
+-    
+-    return curves
+\ No newline at end of file
++    curves = {}
++    for record in parse_curve_records(file_path):
++        temperature = record["Temp"]
++        if temperature in curves:
++            raise ValueError(f"Duplicate temperature {temperature:g} ┬░C; use parse_curve_records to preserve replicates.")
++        curves[temperature] = record["Data"]
++    return curves
+diff --git a/tests/test_kinetics.py b/tests/test_kinetics.py
+index 70d3f43..fdf3e28 100644
+--- a/tests/test_kinetics.py
++++ b/tests/test_kinetics.py
+@@ -130,14 +130,75 @@ def test_coupled_runs_with_tg(engine):
+     temps = [100, 120, 140, 160, 180]
+     taus = _arrhenius_taus(temps, 85000.0, 1e-11)
+     res = engine.fit_coupled_kinetics(temps, taus, Tg=60.0)
+-    # May or may not converge, but must not raise
+-    # If it converges, R2 should be reasonable
+-    if res is not None:
+-        assert res["R2"] >= 0.0
+-        assert "Ea_chem" in res
++    assert res is not None
++    assert res["R2"] > 0.99
++    assert "Ea_chem" in res
+ 
+ 
+ def test_coupled_minimum_points_guard(engine):
+     """Coupled model requires ÔëÑ4 points."""
+     result = engine.fit_coupled_kinetics([100, 120, 140], [1.0, 0.5, 0.3])
+     assert result is None
++
++@pytest.mark.parametrize('method', ['fit_arrhenius', 'fit_eyring', 'fit_vft', 'fit_van_t_hoff', 'fit_coupled_kinetics'])
++@pytest.mark.parametrize('temps,values', [
++    ([100]*6, [1]*6),
++    ([100,120,140,160,180,200], [1,2,3,4,5]),
++    ([100,120,140,160,180,200], [1,2,0,4,5,6]),
++    ([100,120,140,160,180,200], [1,2,-1,4,5,6]),
++    ([100,120,140,160,180,200], [1,2,np.inf,4,5,6]),
++    ([-273.15,120,140,160,180,200], [1,2,3,4,5,6]),
++    ([100,np.nan,140,160,180,200], [1,2,3,4,5,6]),
++])
++def test_invalid_inputs_return_none(engine, method, temps, values):
++    assert getattr(engine, method)(temps, values) is None
++
++
++@pytest.mark.parametrize('method,error', [('fit_arrhenius','Ea_std'), ('fit_eyring','dH_std')])
++def test_two_observations_do_not_claim_uncertainty(engine, method, error):
++    result = getattr(engine, method)([100,120], [10,1])
++    assert result is not None
++    assert np.isnan(result[error])
++    assert result['Warning']
++
++
++def test_van_t_hoff_predictions_match_equation_and_result(engine):
++    from can_relax.core.kinetics import predict_van_t_hoff
++    T = np.linspace(373.15, 473.15, 8)
++    expected = 0.02*T/(1+np.exp(-80000/(R*T)+200/R))
++    np.testing.assert_allclose(predict_van_t_hoff(T, .02, 80000, 200), expected)
++    result = engine.fit_van_t_hoff(T-273.15, expected)
++    assert result is not None
++    assert 'G0_max' not in result and 'G0_max' not in result['Params']
++    np.testing.assert_allclose(result['Plot']['y_pred'], predict_van_t_hoff(T, **result['Params']))
++    np.testing.assert_allclose(result['Plot']['y_pred'], expected, rtol=1e-4)
++    assert result['Units']['A'] == 'MPa/K'
++
++
++def test_coupled_prediction_stable_beyond_exp_range():
++    from can_relax.core.kinetics import predict_coupled
++    T = np.array([300.,400.])
++    actual = predict_coupled(T, 1000., 80000., 1000., 1500., 250.)
++    assert np.all(np.isfinite(actual))
++    expected = 1000 + np.logaddexp(80000/(R*T), 1500/(T-250))
++    np.testing.assert_allclose(actual, expected)
++
++
++@pytest.mark.parametrize('tg,n', [(60.,4), (None,5)])
++def test_coupled_requires_residual_degrees_of_freedom(engine, tg, n):
++    assert engine.fit_coupled_kinetics(np.linspace(100,200,n), np.linspace(10,1,n), Tg=tg) is None
++
++
++def test_van_t_hoff_requires_four_temperatures(engine):
++    assert engine.fit_van_t_hoff([100,120,140], [10,8,6]) is None
++
++@pytest.mark.parametrize('tg', [60., None])
++def test_coupled_fit_uses_shared_prediction(engine, tg):
++    from can_relax.core.kinetics import predict_coupled
++    temps = np.linspace(100,240,10)
++    T = temps + 273.15
++    tau = np.exp(predict_coupled(T,-20,85000,-8,1500,283.15))
++    result = engine.fit_coupled_kinetics(temps,tau,Tg=tg)
++    assert result is not None
++    assert result['R2'] > 0.99
++    np.testing.assert_allclose(result['Plot']['y_pred'], predict_coupled(T, **result['Params']))
+diff --git a/tests/test_parser.py b/tests/test_parser.py
+index 575a690..8e73786 100644
+--- a/tests/test_parser.py
++++ b/tests/test_parser.py
+@@ -2,7 +2,7 @@ import pytest
+ import pandas as pd
+ import tempfile
+ import os
+-from can_relax.io.parser import parse_wide_format_data
++from can_relax.io.parser import parse_wide_format_data, parse_curve_records
+ 
+ def test_parse_wide_format_data_csv():
+     # Create temporary CSV with wide format
+@@ -23,3 +23,72 @@ def test_parse_wide_format_data_csv():
+         assert list(df_100['Modulus']) == [1000.0, 500.0]
+     finally:
+         os.unlink(tmp_path)
++
++
++def _csv(tmp_path, text):
++    path = tmp_path / "curves.csv"
++    path.write_text(text, encoding="utf-8")
++    return path
++
++
++@pytest.mark.parametrize("suffix", [".csv", ".xlsx"])
++def test_documented_pair_headers_preserve_replicates_and_signed_temperatures(tmp_path, suffix):
++    rows = [["-20 ┬░C", None, -20, None, -20.5, None],
++            ["Time", "Modulus"] * 3,
++            [0, 2, 0, 3, 0, 4], [1, 1, 2, 1, 3, 1]]
++    path = tmp_path / ("curves" + suffix)
++    df = pd.DataFrame(rows)
++    if suffix == ".xlsx":
++        df.to_excel(path, header=False, index=False)
++    else:
++        df.to_csv(path, header=False, index=False)
++    records = parse_curve_records(path)
++    assert [r["Temp"] for r in records] == [-20., -20., -20.5]
++    assert len({r["Curve_ID"] for r in records}) == 3
++    assert records[1]["Data"]["Modulus"].tolist() == [3., 1.]
++    with pytest.raises(ValueError, match="Duplicate temperature"):
++        parse_wide_format_data(path)
++
++
++def test_triplet_unit_conversion_and_signed_integer(tmp_path):
++    path = _csv(tmp_path, "Temp (┬░C),Time (min),Modulus (Pa)\n-20,0.5,1500000\n-20,1,500000")
++    curve = parse_curve_records(path)[0]
++    assert curve["Temp"] == -20
++    assert curve["Data"]["Time"].tolist() == [30., 60.]
++    assert curve["Data"]["Modulus"].tolist() == [1.5, .5]
++
++
++def test_quantity_suffixes_and_ragged_curve_lengths(tmp_path):
++    path = _csv(tmp_path, "Temp_A,Time_A,Modulus_A,Temp_B,Time_B,Modulus_B\n"
++                "-20.5 C,1 min,1000 kPa,120,1 s,1 MPa\n-20.5 C,2 min,500 kPa,,,")
++    records = parse_curve_records(path)
++    assert records[0]["Data"].to_numpy().tolist() == [[60., 1.], [120., .5]]
++    assert len(records[1]["Data"]) == 1
++
++
++@pytest.mark.parametrize("header,rows,match", [
++    ("Temp,Time,Modulus", "100,0,1\n101,1,.5", "constant"),
++    ("Temp,Time,Modulus", "100,0,1\n100,1,", "incomplete"),
++    ("Temp,Time (hours),Modulus", "100,0,1", "Unsupported time unit"),
++    ("Temp (K),Time,Modulus", "373,0,1", "Unsupported temp unit"),
++    ("Temp,Time,Modulus", "100,0,2 psi", "Unsupported mod unit"),
++    ("Temp,Time,Modulus", "100,nope,1", "Invalid time"),
++    ("Temp,Time,Modulus (MPa)", "100,0,1000 Pa", "Conflicting mod units"),
++    ("Temp,Time,Modulus", "-274,0,1", "absolute zero"),
++])
++def test_invalid_input_fails_explicitly(tmp_path, header, rows, match):
++    with pytest.raises(ValueError, match=match):
++        parse_curve_records(_csv(tmp_path, header + "\n" + rows))
++
++
++def test_duplicate_triplet_headers_preserve_both_curves(tmp_path):
++    path = _csv(tmp_path, "Temp,Time,Modulus,Temp,Time,Modulus\n100,0,1,100,0,2")
++    records = parse_curve_records(path)
++    assert len(records) == 2
++    assert [r["Data"]["Modulus"].iloc[0] for r in records] == [1., 2.]
++
++
++def test_underscore_unit_suffixes_are_converted(tmp_path):
++    path = _csv(tmp_path, "Temp_C,Time_min,Modulus_kPa\n100,1,1000")
++    data = parse_curve_records(path)[0]["Data"]
++    assert data.to_numpy().tolist() == [[60., 1.]]

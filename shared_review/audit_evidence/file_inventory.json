@@ -1,0 +1,702 @@
+[
+  {
+    "path": ".gitignore",
+    "bytes": 573,
+    "sha256": "07b764ce8fa3b924ae9c33af97fa91457c5f5f83143c672f70fccc4fb7655a8c"
+  },
+  {
+    "path": "K_Vitrimer_Analysis.bat",
+    "bytes": 1252,
+    "sha256": "253b5d6ae52ecefa94a8bd90ee6003433264fe023dea4127f16514d2ac316c10"
+  },
+  {
+    "path": "LICENSE",
+    "bytes": 1469,
+    "sha256": "ea565b0b3083ca0be3c81c41fc6fa7f8791911534bc418040d25df76fe0795e6"
+  },
+  {
+    "path": "README.md",
+    "bytes": 9270,
+    "sha256": "e3e09f46551f70c806744413071901398f37c90d847bd8fab3729c6cae742f1a"
+  },
+  {
+    "path": "packages.txt",
+    "bytes": 9,
+    "sha256": "be37c19d7b9818aa5f65e2603202fd89b535a787e5c2b2e51bf3a44b37a993c8"
+  },
+  {
+    "path": "pytest.ini",
+    "bytes": 27,
+    "sha256": "c809c969ec7e11b9ff37784e9c6fcc0b7c5148d168e18b05aed797e03fbd6ead"
+  },
+  {
+    "path": "requirements-audit.txt",
+    "bytes": 64,
+    "sha256": "453d82d11ca1f2bcd37c48fe78e14a519b504d6c7038e53bbdd95c3e39c43c7c"
+  },
+  {
+    "path": "requirements-dev.txt",
+    "bytes": 34,
+    "sha256": "8636f9ab1a075be9f3039e2a6471837259c4f36b625bcaf7a3d9a1edd2419c6d"
+  },
+  {
+    "path": "requirements.txt",
+    "bytes": 213,
+    "sha256": "5bd328bead10ec1f070e45aa7fff8a6c0fa05706052b798da990cbb6358e1dc3"
+  },
+  {
+    "path": "run_app.bat",
+    "bytes": 851,
+    "sha256": "f92aecbc797282cb4b78613576721b3d323380dc58cfed103082a033e761eec8"
+  },
+  {
+    "path": ".github/workflows/tests.yml",
+    "bytes": 701,
+    "sha256": "513820a2a4a04bb1ad31190f4ecc40af7a7382a254be211297c22f6c255acb2a"
+  },
+  {
+    "path": "archive/README.md",
+    "bytes": 889,
+    "sha256": "8d5e7722597a3923f381018e43cfeb119b6c025bf8dff689f60f0273962f0b3e"
+  },
+  {
+    "path": "archive/diagnostics/audit_export_run.txt",
+    "bytes": 5022,
+    "sha256": "edf934b34ad8603026d2a5f3c2af1a2aaae9fdfbf6c754995a2a3483d743d0d2"
+  },
+  {
+    "path": "archive/diagnostics/baseline_diagnostic.txt",
+    "bytes": 14870,
+    "sha256": "c6b73cb9d30680472a6520212b27271eacccf1df9f8b6fcd32160d12a82d98e6"
+  },
+  {
+    "path": "archive/diagnostics/baseline_test_run.txt",
+    "bytes": 106901,
+    "sha256": "82872b5650290ee87ba99d01374ac5c6671c012857d6e5a4991504f5a77913ef"
+  },
+  {
+    "path": "archive/diagnostics/test_plot.png",
+    "bytes": 28003,
+    "sha256": "d99cc26900bda1c4cc3e19d120720c5e56a5db3a9204831327587ef53b816a88"
+  },
+  {
+    "path": "archive/diagnostics/test_unicode.png",
+    "bytes": 21159,
+    "sha256": "616ecdc8bf5b88dad2600958e507b634d903968d81901d4f90f9a8234c8217a8"
+  },
+  {
+    "path": "archive/legacy_scripts/append_vh.py",
+    "bytes": 6802,
+    "sha256": "e5d85cf0648f424f37a2a2d02b77f392bb3df9400504a16a8fcb1f487cc7a7a0",
+    "syntax": "pass",
+    "lines": 104,
+    "functions": 1
+  },
+  {
+    "path": "archive/legacy_scripts/refactor.py",
+    "bytes": 1234,
+    "sha256": "93402c24b3edd19a0b3b62f2bc86cecdf11b53244200e87674ccdeda933e4482",
+    "syntax": "pass",
+    "lines": 37,
+    "functions": 1
+  },
+  {
+    "path": "archive/legacy_scripts/refactor_legend.py",
+    "bytes": 18029,
+    "sha256": "62ea35e0c1b3478e3159e68d75736beeaeb11244dcf4f79fe7042f4c0993b729",
+    "syntax": "pass",
+    "lines": 219,
+    "functions": 1
+  },
+  {
+    "path": "archive/legacy_scripts/refactor_pub.py",
+    "bytes": 543,
+    "sha256": "2e1f54d94133aa8c1ee9ccae6444362b13af50239241db67270948d9d38eb2c7",
+    "syntax": "pass",
+    "lines": 17,
+    "functions": 1
+  },
+  {
+    "path": "archive/legacy_scripts/test_monkey.py",
+    "bytes": 818,
+    "sha256": "8a6164eec850e3ed9f9dea5941c9246a862a784f93f8d2efb370e7594185c03e",
+    "syntax": "pass",
+    "lines": 29,
+    "functions": 2
+  },
+  {
+    "path": "archive/legacy_scripts/test_parser.py",
+    "bytes": 426,
+    "sha256": "c21655b89bf907cc180ef5ad7d9ba58c332db06f7d178eecfd67afa64a6c8cd2",
+    "syntax": "pass",
+    "lines": 16,
+    "functions": 1
+  },
+  {
+    "path": "archive/legacy_scripts/verify_math.py",
+    "bytes": 2928,
+    "sha256": "60d6d8f63cea1a349e3f22d7ade74761750be9ed40a23a8ff11579951797ed29",
+    "syntax": "pass",
+    "lines": 71,
+    "functions": 1
+  },
+  {
+    "path": "archive/patches/my_review_diff.patch",
+    "bytes": 89022,
+    "sha256": "effc77e6cb03a5f46464dc4afcaef110eaca7da3b3140926846194128f8e21f9"
+  },
+  {
+    "path": "can_relax/__init__.py",
+    "bytes": 21,
+    "sha256": "023efb54bd5de4c764bbbb200a029098fb986af3e9007b99b89732e9bca04191",
+    "syntax": "pass",
+    "lines": 1,
+    "functions": 0
+  },
+  {
+    "path": "can_relax/core/__init__.py",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "syntax": "pass",
+    "lines": 0,
+    "functions": 0
+  },
+  {
+    "path": "can_relax/core/analyzer.py",
+    "bytes": 9799,
+    "sha256": "0b5fed2218e39878b35458f59ebd13538f1ca35fb1431e8ecf1c1a13130e25d0",
+    "syntax": "pass",
+    "lines": 172,
+    "functions": 4
+  },
+  {
+    "path": "can_relax/core/auto_engine.py",
+    "bytes": 2772,
+    "sha256": "00dd7223e745afd7fd1134411370db0b56ce640e4d211c26384145c6b4e5a3ac",
+    "syntax": "pass",
+    "lines": 69,
+    "functions": 3
+  },
+  {
+    "path": "can_relax/core/extrapolation.py",
+    "bytes": 733,
+    "sha256": "e700c4d9fb0f9876af193c8058a1dedb97fea35dfa59984e8a389493203e7b91",
+    "syntax": "pass",
+    "lines": 17,
+    "functions": 1
+  },
+  {
+    "path": "can_relax/core/kinetics.py",
+    "bytes": 11385,
+    "sha256": "1caf11cb605018c080063211a274379d97431de342f05e175f07be490c6ef98f",
+    "syntax": "pass",
+    "lines": 274,
+    "functions": 12
+  },
+  {
+    "path": "can_relax/core/models.py",
+    "bytes": 2576,
+    "sha256": "e701232d8b8da627a4b62b1977cada13b08c93c030efa9e62aa7d899c615e1b3",
+    "syntax": "pass",
+    "lines": 75,
+    "functions": 11
+  },
+  {
+    "path": "can_relax/core/observations.py",
+    "bytes": 1243,
+    "sha256": "8d1d4c4efb2e903006e6c9db51b4afa0cdb8753c1dc6864bb08416973e6d453a",
+    "syntax": "pass",
+    "lines": 26,
+    "functions": 1
+  },
+  {
+    "path": "can_relax/core/processing.py",
+    "bytes": 5310,
+    "sha256": "99d4b9aad8be12201ea5ba221da44e9f8cd4490e6452093b6f3b7a08caa9e74d",
+    "syntax": "pass",
+    "lines": 126,
+    "functions": 3
+  },
+  {
+    "path": "can_relax/core/selection.py",
+    "bytes": 1527,
+    "sha256": "5502033e3df11f8d0986d5446b9222c597557efaeafb9174c96c0656b1f16976",
+    "syntax": "pass",
+    "lines": 26,
+    "functions": 1
+  },
+  {
+    "path": "can_relax/core/simulator.py",
+    "bytes": 2792,
+    "sha256": "02011a8c6065a9d8496a9d88d6496185cf3bd86fd8c5c83c6be23a20460b4065",
+    "syntax": "pass",
+    "lines": 52,
+    "functions": 3
+  },
+  {
+    "path": "can_relax/core/spectrum.py",
+    "bytes": 5878,
+    "sha256": "f80d5357e5d08cb344cca64aca8f97a5760cbf3146e8a1c1100fce71688962be",
+    "syntax": "pass",
+    "lines": 133,
+    "functions": 3
+  },
+  {
+    "path": "can_relax/core/state.py",
+    "bytes": 651,
+    "sha256": "9b740c5835a7e0540489f98d1573aa6df760fa76d4e3693bf70e8e369f4acbf9",
+    "syntax": "pass",
+    "lines": 23,
+    "functions": 3
+  },
+  {
+    "path": "can_relax/core/tts.py",
+    "bytes": 6196,
+    "sha256": "75ca3e8c54a43b8ad8ba5b3a2af99bda53feca7127e407c3e62a4ec026d44ad4",
+    "syntax": "pass",
+    "lines": 137,
+    "functions": 3
+  },
+  {
+    "path": "can_relax/gui/__init__.py",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "syntax": "pass",
+    "lines": 0,
+    "functions": 0
+  },
+  {
+    "path": "can_relax/gui/app.py",
+    "bytes": 51048,
+    "sha256": "046871b7984460d840cd7bfb7fb101f7f3217b9ddb65ae7454a429d1255e515d",
+    "syntax": "pass",
+    "lines": 816,
+    "functions": 6
+  },
+  {
+    "path": "can_relax/gui/exporting.py",
+    "bytes": 2452,
+    "sha256": "8ea21241887234a4356b1517f41d4beddb6bc4efb41ecd134733ffb069027d60",
+    "syntax": "pass",
+    "lines": 54,
+    "functions": 1
+  },
+  {
+    "path": "can_relax/gui/labels.py",
+    "bytes": 335,
+    "sha256": "e919340fd1e239fa7983fdebb358daf2217464301fe3c48e49e412d85fa72ca0",
+    "syntax": "pass",
+    "lines": 8,
+    "functions": 1
+  },
+  {
+    "path": "can_relax/gui/components/__init__.py",
+    "bytes": 138,
+    "sha256": "0d5362d4c79982281f60f8217ea7ebbe831cc64c46218185f48af9024309a145",
+    "syntax": "pass",
+    "lines": 3,
+    "functions": 0
+  },
+  {
+    "path": "can_relax/gui/components/ui_credits.py",
+    "bytes": 4301,
+    "sha256": "93dcc2256d3f6f96d2c7121308afb77bf1ab9d91c8a300a2ad4ded47bb38ac5a",
+    "syntax": "pass",
+    "lines": 110,
+    "functions": 1
+  },
+  {
+    "path": "can_relax/gui/components/ui_education.py",
+    "bytes": 13724,
+    "sha256": "a68056098b57c9542ba22efb389ecd4277d2a116114c678c07c9ac4392e54dc0",
+    "syntax": "pass",
+    "lines": 220,
+    "functions": 3
+  },
+  {
+    "path": "can_relax/gui/components/ui_plotting.py",
+    "bytes": 23457,
+    "sha256": "1a30e1190530127ab6732ecf5daf064b8d121c400466aaa5f2362f911dd9ba18",
+    "syntax": "pass",
+    "lines": 442,
+    "functions": 10
+  },
+  {
+    "path": "can_relax/gui/tabs/__init__.py",
+    "bytes": 33,
+    "sha256": "aac32c7352f2a7feceb0eb6fac3a2a3f5f808fa819c71ca39f9f19854b82974b",
+    "syntax": "pass",
+    "lines": 1,
+    "functions": 0
+  },
+  {
+    "path": "can_relax/gui/tabs/tab_comparison.py",
+    "bytes": 21506,
+    "sha256": "8f130079d07d5747f7caef3e76cfc6876306f836d1fd7e59f3c211a1368b8c4a",
+    "syntax": "pass",
+    "lines": 356,
+    "functions": 7
+  },
+  {
+    "path": "can_relax/gui/tabs/tab_pub_main.py",
+    "bytes": 49397,
+    "sha256": "530227189ad3f9c4dadc098acd900fde4c5d35fc0380d0c14d1f464d867e65a4",
+    "syntax": "pass",
+    "lines": 669,
+    "functions": 7
+  },
+  {
+    "path": "can_relax/gui/tabs/tab_publication_backup.py",
+    "bytes": 158,
+    "sha256": "d200b9131465c968b107c8cbfb71aa9a22aca45503e2dbdca35f37e2ca169bba",
+    "syntax": "pass",
+    "lines": 2,
+    "functions": 0
+  },
+  {
+    "path": "can_relax/gui/tabs/tab_virtual_lab.py",
+    "bytes": 14382,
+    "sha256": "c1b2a39a7014c32708f27c40fa33762e7bd55c7eb3ee182fe702ca6b54fe1cf3",
+    "syntax": "pass",
+    "lines": 339,
+    "functions": 7
+  },
+  {
+    "path": "can_relax/io/__init__.py",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "syntax": "pass",
+    "lines": 0,
+    "functions": 0
+  },
+  {
+    "path": "can_relax/io/parser.py",
+    "bytes": 9226,
+    "sha256": "99b59d6d6c1318a431d3a3ec0b0991226a42d67cb4740a352c21354b53a6ca1f",
+    "syntax": "pass",
+    "lines": 184,
+    "functions": 7
+  },
+  {
+    "path": "examples/generate_toy_data.py",
+    "bytes": 786,
+    "sha256": "17dffa19dec1a5d24fa59b6ea5e9e17f1b8d60e98e35d128c4eb150117f3b705",
+    "syntax": "pass",
+    "lines": 29,
+    "functions": 1
+  },
+  {
+    "path": "examples/toy_data.csv",
+    "bytes": 32655,
+    "sha256": "ab2372a692fa78f4e2c5f3f8c8cc9c31e8d0a1fdc74fa7171edf842ea00b5070"
+  },
+  {
+    "path": "References/Vitrimer Review/1-s2.0-S0079670020300265-main.pdf",
+    "bytes": 2760048,
+    "sha256": "b9b10e4c4def5952e63c6f51a5389cf0a9b86ed0f169eda1d46ed44e26636a6b"
+  },
+  {
+    "path": "References/Vitrimer Review/1-s2.0-S0079670025001054-main.pdf",
+    "bytes": 8472587,
+    "sha256": "22978175003919dc570fc07f1b5469691e6bfb28e01482c3087eed6514ce93bd"
+  },
+  {
+    "path": "References/Vitrimer Review/1-s2.0-S1359836825006663-main.pdf",
+    "bytes": 17563897,
+    "sha256": "2c1e29cf5857ba0c5eec91996c5b5ae4bbf5b0365030d66243accd7f11758446"
+  },
+  {
+    "path": "References/Vitrimer Review/1-s2.0-S1369702121002261-main.pdf",
+    "bytes": 11972132,
+    "sha256": "956de9259e7715ab69b96e819b3a8878c14e0b75ee7c8e880c2a2a9adb7c949a"
+  },
+  {
+    "path": "References/Vitrimer Review/Macromolecular Engineering - 2022 - Van Zee - Vitrimer Chemistry and Applications.pdf",
+    "bytes": 1113513,
+    "sha256": "b7d0af53b00792baca0f8f206b204dc05f922d734e0413158321fe5a8e8b62e2"
+  },
+  {
+    "path": "References/Vitrimer Review/c3cs60046g.pdf",
+    "bytes": 2671638,
+    "sha256": "1078841a55e628f33e62440690482fb7a4c57c21878139b23dd46b2edb51827b"
+  },
+  {
+    "path": "References/Vitrimer Review/d0sc01069c.pdf",
+    "bytes": 1566613,
+    "sha256": "adaf4aea17ecbfae6c4fbfc7106bd799461bc20614b2babb08b18f9c133aaafe"
+  },
+  {
+    "path": "References/Vitrimer Review/d2ma00654e.pdf",
+    "bytes": 4627591,
+    "sha256": "f0b3e66d2eff5b3e38c9cb585cc9aaa5d6edff8fa52416108e5a2303ba84ad3a"
+  },
+  {
+    "path": "References/Vitrimer Review/elastomer-based-vitrimers-a-review-of-the-preparation-characterization-and-applications.pdf",
+    "bytes": 3438502,
+    "sha256": "14c3f5eb8cfc41ec3250f8942e85474bf79efdbca90580fc9132cb3884705a8f"
+  },
+  {
+    "path": "References/Vitrimer Review/how-to-characterize-covalent-adaptable-networks-a-user-guide.pdf",
+    "bytes": 14648130,
+    "sha256": "941e13a665e0bd6fc36982b6feab5b10f9c0b175225a082e1cbf84afe5460dcb"
+  },
+  {
+    "path": "References/Vitrimer Rheology/1-s2.0-S0079670025001054-main.pdf",
+    "bytes": 8894831,
+    "sha256": "5e813b09588fc8eac1c7e82cf0d918e28f33736205bacf11d1dd4d33dca005e6"
+  },
+  {
+    "path": "References/Vitrimer Rheology/HAL20240115ManuscriptEDERA.pdf",
+    "bytes": 1624886,
+    "sha256": "0be8395bcd3d5afc66a5f3f1a28b1d8a1573783152a190ee3d4f8afca11d02f4"
+  },
+  {
+    "path": "References/Vitrimer Rheology/a-practical-user-guide-to-stress-relaxation-spectra-of-dynamic-covalent-networks.pdf",
+    "bytes": 2641518,
+    "sha256": "3221a8ce4ed9722ab5f0a83aa02b745a0ebcd7fc5258ad1360ee00d2e9e8bdf3"
+  },
+  {
+    "path": "References/Vitrimer Rheology/d2sc05528g.pdf",
+    "bytes": 1568232,
+    "sha256": "c5a8f4a58839e6b98ace532ca4a4d49a3e887af921eddb582febd3e5bba3a3c4"
+  },
+  {
+    "path": "References/Vitrimer Rheology/d3py01367g.pdf",
+    "bytes": 6331407,
+    "sha256": "17da7d09082cf1184df87f09938bde7f790c0c9e4276944e0a5f7b4cfc451951"
+  },
+  {
+    "path": "References/Vitrimer Rheology/d3sm00736g.pdf",
+    "bytes": 3212147,
+    "sha256": "6048e9c9b13d8247c398eb095c41c64b91e54c17f5da8aa6c98231752b92b5e4"
+  },
+  {
+    "path": "References/Vitrimer Rheology/molecular-dynamics-simulation-and-theoretical-analysis-of-structural-relaxation-bond-exchange-dynamics-and-glass.pdf",
+    "bytes": 5906521,
+    "sha256": "71e4752ab826f8c2359e63fc087ed2b34986e211f4dba8ea171ce501d3411706"
+  },
+  {
+    "path": "shared_review/KINETICS.md",
+    "bytes": 2113,
+    "sha256": "45fbbdc4c193ed8488202804eb7e284c9bb0021e03e469205c23a8ec0cb04fee"
+  },
+  {
+    "path": "shared_review/PARSER.md",
+    "bytes": 2872,
+    "sha256": "3cb05f3aa58c2e17cf2a8125670898bbb7e2dd8ef3f7a27a906a26b620403395"
+  },
+  {
+    "path": "shared_review/PLAN.md",
+    "bytes": 1078,
+    "sha256": "a7a6ebc055da153121b32e0354d26e55b046e4070966377912f514252b4b5c95"
+  },
+  {
+    "path": "shared_review/PLATEAU_BATCH.md",
+    "bytes": 3733,
+    "sha256": "15408c0cd4c94cc36e02281781830a9905d5d023d7407b128714c48ce8b467ed"
+  },
+  {
+    "path": "shared_review/POINT_REVIEW.md",
+    "bytes": 1901,
+    "sha256": "da58839ddb2523a7ea69cc23e01691c697402fe2dac7cd85224c14d531bfed18"
+  },
+  {
+    "path": "shared_review/PROJECT_AUDIT.md",
+    "bytes": 14363,
+    "sha256": "ae0755d49947f04576a359b523c3ad88e2d63579cfca3c9919e0c88da2c5872e"
+  },
+  {
+    "path": "shared_review/README.md",
+    "bytes": 866,
+    "sha256": "741f23b60980f3c71cc7888cecec4f0e91615acb911974166abdbd6f047159b8"
+  },
+  {
+    "path": "shared_review/REPLICATE_UX_FOLLOWUP.md",
+    "bytes": 2268,
+    "sha256": "206a74352700e2d0e1b8d3c15a3f705119feb486a87a8b5f548f2572bd1e3a43"
+  },
+  {
+    "path": "shared_review/REVIEW_NOTES.md",
+    "bytes": 5632,
+    "sha256": "18083a90a9cd9a89679970f06b3a1fcae4263ff36a78e7aacf55be9a7b80e95b"
+  },
+  {
+    "path": "shared_review/VALIDATION.md",
+    "bytes": 4896,
+    "sha256": "8eed3fb7ec36dcbd649dceef2fdfdcf6a53e543b142ec5c136c9b01ae01ee005"
+  },
+  {
+    "path": "shared_review/WORK_LOG.md",
+    "bytes": 9878,
+    "sha256": "c3c1e23e2353cd3055b5bb17619f42672ecf1de478d05b1f5fd13e812fd3bc1a"
+  },
+  {
+    "path": "shared_review/audit_reproduce.py",
+    "bytes": 3742,
+    "sha256": "b96e40938ec11c40f5251a4ea8e3bfdb711dc1bef3f7cdc265024fc0d308021c",
+    "syntax": "pass",
+    "lines": 84,
+    "functions": 2
+  },
+  {
+    "path": "shared_review/final_test_run.txt",
+    "bytes": 265,
+    "sha256": "999a37aa88812f24c5ad9667747f33831a2e4631cd4d7b1519b7e8b508673f9d"
+  },
+  {
+    "path": "shared_review/security_audit.json",
+    "bytes": 10559,
+    "sha256": "57a3b69119bcbb726721768969c4092ea985271e172743e0f818e3e45950e927",
+    "json_syntax": "pass"
+  },
+  {
+    "path": "shared_review/scientific_review/REFERENCE_INVENTORY.md",
+    "bytes": 4046,
+    "sha256": "cad8301d5239d9f6ed4395a63ba2b47d056624007509248769febb0cc91f2e20"
+  },
+  {
+    "path": "shared_review/scientific_review/REPORT.md",
+    "bytes": 18669,
+    "sha256": "817f781f0b73ff8aeb10a48a506a25e1e74f63f7ad7b4c9681d22eda259cffc2"
+  },
+  {
+    "path": "shared_review/scientific_review/baseline_counterexample.png",
+    "bytes": 102857,
+    "sha256": "3286fb8c77a8e0347698ae0c13f9f96b317d6024dc5264c375c4b9c7cb79e39d"
+  },
+  {
+    "path": "shared_review/scientific_review/code_snapshot.json",
+    "bytes": 2768,
+    "sha256": "a2ddd37b04c91c57743e4a786c9f7e32d0d5132a214515df657705bcfb898429",
+    "json_syntax": "pass"
+  },
+  {
+    "path": "shared_review/scientific_review/equation_check.png",
+    "bytes": 1303158,
+    "sha256": "ad3877d287f0f55462828cad8d4f30bd304206a7c7d4813680285f1fdec7d58b"
+  },
+  {
+    "path": "shared_review/scientific_review/numerical_evidence.json",
+    "bytes": 2613,
+    "sha256": "80e1ec2339981d269b2a5f89c6f5e3c3242c93e5e8c0837581e64031c8ca0477",
+    "json_syntax": "pass"
+  },
+  {
+    "path": "shared_review/scientific_review/reproduce.py",
+    "bytes": 3590,
+    "sha256": "fcf95495cb63b75f0375d3baa33b2f73e137f2bd6996b10192a19c897845d8ef",
+    "syntax": "pass",
+    "lines": 69,
+    "functions": 0
+  },
+  {
+    "path": "shared_review/scientific_review/sources.json",
+    "bytes": 1904790,
+    "sha256": "43bf9c01b2b1c51ed470c7d1c3ee2ed4574b8f05ef56c394126f2e154b720347",
+    "json_syntax": "pass"
+  },
+  {
+    "path": "tests/__init__.py",
+    "bytes": 29,
+    "sha256": "4075969e5f48cf485a0ffa966969088237e9cad8430032f8fce8630c42f60b2c",
+    "syntax": "pass",
+    "lines": 1,
+    "functions": 0
+  },
+  {
+    "path": "tests/conftest.py",
+    "bytes": 115,
+    "sha256": "2f8dd4aefdcff103b6a48ade7b841c7fa3d948e3d532deafc5828d49048ca8bb",
+    "syntax": "pass",
+    "lines": 4,
+    "functions": 0
+  },
+  {
+    "path": "tests/test_app_workflow.py",
+    "bytes": 4633,
+    "sha256": "87aea1f2dcced66f31dbf3b2430efbc7db240af570171eed0cac83af6558f550",
+    "syntax": "pass",
+    "lines": 92,
+    "functions": 4
+  },
+  {
+    "path": "tests/test_audit_regressions.py",
+    "bytes": 7233,
+    "sha256": "c4f4074f0e3768df949ac14792226f19c6d3325441cf6b3373602bd635851f62",
+    "syntax": "pass",
+    "lines": 162,
+    "functions": 13
+  },
+  {
+    "path": "tests/test_correctness_batch.py",
+    "bytes": 5385,
+    "sha256": "922798f016374b432750228b2d96bbd92935e8974461e20d0f6a2ef344a04d6a",
+    "syntax": "pass",
+    "lines": 111,
+    "functions": 10
+  },
+  {
+    "path": "tests/test_kinetics.py",
+    "bytes": 8497,
+    "sha256": "301f82cb241b6147b9eccf43822166238c0a5e1b6662b7ee2640a693079d2417",
+    "syntax": "pass",
+    "lines": 204,
+    "functions": 19
+  },
+  {
+    "path": "tests/test_literature.py",
+    "bytes": 840,
+    "sha256": "fa97c6ef952c24df3fdcc2a97c9957f0e1f78c90d6b48e0a9477699a380a2c64",
+    "syntax": "pass",
+    "lines": 26,
+    "functions": 1
+  },
+  {
+    "path": "tests/test_parser.py",
+    "bytes": 5786,
+    "sha256": "11eab1e946864586c68ca9110e5e1cb6711ccfcc715b0e7744cfa9f8cb7ba05d",
+    "syntax": "pass",
+    "lines": 138,
+    "functions": 13
+  },
+  {
+    "path": "tests/test_plateau_fitting.py",
+    "bytes": 3863,
+    "sha256": "f3fee04f63c5c6b72de2ece4976fba25e74dd8d259a516069520a17b3b1bf091",
+    "syntax": "pass",
+    "lines": 86,
+    "functions": 7
+  },
+  {
+    "path": "tests/test_point_selection.py",
+    "bytes": 2997,
+    "sha256": "7d9de196bd4427b4ed00b5bedd601af1bc20f950698cf5f1b060a34c02eb5c65",
+    "syntax": "pass",
+    "lines": 64,
+    "functions": 5
+  },
+  {
+    "path": "tests/test_processing.py",
+    "bytes": 6348,
+    "sha256": "c7035db76dcb7defcd0d8ceb4925d6d70d7ee4cd9bedf5980b2f9c4048dfc549",
+    "syntax": "pass",
+    "lines": 154,
+    "functions": 16
+  },
+  {
+    "path": "tests/test_robustness.py",
+    "bytes": 1383,
+    "sha256": "41d6afe75bd6e4dbcad64f6bbe38b023a0623eb6f11219c35ffc5774110b78d7",
+    "syntax": "pass",
+    "lines": 44,
+    "functions": 2
+  },
+  {
+    "path": "tests/test_synthetic_validation.py",
+    "bytes": 2208,
+    "sha256": "e673b67b2f9c5ca3c64015ab77c7acab02bb653339599bdfe8aa1f8d8a7baec7",
+    "syntax": "pass",
+    "lines": 79,
+    "functions": 3
+  }
+]

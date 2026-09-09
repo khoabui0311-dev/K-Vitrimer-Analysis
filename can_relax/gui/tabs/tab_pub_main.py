@@ -12,39 +12,24 @@ from PIL import Image
 import matplotlib.mathtext as mathtext
 from can_relax.core.kinetics import KineticsEngine, predict_van_t_hoff
 from can_relax.gui.labels import curve_labels
+from can_relax.gui.exporting import figure_bytes
+from can_relax.core.extrapolation import maxwell_equivalent_tv
 
 def save_and_download(fig, title_prefix, pub_colorspace, key_suffix):
-    buf_rgb_png = io.BytesIO()
-    fig.savefig(buf_rgb_png, format='png', dpi=1200)
-    buf_rgb_png.seek(0)
-    img = Image.open(buf_rgb_png)
-
-    cmyk_mode = pub_colorspace.startswith("CMYK")
-    if cmyk_mode:
-        img_out = img.convert('CMYK')
-        title_suffix = "_CMYK"
-    else:
-        if img.mode == 'RGBA':
-            bg = Image.new('RGB', img.size, (255, 255, 255))
-            bg.paste(img, mask=img.split()[3])
-            img_out = bg
-        else:
-            img_out = img.convert('RGB')
-        title_suffix = "_RGB"
-
-    buf_tiff = io.BytesIO()
-    img_out.save(buf_tiff, format='TIFF', dpi=(1200, 1200), compression='tiff_lzw' if cmyk_mode else None)
-    buf_tiff.seek(0)
-
-    buf_jpg = io.BytesIO()
-    img_out.save(buf_jpg, format='JPEG', dpi=(600, 600), quality=95)
-    buf_jpg.seek(0)
-
+    # High-resolution files are prepared only on request, not on every UI rerun.
+    tiff_dpi = st.selectbox('TIFF resolution (DPI)', [300, 600, 1200], index=2, key=f'tiff_dpi_{key_suffix}')
+    if not st.button('Prepare TIFF / JPEG downloads', key=f'prepare_{key_suffix}'):
+        return
+    suffix = '_CMYK' if pub_colorspace.startswith('CMYK') else '_RGB'
     dc1, dc2 = st.columns(2)
-    with dc1:
-        st.download_button(f"📥 Download TIFF (1200 DPI)", buf_tiff, f"{title_prefix}{title_suffix}.tiff", key=f"dl_tiff_{key_suffix}")
-    with dc2:
-        st.download_button(f"📥 Download JPEG (600 DPI)", buf_jpg, f"{title_prefix}{title_suffix}.jpg", key=f"dl_jpg_{key_suffix}")
+    for column, fmt, dpi, extension in [(dc1, 'tiff', tiff_dpi, 'tiff'), (dc2, 'jpeg', 600, 'jpg')]:
+        with column:
+            try:
+                content = figure_bytes(fig, fmt, dpi, pub_colorspace)
+                st.download_button(f'Download {fmt.upper()} ({dpi} DPI)', content, f'{title_prefix}{suffix}.{extension}',
+                                   mime=f'image/{fmt}', key=f'dl_{fmt}_{key_suffix}', on_click='ignore')
+            except ValueError as exc:
+                st.error(f'{fmt.upper()}: {exc}')
 
 
 def apply_legend(ax, pos, box, fontsize=8, ncol=1):
@@ -170,7 +155,7 @@ def _render_figure1(pan_settings, pan_preview, active_res, glob, auto_bounds):
                             step = max(1, int(100 / rel_marker_density))
                             ax1.plot(t_plot[::step], g_plot[::step], 'o', color=color, markersize=rel_marker_size, alpha=0.8, label=label_name)
                     elif curve_style == "Lines + Markers":
-                        ax1.plot(t_plot, g_plot, '-', linewidth=rel_line_width, color=color)
+                        ax1.plot(t_plot, g_plot, '-', linewidth=rel_line_width, color=color, label=label_name if rel_marker_density == 0 else None)
                         if rel_marker_density > 0:
                             step = max(1, int(100 / rel_marker_density))
                             ax1.plot(t_plot[::step], g_plot[::step], 'o', color=color, markersize=rel_marker_size, alpha=0.8, label=label_name)
@@ -217,7 +202,8 @@ def _render_figure1(pan_settings, pan_preview, active_res, glob, auto_bounds):
                         else:
                             ax1.set_ylim(0, max_y * 1.05)
                     all_times = np.concatenate([r['Raw']['t'] / x_factor for r in active_res])
-                    ax1.set_xlim(all_times.min() * 0.8, all_times.max() * 1.2)
+                    lower_time = all_times[all_times > 0].min() if pub_time_axis == 'Log' else all_times.min()
+                    ax1.set_xlim(lower_time * 0.8, all_times.max() * 1.2)
 
                 if show_rel_leg: apply_legend(ax1, rel_leg_pos, rel_leg_box, fontsize=rel_leg_font_size, ncol=rel_leg_ncol)
 
@@ -227,6 +213,9 @@ def _render_figure1(pan_settings, pan_preview, active_res, glob, auto_bounds):
                              fontweight=glob['panel_font_weight'], fontstyle=glob['panel_font_style'],
                              va='bottom', ha='right')
 
+                for tick_label in ax1.get_xticklabels() + ax1.get_yticklabels():
+                    tick_label.set_weight(rel_tick_weight)
+                    tick_label.set_style(rel_tick_style)
                 plt.tight_layout()
                 st.pyplot(fig1, dpi=300)
                 save_and_download(fig1, "Relaxation_Curves", glob['pub_colorspace'], "f1")
@@ -304,11 +293,12 @@ def _render_figure2(pan_settings, pan_preview, active_res, kinetics_df, glob, au
                         G_Pa_pub = G_prime_input * 1e6
                         tau_target_pub = 1e12 / G_Pa_pub
                         ln_tau_t_pub = np.log(tau_target_pub)
-                        Tv_pub = (1.0 / ((ln_tau_t_pub - intercept_pub)/slope_pub)) - 273.15 if slope_pub != 0 else 0
+                        Tv_pub = maxwell_equivalent_tv(slope_pub, intercept_pub, G_prime_input)
+                        st.caption('Tv is a Maxwell-equivalent extrapolation using the supplied modulus and selected characteristic time. It is not a KWW integral-viscosity estimate or evidence of a topology transition.')
                         
                         c1, c2, c3 = st.columns(3)
                         c1.metric("Ea", f"{Ea_pub:.1f} ± {Ea_std_pub:.1f} kJ/mol" if show_ea_std else f"{Ea_pub:.1f} kJ/mol")
-                        if show_tv: c2.metric("Tv", f"{Tv_pub:.1f} °C")
+                        if show_tv: c2.metric("Maxwell-equivalent Tv", f"{Tv_pub:.1f} °C" if np.isfinite(Tv_pub) else "Unavailable")
                         c3.metric("R²", f"{r_sq_pub:.4f}")
                     else:
                         B_pub, T0_pub = fit_res_pub['Params']['B'], fit_res_pub['Params']['T0'] - 273.15
@@ -341,14 +331,14 @@ def _render_figure2(pan_settings, pan_preview, active_res, kinetics_df, glob, au
                             label_fit += "\n" + r"$R^2 = %.4f$" % r_sq_pub
                             ax2.plot(x_range, y_fit, '--', color='red', linewidth=kin_line_width, label=label_fit, zorder=2)
                             
-                            if show_tv:
+                            if show_tv and np.isfinite(Tv_pub):
                                 Tv_x_1000 = ((ln_tau_t_pub - intercept_pub) / slope_pub) * 1000.0
-                                ax2.plot([Tv_x_1000], [ln_tau_t_pub], marker='*', markersize=kin_marker_size * 2, color='gold', markeredgecolor='black', markeredgewidth=0.8, label=r"$T_\mathrm{v} = %.1f^\circ\mathrm{C}$" % Tv_pub, zorder=4)
+                                ax2.plot([Tv_x_1000], [ln_tau_t_pub], marker='*', markersize=kin_marker_size * 2, color='gold', markeredgecolor='black', markeredgewidth=0.8, label="Maxwell-equivalent\n" + r"$T_\mathrm{v} = %.1f^\circ\mathrm{C}$" % Tv_pub, zorder=4)
                         else:
                             inv_T = 1.0 / T_K_all
                             ln_tau = np.log(np.array(taus_list))
                             ax2.scatter(inv_T * 1000, ln_tau, s=kin_marker_size**2, alpha=0.8, edgecolors='black', linewidth=0.8, color='steelblue', zorder=3)
-                            T_K_grid = np.linspace(T_K_all.min() * 0.97, T_K_all.max() * 1.03, 150)
+                            T_K_grid = np.linspace(T_K_all.min(), T_K_all.max(), 150)
                             y_fit = fit_res_pub['Params']['A'] + fit_res_pub['Params']['B'] / (T_K_grid - fit_res_pub['Params']['T0'])
                             label_fit = r"VFT: $B = %.0f\ \mathrm{K},\ T_0 = %.1f^\circ\mathrm{C}$" % (B_pub, T0_pub)
                             label_fit += "\n" + r"$R^2 = %.4f$" % r_sq_pub
@@ -369,6 +359,9 @@ def _render_figure2(pan_settings, pan_preview, active_res, kinetics_df, glob, au
                                      fontweight=glob['panel_font_weight'], fontstyle=glob['panel_font_style'],
                                      va='bottom', ha='right')
 
+                        for tick_label in ax2.get_xticklabels() + ax2.get_yticklabels():
+                            tick_label.set_weight(kin_tick_weight)
+                            tick_label.set_style(kin_tick_style)
                         plt.tight_layout()
                         st.pyplot(fig2, dpi=300)
                         save_and_download(fig2, "Tau_Kinetics", glob['pub_colorspace'], "f2")
@@ -406,8 +399,8 @@ def _render_figure3(pan_settings, pan_preview, kinetics_df, glob, auto_bounds):
                     ey1, ey2 = st.columns(2)
                     with ex1: eyr_xmin = st.number_input("X Min", value=auto_bounds['auto_kin_xmin'], format="%.4f", key="eyr_xmin")
                     with ex2: eyr_xmax = st.number_input("X Max", value=auto_bounds['auto_kin_xmax'], format="%.4f", key="eyr_xmax")
-                    with ey1: eyr_ymin = st.number_input("Y Min", value=auto_bounds['auto_kin_ymin'], format="%.4f", key="eyr_ymin")
-                    with ey2: eyr_ymax = st.number_input("Y Max", value=auto_bounds['auto_kin_ymax'], format="%.4f", key="eyr_ymax")
+                    with ey1: eyr_ymin = st.number_input("Y Min", value=float((kinetics_df['ln(Tau)'] + np.log(kinetics_df['Temp'] + 273.15)).min() - .5), format="%.4f", key="eyr_ymin")
+                    with ey2: eyr_ymax = st.number_input("Y Max", value=float((kinetics_df['ln(Tau)'] + np.log(kinetics_df['Temp'] + 273.15)).max() + .5), format="%.4f", key="eyr_ymax")
                 show_eyr_leg = st.checkbox("Show Legend ", value=True, key="eyr_leg")
                 if show_eyr_leg:
                     eyr_leg_pos = st.selectbox("Position ", ["Best (Auto)", "Upper Right", "Upper Left", "Lower Left", "Lower Right", "Right (Outside)"], key="eyr_legpos")
@@ -421,7 +414,8 @@ def _render_figure3(pan_settings, pan_preview, kinetics_df, glob, auto_bounds):
     if show_fig3:
         with pan_preview:
             st.markdown("---")
-            st.subheader(f"⚛️ Figure 3: Eyring Plot")
+            st.subheader('⚛️ Figure 3: Eyring Plot')
+            st.caption('Apparent activation parameters assume an inverse-rate interpretation of tau; entropy sign alone does not identify exchange chemistry.')
             active_k = kinetics_df[kinetics_df['Include']==True] if 'Include' in kinetics_df else pd.DataFrame()
             if not active_k.empty and len(active_k) >= 2:
                 k_engine_pub = KineticsEngine()
@@ -459,10 +453,13 @@ def _render_figure3(pan_settings, pan_preview, kinetics_df, glob, auto_bounds):
                             ax3.set_xlim(eyr_xmin, eyr_xmax)
                             ax3.set_ylim(eyr_ymin, eyr_ymax)
 
-                        apply_legend(ax3, eyr_leg_pos, eyr_leg_box, fontsize=eyr_leg_font_size, ncol=eyr_leg_ncol)
+                        if show_eyr_leg: apply_legend(ax3, eyr_leg_pos, eyr_leg_box, fontsize=eyr_leg_font_size, ncol=eyr_leg_ncol)
                         if panel_l_3:
                             ax3.text(pl_x_3, pl_y_3, f"({panel_l_3})", transform=ax3.transAxes, fontfamily=glob['panel_font_family'], fontsize=glob['panel_font_size'], fontweight=glob['panel_font_weight'], fontstyle=glob['panel_font_style'], va='bottom', ha='right')
 
+                        for tick_label in ax3.get_xticklabels() + ax3.get_yticklabels():
+                            tick_label.set_weight(eyr_tick_weight)
+                            tick_label.set_style(eyr_tick_style)
                         plt.tight_layout()
                         st.pyplot(fig3, dpi=300)
                         save_and_download(fig3, "Eyring", glob['pub_colorspace'], "f3")
@@ -516,7 +513,7 @@ def _render_figure4(pan_settings, pan_preview, active_res, kinetics_df, glob, au
         with pan_preview:
             st.markdown("---")
             st.subheader(f"🌡️ Figure 4: Van 't Hoff Plot")
-            st.caption("Fit uses observed reference moduli; these may differ from zero-time plateau moduli after a cutoff.")
+            st.caption("Empirical fit to observed reference moduli; acquisition delay can mimic a temperature trend. Dissociation thermodynamics require independent equilibrium evidence.")
             active_k = kinetics_df[kinetics_df['Include']==True] if 'Include' in kinetics_df else pd.DataFrame()
             if not active_k.empty and len(active_k) >= 2:
                 k_engine_pub = KineticsEngine()
@@ -550,7 +547,7 @@ def _render_figure4(pan_settings, pan_preview, active_res, kinetics_df, glob, au
                         x_range = np.linspace(x_data.min() * 0.95, x_data.max() * 1.05, 100)
                         T_range = 1000.0 / x_range
                         y_fit = predict_van_t_hoff(T_range, **fit_res_pub['Params'])
-                        label_fit = r"$\Delta H_{diss} = %.1f\ \mathrm{kJ\ mol}^{-1}$" % fit_res_pub['dH_diss']
+                        label_fit = "Empirical modulus fit\n" + r"$\Delta H_{diss} = %.1f\ \mathrm{kJ\ mol}^{-1}$" % fit_res_pub['dH_diss']
                         ax4.plot(x_range, y_fit, '--', color='red', linewidth=vh_line_width, label=label_fit, zorder=2)
 
                         ax4.set_xlabel(r"$1000/T\ (\mathrm{K}^{-1})$", fontdict={'family': vh_font_family, 'size': vh_label_size, 'weight': vh_label_weight, 'style': vh_label_style})
@@ -559,10 +556,13 @@ def _render_figure4(pan_settings, pan_preview, active_res, kinetics_df, glob, au
                             ax4.set_xlim(vh_xmin, vh_xmax)
                             ax4.set_ylim(vh_ymin, vh_ymax)
 
-                        apply_legend(ax4, vh_leg_pos, vh_leg_box, fontsize=vh_leg_font_size, ncol=vh_leg_ncol)
+                        if show_vh_leg: apply_legend(ax4, vh_leg_pos, vh_leg_box, fontsize=vh_leg_font_size, ncol=vh_leg_ncol)
                         if panel_l_4:
                             ax4.text(pl_x_4, pl_y_4, f"({panel_l_4})", transform=ax4.transAxes, fontfamily=glob['panel_font_family'], fontsize=glob['panel_font_size'], fontweight=glob['panel_font_weight'], fontstyle=glob['panel_font_style'], va='bottom', ha='right')
 
+                        for tick_label in ax4.get_xticklabels() + ax4.get_yticklabels():
+                            tick_label.set_weight(vh_tick_weight)
+                            tick_label.set_style(vh_tick_style)
                         plt.tight_layout()
                         st.pyplot(fig4, dpi=300)
                         save_and_download(fig4, "Van_t_Hoff", glob['pub_colorspace'], "f4")
@@ -638,6 +638,8 @@ def render_publication(tab_pub, PLOTLY_STYLE: dict, Tg_input: float, G_prime_inp
                     else:
                         default_width, default_height, disable_size = 12.7, 10.0, False
 
+                    if st.session_state.get('pub_size_preset') != fig_preset:
+                        st.session_state.update(pub_w=float(default_width), pub_h=float(default_height), pub_size_preset=fig_preset)
                     sz1, sz2 = st.columns(2)
                     with sz1: fig_width = st.number_input("Width (cm)", 1.0, 40.0, float(default_width), 0.1, disabled=disable_size, key="pub_w")
                     with sz2: fig_height = st.number_input("Height (cm)", 1.0, 40.0, float(default_height), 0.1, disabled=disable_size, key="pub_h")

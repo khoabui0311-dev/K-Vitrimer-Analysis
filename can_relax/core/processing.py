@@ -7,7 +7,7 @@ class DataProcessor:
     def __init__(self, min_points: int = 8) -> None:
         self.min_points = min_points
 
-    def trim_curve(self, t: np.ndarray, g: np.ndarray) -> Tuple[Optional[np.ndarray], Optional[np.ndarray], Optional[float]]:
+    def trim_curve(self, t: np.ndarray, g: np.ndarray, max_points=250) -> Tuple[Optional[np.ndarray], Optional[np.ndarray], Optional[float]]:
         """
         Trims artifacts from the relaxation curve.
         Returns: (t_trimmed, g_normalized, G0) or (None, None, None)
@@ -99,7 +99,13 @@ class DataProcessor:
         # 9. Logarithmic downsampling for performance (max 250 points)
         # Stress relaxation curves are logarithmic; log-spacing preserves detail at short times
         # while significantly reducing size to make KWW/Dual-KWW fitting and Tikhonov Ridge regression instant.
-        max_pts = 250
+        if max_points is not None:
+            t_final, g_final = self.downsample(t_final, g_final, max_points)
+        return t_final, g_final, G0
+
+    @staticmethod
+    def downsample(t_final, g_final, max_pts=250):
+        """Reduce fitting cost without changing the retained reference or endpoint."""
         if len(t_final) > max_pts:
             positive = t_final[t_final > 0]
             bins = np.geomspace(positive[0], t_final[-1], max_pts - 1)
@@ -117,4 +123,4 @@ class DataProcessor:
             t_final = t_final[indices]
             g_final = g_final[indices]
 
-        return t_final, g_final, G0
+        return t_final, g_final

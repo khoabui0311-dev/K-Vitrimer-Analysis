@@ -6,6 +6,36 @@ import matplotlib.pyplot as plt
 import io
 import matplotlib.ticker as ticker
 from can_relax.core.kinetics import KineticsEngine, predict_van_t_hoff
+from can_relax.core.state import analysis_identity
+from can_relax.core.extrapolation import maxwell_equivalent_tv
+from can_relax.gui.exporting import figure_bytes, MIME_TYPES
+
+
+def _clear_sample(index):
+    st.session_state.comparison_samples.pop(f'sample_{index}', None)
+    for prefix in ('name', 'tg', 'gp', 'data', 'file'):
+        st.session_state.pop(f'{prefix}_{index}', None)
+    st.session_state.pop('comparison_results', None)
+
+
+def parse_manual_data(text):
+    """Validate all rows before returning any observations."""
+    records = []
+    for number, line in enumerate(text.splitlines(), 1):
+        if not line.strip():
+            continue
+        parts = line.split(',')
+        if len(parts) not in (2, 3):
+            raise ValueError(f'Row {number}: use temperature, tau, optional modulus.')
+        temp, tau = float(parts[0]), float(parts[1])
+        g0 = float(parts[2]) if len(parts) == 3 and parts[2].strip() else None
+        if not np.isfinite(temp) or temp <= -273.15 or not np.isfinite(tau) or tau <= 0:
+            raise ValueError(f'Row {number}: require physical temperature and positive finite tau.')
+        if g0 is not None and (not np.isfinite(g0) or g0 <= 0):
+            raise ValueError(f'Row {number}: modulus must be finite and positive.')
+        records.append({'Temperature (°C)': temp, 't (s)': tau, 'G0 (MPa)': g0})
+    return records
+
 
 def _render_sample_inputs():
     st.subheader("Sample Input")
@@ -35,15 +65,26 @@ def _render_sample_inputs():
                 
                 if uploaded_csv is not None:
                     try:
-                        df_upload = pd.read_csv(uploaded_csv)
+                        df_upload = pd.read_csv(io.BytesIO(uploaded_csv.getvalue()))
+                        tau_column = 'Tau (s)'
+                        if tau_column not in df_upload and 'Tau 2 (s)' in df_upload:
+                            tau_column = st.selectbox('Imported dual-KWW component', ['Tau 2 (s)', 'Tau 1 (s)'], key=f'comp_tau_{sample_idx}')
+                        if tau_column not in df_upload:
+                            raise ValueError('CSV needs a Tau (s) or dual-KWW Tau 1/2 (s) column.')
                         for _, row in df_upload.iterrows():
                             temp = row.get("Temperature (°C)", row.get("Temperature (C)", np.nan))
-                            tau = row.get("Tau (s)", np.nan)
+                            tau = row.get(tau_column, np.nan)
                             g0 = row.get("G0 (MPa)", np.nan)
+                            if pd.isna(temp) or pd.isna(tau):
+                                raise ValueError('Every CSV row needs a temperature and selected tau.')
                             if pd.notna(temp) and pd.notna(tau):
                                 parsed_data.append({"Temperature (°C)": float(temp), "t (s)": float(tau), "G0 (MPa)": float(g0) if pd.notna(g0) else None})
                         text_data = '\n'.join([f"{r['Temperature (°C)']}, {r['t (s)']}" + (f", {r['G0 (MPa)']}" if r.get('G0 (MPa)') is not None else "") for r in parsed_data])
+                        parsed_data = parse_manual_data(text_data)
+                        if not parsed_data:
+                            raise ValueError('CSV contains no valid temperature/time rows.')
                     except Exception as e:
+                        parsed_data = []
                         st.error(f"Error parsing CSV: {e}")
                 else:
                     existing_data = st.session_state.comparison_samples.get(sample_key, {}).get('data', [])
@@ -53,26 +94,17 @@ def _render_sample_inputs():
                     data_input = st.text_area("Data pairs", value=text_data, height=100, key=f"data_{sample_idx}", label_visibility="collapsed")
                     if uploaded_csv is None:
                         try:
+                            parsed_data = parse_manual_data(data_input)
+                        except (ValueError, TypeError) as exc:
                             parsed_data = []
-                            for line in data_input.strip().split('\n'):
-                                if line.strip():
-                                    parts = line.split(',')
-                                    if len(parts) >= 2:
-                                        temp, tau = float(parts[0].strip()), float(parts[1].strip())
-                                        g0 = float(parts[2].strip()) if len(parts) >= 3 and parts[2].strip() else None
-                                        parsed_data.append({"Temperature (°C)": temp, "t (s)": tau, "G0 (MPa)": g0})
-                        except Exception:
-                            st.error(f"⚠️ Parse error in Sample {sample_idx}. Use format: temp, tau, g0")
+                            st.error(f'Sample {sample_idx}: {exc}')
                 
                 st.session_state.comparison_samples[sample_key] = {'name': sample_name, 'tg': tg_val, 'g_prime': gp_val, 'data': parsed_data}
             
             with col_delete:
-                if st.button("🗑️", key=f"delete_{sample_idx}", help="Clear sample"):
-                    if sample_key in st.session_state.comparison_samples: del st.session_state.comparison_samples[sample_key]
-                    for k in [f"name_{sample_idx}", f"tg_{sample_idx}", f"gp_{sample_idx}", f"data_{sample_idx}"]:
-                        if k in st.session_state: del st.session_state[k]
-                    if 'comparison_results' in st.session_state: del st.session_state['comparison_results']
-                    st.rerun()
+                st.button("🗑️", key=f"delete_{sample_idx}", help="Clear sample",
+                          on_click=_clear_sample, args=(sample_idx,))
+
 
 def _calculate_kinetics(valid_samples):
     results_list = []
@@ -84,7 +116,7 @@ def _calculate_kinetics(valid_samples):
             t_temp = row.get('Temperature (°C)', 0)
             tau_val = row.get('t (s)', row.get('τ (s)', 0))
             g0_val = row.get('G0 (MPa)', None)
-            if t_temp > tg and tau_val > 0:
+            if np.isfinite(t_temp) and t_temp >= tg and np.isfinite(tau_val) and tau_val > 0:
                 temps.append(t_temp)
                 taus.append(tau_val)
                 g0_list.append(g0_val if pd.notna(g0_val) and g0_val is not None else np.nan)
@@ -107,7 +139,7 @@ def _calculate_kinetics(valid_samples):
                 
                 tau_target = 1e12 / (g_prime * 1e6)
                 ln_tau_t = np.log(tau_target)
-                Tv_val = (1.0 / ((ln_tau_t - intercept)/slope)) - 273.15 if slope != 0 else 0
+                Tv_val = maxwell_equivalent_tv(slope, intercept, g_prime)
                 
                 results_list.append({
                     'Sample Name': name, 'sample_key': sample['key'], 'Tg (°C)': tg, "G' (MPa)": g_prime,
@@ -145,6 +177,14 @@ def _render_arrhenius_plot(results, PLOTLY_STYLE):
             comp_lw = st.slider("Line Width", 0.5, 6.0, 1.5, 0.5, key="comp_lw")
             comp_ms = st.slider("Marker Size", 1, 15, 6, 1, key="comp_ms")
             comp_custom_lims = st.checkbox("Manual Axis", value=False, key="comp_custom_lims")
+            if comp_custom_lims:
+                xmin = st.number_input('X minimum (1000/T)', value=float(min(r['inv_T'].min() for r in results))*.95)
+                xmax = st.number_input('X maximum (1000/T)', value=float(max(r['inv_T'].max() for r in results))*1.05)
+                ymin = st.number_input('Y minimum (ln tau)', value=float(min(r['ln_tau'].min() for r in results))-.5)
+                ymax = st.number_input('Y maximum (ln tau)', value=float(max(r['ln_tau'].max() for r in results))+.5)
+                if xmin >= xmax or ymin >= ymax:
+                    st.error('Axis minima must be below maxima.')
+                    return
 
         pl_c1, pl_c2 = st.columns(2)
         with pl_c1: comp_panel_l = st.text_input("Panel Letter", "", key="comp_pl")
@@ -159,7 +199,7 @@ def _render_arrhenius_plot(results, PLOTLY_STYLE):
         if comp_plot_mode.startswith("Interactive"):
             fig_comp = go.Figure()
             for idx, r in enumerate(results):
-                color = colors[idx % 6]
+                color = colors[idx % len(colors)]
                 name = r['Sample Name']
                 legend_parts = []
                 if comp_show_ea: legend_parts.append(f"Ea={r['Ea (kJ/mol)']:.1f}±{r.get('Ea_std (kJ/mol)', 0):.1f}")
@@ -170,11 +210,15 @@ def _render_arrhenius_plot(results, PLOTLY_STYLE):
                 x_range = np.linspace(r['inv_T'].min() * 0.9, r['inv_T'].max() * 1.1, 50)
                 fig_comp.add_trace(go.Scatter(x=x_range, y=(r['slope']/1000.0)*x_range + r['intercept'], mode='lines', line=dict(color=color, dash='dash'), showlegend=False))
             fig_comp.update_layout(title="Arrhenius Comparison", xaxis_title="1000/T", yaxis_title="ln(τ)", height=500, template="plotly_white")
-            st.plotly_chart(fig_comp, use_container_width=True)
+            fig_comp.update_layout(showlegend=show_comp_legend)
+            if comp_custom_lims:
+                fig_comp.update_xaxes(range=[xmin, xmax])
+                fig_comp.update_yaxes(range=[ymin, ymax])
+            st.plotly_chart(fig_comp, width='stretch')
         else:
             fig_mpl, ax_mpl = plt.subplots(figsize=(comp_width/2.54, comp_height/2.54))
             for idx, r in enumerate(results):
-                color = colors[idx % 6]
+                color = colors[idx % len(colors)]
                 name = r['Sample Name']
                 legend_parts = []
                 if comp_show_ea: legend_parts.append(f"Ea={r['Ea (kJ/mol)']:.1f}±{r.get('Ea_std (kJ/mol)', 0):.1f}")
@@ -194,17 +238,27 @@ def _render_arrhenius_plot(results, PLOTLY_STYLE):
                 ax_mpl.text(comp_pl_x, comp_pl_y, f"({comp_panel_l})", transform=ax_mpl.transAxes, 
                             fontfamily=comp_font_family, fontsize=comp_lbl_sz, fontweight='normal', va='bottom', ha='right')
                             
+            if comp_custom_lims:
+                ax_mpl.set_xlim(xmin, xmax)
+                ax_mpl.set_ylim(ymin, ymax)
             plt.tight_layout()
             st.pyplot(fig_mpl, dpi=300)
             
-            buf = io.BytesIO()
-            fig_mpl.savefig(buf, format=comp_fmt, dpi=comp_dpi, bbox_inches='tight')
-            buf.seek(0)
-            with col_settings:
-                st.download_button(f"📥 Download ({comp_fmt})", buf, f"Arrhenius.{comp_fmt}", mime=f"image/{comp_fmt}")
+            try:
+                with col_settings:
+                    if st.button('Prepare comparison download', key='comp_prepare'):
+                        content = figure_bytes(fig_mpl, comp_fmt, comp_dpi, comp_colorspace, tight=True)
+                        st.download_button(f'Download ({comp_fmt})', content, f'Arrhenius.{comp_fmt}',
+                                           mime=MIME_TYPES[comp_fmt], on_click='ignore')
+            except ValueError as exc:
+                st.error(str(exc))
+            finally:
+                plt.close(fig_mpl)
+
 
 def _render_vant_hoff_plot(results, PLOTLY_STYLE):
     st.subheader("📈 Van 't Hoff Comparison Plot")
+    st.caption('Empirical fit to observed reference moduli. Dissociation thermodynamics require independent equilibrium evidence.')
     col_plot, col_settings = st.columns([3, 1])
     valid_vh = [r for r in results if r.get('vh_fit') is not None]
     
@@ -228,7 +282,7 @@ def _render_vant_hoff_plot(results, PLOTLY_STYLE):
         colors = PLOTLY_STYLE.get('colorway', ['#EF553B', '#636EFA', '#00CC96', '#AB63FA', '#FFA15A', '#25D098'])
         
         for idx, r in enumerate(valid_vh):
-            color = colors[idx % 6]
+            color = colors[idx % len(colors)]
             T_K = np.array(r['vh_temps']) + 273.15
             inv_T = 1000.0 / T_K
             ax_vh.scatter(inv_T, r['vh_g0s'], color=color, label=f"{r['Sample Name']} (ΔH={r['vh_fit']['dH_diss']:.1f})")
@@ -250,6 +304,16 @@ def _render_vant_hoff_plot(results, PLOTLY_STYLE):
                        
         plt.tight_layout()
         st.pyplot(fig_vh)
+        try:
+            with col_settings:
+                if st.button("Prepare modulus comparison download", key='vh_comp_prepare'):
+                    content = figure_bytes(fig_vh, vh_comp_fmt, vh_comp_dpi, tight=True)
+                    st.download_button('Download modulus comparison', content, f'Van_t_Hoff.{vh_comp_fmt}',
+                                       mime=MIME_TYPES[vh_comp_fmt], on_click='ignore')
+        except ValueError as exc:
+            st.error(str(exc))
+        finally:
+            plt.close(fig_vh)
 
 def render(tab_comparison, PLOTLY_STYLE: dict):
     if 'comparison_samples' not in st.session_state:
@@ -258,9 +322,15 @@ def render(tab_comparison, PLOTLY_STYLE: dict):
     with tab_comparison:
         st.header("📊 Multi-Sample Kinetic Comparison")
         _render_sample_inputs()
+        identity = analysis_identity(b'comparison', st.session_state.comparison_samples)
+        if st.session_state.get('comparison_identity') != identity:
+            st.session_state.pop('comparison_results', None)
+            st.session_state.comparison_identity = identity
+        st.caption('Tv is a Maxwell-equivalent threshold using the supplied modulus and characteristic tau. It is not an integral-viscosity estimate for KWW or permanent-plateau models.')
         
         st.markdown("---")
         if st.button("🔍 Analyze All Samples", type="primary", width='stretch'):
+            st.session_state.pop('comparison_results', None)
             valid_samples = [dict(v, key=k) for k, v in st.session_state.comparison_samples.items() if v.get('data') and len(v['data']) >= 2]
             if valid_samples:
                 results_list = _calculate_kinetics(valid_samples)

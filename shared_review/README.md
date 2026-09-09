@@ -11,3 +11,6 @@ agent's log. Never put private experimental data or credentials in this folder.
 This is a local project folder; no external service or network share is configured.
 
 Latest implementation handoff: [Plateau and activation-energy batch](PLATEAU_BATCH.md).
+
+Current whole-project review: [9 September 2026 audit](PROJECT_AUDIT.md), including
+confirmed fixes, regression/export evidence and remaining release/scientific gaps.

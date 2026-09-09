@@ -92,7 +92,7 @@ def render_education_tab(tab_education):
             st.markdown("Use this guide to select the right phenomenological model for your time-domain stress relaxation data ($G(t)$).")
             
             # Decision Tree
-            st.info("💡 **Quick Rule:** If the Maxwell R² > 0.95, stick with Maxwell. If you see a clear 'kink' or two distinct slopes on a log-log plot, you need Dual-KWW.")
+            st.info('Compare residuals, parameter uncertainty and measurement-window coverage. A high R² or a kink alone does not identify a mechanism or justify an extra mode.')
             
             c1, c2, c3 = st.columns(3)
             with c1:
@@ -136,14 +136,14 @@ def render_education_tab(tab_education):
             k1, k2, k3 = st.columns(3)
             with k1:
                 st.markdown("##### 🔴 Arrhenius")
-                st.markdown("**Regime:** High Temp ($T \gg T_g$)")
+                st.markdown(r"**Regime:** High Temp ($T \gg T_g$)")
                 st.markdown("**Insight:** Yields Activation Energy ($E_a$).")
                 with st.expander("Show Equation"):
                     st.latex(r"\ln(\tau) = \ln(\tau_0) + \frac{E_a}{R T}")
             with k2:
                 st.markdown("##### 🟢 Eyring (TST)")
-                st.markdown("**Regime:** High Temp ($T \gg T_g$)")
-                st.markdown("**Insight:** Yields Enthalpy ($\Delta H^\ddagger$) and Entropy ($\Delta S^\ddagger$).")
+                st.markdown(r"**Regime:** High Temp ($T \gg T_g$)")
+                st.markdown(r"**Insight:** Yields apparent Enthalpy ($\Delta H^\ddagger$) and Entropy ($\Delta S^\ddagger$).")
                 with st.expander("Show Equation"):
                     st.latex(r"\ln(\tau T) = \dots + \frac{\Delta H^{\ddagger}}{R T} - \frac{\Delta S^{\ddagger}}{R}")
             with k3:
@@ -154,72 +154,38 @@ def render_education_tab(tab_education):
                     st.latex(r"\ln(\tau) = A + \frac{B}{T - T_0}")
             
             st.markdown("---")
-            st.markdown("#### 🧠 Cheat Sheet: Interpreting Eyring Entropy ($\Delta S^\ddagger$)")
-            e1, e2 = st.columns(2)
-            with e1:
-                st.success("**Negative ($\Delta S^\ddagger < 0$) = Associative**")
-                st.markdown("The transition state is highly constrained. Characteristic of transesterification or transamination where bonds form *before* breaking.")
-            with e2:
-                st.warning("**Positive ($\Delta S^\ddagger > 0$) = Dissociative**")
-                st.markdown("The transition state is disordered. Characteristic of Diels-Alder or boronic esters where bonds break *before* forming.")
+            st.markdown(r"#### Interpreting apparent Eyring Entropy ($\Delta S^\ddagger$)")
+            st.info('Eyring parameters are apparent values. The equation assumes tau maps to an inverse molecular rate with transmission coefficient one. The sign of fitted entropy alone cannot establish associative or dissociative exchange; use independent chemical evidence.')
 
             st.markdown("---")
             st.markdown("#### 🎯 Visual Comparison")
             st.image(get_kinetics_comparison_plot(), width=700)
 
             st.markdown("---")
-            st.markdown("#### ⚖️ Automated Selection (BIC)")
-            st.info("The software automatically recommends the best kinetic model using the **Bayesian Information Criterion (BIC)**. This prevents overfitting by penalizing complex models (like the 5-parameter Coupled model) unless they provide a massively better fit than simpler ones.")
+            st.markdown("#### Model selection")
+            st.info('Choose the kinetics model explicitly. The relaxation engine reports AICc and BIC; its optional automatic relaxation-model choice uses AICc. The app does not automatically select kinetics by BIC.')
 
         # ====== TAB 3: TIKHONOV ======
         with edu_tabs[2]:
             st.subheader("The Tikhonov Spectrum & Diagnostics")
             
-            st.markdown(r"""
-            Instead of forcing data into a predefined equation, the **Continuous Relaxation Spectrum** $H(\tau)$ mathematically unfolds the $G(t)$ curve into a continuous distribution using Ridge Regression (Tikhonov Inversion).
-            """)
-
-            st.info("💡 **Note:** In CAN-Relax, Tikhonov is used strictly as a **parallel visual diagnostic tool**, not for extracting $\\tau^*$ for kinetics.")
-
-            t1, t2 = st.columns(2)
-            with t1:
-                st.markdown("#### ⚠️ Incomplete Relaxation Warning")
-                st.markdown("If your experiment was stopped too early, the dominant peak $\\tau_{dom}$ might lie outside your data window. The spectrum automatically calculates this peak and throws a warning if it approaches $t_{max}$, preventing you from interpreting truncated data as a full peak.")
-                
-            with t2:
-                st.markdown("#### 📉 The $G_{eq}$ Subtraction")
-                st.markdown("For inversion to work, the modulus must decay to zero. If your material has permanent cross-links, it plateaus at $G_{eq} > 0$. We automatically subtract the final 5% tail ($G_{eq}$) to prevent massive baseline artifacts at long times.")
-
-            st.markdown("#### 🧭 The Workflow Architecture")
-            st.markdown("""
-            ```text
-            [Raw Stress Relaxation G(t) in MPa]
-                           │
-                           ▼
-           [Pre-processing: G_eq Subtraction]
-                           │
-            ┌──────────────┴──────────────┐
-            ▼                             ▼
-     [Parametric Fit]            [Tikhonov Inversion]
- (Maxwell, KWW, Dual-KWW)        (Continuous H(τ))
-            │                             │
-            ▼                             ▼
-      [Extract τ*]              [Visual Diagnostics & Warnings]
-            │                   (Peak counting, Truncation limits)
-            ▼
-    [Kinetics Model Fitting]
-            ```
-            """)
+            st.markdown('The inversion fits nonnegative discrete exponential weights with a zero-order Ridge penalty. These weights have the input modulus units; they are not a continuous density per logarithmic time interval.')
+            st.latex(r'G(t) = G_{eq} + \sum_j w_j \exp(-t/\tau_j)')
+            st.info('Spectrum output is a separate diagnostic. It does not supply tau to the kinetics fit.')
+            st.markdown('Automatic alpha selection maximizes distance from the secant joining the endpoints of the scanned log-log L-curve. This is a heuristic, not an exact maximum-curvature implementation.')
+            st.markdown('The orange badge compares the weighted geometric mean time with 80% of the last measurement time. It does not locate a peak or prove completeness. Baseline subtraction can suppress it.')
+            st.markdown('Optional tail subtraction estimates a baseline from the final 5% of retained samples. A slow unresolved decay can look like a plateau. Compare both settings and inspect the original tail and reconstruction error.')
+            st.markdown('Workflow: import and review points → peak/drift preprocessing and reference normalization → separate parametric fitting and spectrum inversion. Plateau fitting is controlled independently of spectrum tail subtraction.')
 
         # ====== TAB 4: CHEMISTRY ======
         with edu_tabs[3]:
             st.subheader("Vitrimer Chemistry Quick Reference")
             
             comparison_df = pd.DataFrame({
-                'Property': ['Reversibility', 'Reprocessability', 'Stress Relaxation', 'Typical τ @ Tg+50', 'Suggested Model'],
-                'Thermoset': ['❌ Irreversible', '❌ Cannot remold', '🔴 None (Plateaus)', '∞ (Frozen)', 'N/A'],
-                'Vitrimer': ['✅ Exchange', '✅ Can remold', '🟡 Slow (Hours)', '100 - 10,000 s', 'Dual-KWW / Single-KWW'],
-                'Thermoplastic': ['✅ Chain Flow', '✅ Can remold', '✅ Fast (Mins)', '1 - 100 s', 'Maxwell / Single-KWW']
+                'Property': ['Reversibility', 'Reprocessability', 'Stress Relaxation', 'Relaxation timescale', 'Suggested Model'],
+                'Thermoset': ['Permanent network', 'Generally cannot remold', 'Partial relaxation to plateau', 'Material dependent', 'Plateau model'],
+                'Vitrimer': ['✅ Exchange', '✅ Can remold', '🟡 Slow (Hours)', 'Material dependent', 'Dual-KWW / Single-KWW'],
+                'Thermoplastic': ['✅ Chain Flow', '✅ Can remold', '✅ Fast (Mins)', 'Material dependent', 'Maxwell / Single-KWW']
             })
             st.dataframe(comparison_df, hide_index=True, use_container_width=True)
 
@@ -233,13 +199,14 @@ def render_education_tab(tab_education):
                 st.markdown("#### ✂️ Dissociative (CANs)")
                 st.markdown("- **Mechanism:** Bonds break entirely before reforming.")
                 st.markdown("- **Examples:** Diels-Alder, Dissociative urethanes.")
-                st.markdown("- **Rheology:** Sudden viscosity drop. Use the **Van 't Hoff** model on $G_0$ to track decrosslinking.")
+                st.markdown('The modulus-temperature fit is empirical when supplied with observed reference moduli. Equilibrium and a chemistry-specific network model are required before interpreting its parameters as dissociation thermodynamics.')
 
         # ====== TAB 5: REFERENCES ======
         with edu_tabs[4]:
             st.subheader("Literature & Citations")
             
             st.markdown("#### 📘 CAN Characterization Guidelines")
+            st.markdown("[CAN characterization guide](https://doi.org/10.1021/acspolymersau.5c00004) · [Linear viscoelasticity tutorial](https://doi.org/10.1039/D3PY01367G)")
             st.markdown("1. **Berne, D., et al. (2025).** *How to Characterize Covalent Adaptable Networks: A User Guide.* ACS Polym. Au. [Detailed guidelines on Arrhenius/Eyring analysis]")
             st.markdown("2. **Wink, R., et al. (2026).** *A Practical User Guide to Stress Relaxation Spectra.* ACS Polym. Au. [Tikhonov regularization and L-curve corner detection]")
             
@@ -250,4 +217,4 @@ def render_education_tab(tab_education):
             st.markdown("#### 📈 Mathematical Models")
             st.markdown("5. **Kohlrausch, R. (1847).** *Theorie des elektrischen Rückstandes.* Poggendorff's Ann. Phys. Chem. [KWW Stretched Exponential]")
             st.markdown("6. **Eyring, H. (1935).** *The Activated Complex in Chemical Reactions.* J. Chem. Phys. [Transition State Theory]")
-            st.markdown("7. **Lin, Y., et al. (2025).** *A Coupled Glassy-to-Rubbery Relaxation Model for Covalent Adaptable Networks.* Macromolecules.")
+            st.markdown("7. **Lin, T.-W., et al. (2025).** *Molecular Dynamics Simulation and Theoretical Analysis of Structural Relaxation, Bond Exchange Dynamics, and Glass Transition in Vitrimers.* [Macromolecules](https://doi.org/10.1021/acs.macromol.4c02659). The app uses a phenomenological Arrhenius-plus-VFT approximation, not the full molecular theory.")

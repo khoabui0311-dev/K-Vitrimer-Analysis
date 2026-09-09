@@ -58,9 +58,9 @@ class AutoEngine:
         if best_model == "Maxwell":
             msg += "- Behavior matches a **Maxwellian** fluid (simple exponential decay).\n"
         elif best_model == "Single_KWW":
-            msg += "- Behavior matches a **Vitrimer-like** stretched exponential (broad relaxation spectrum).\n"
+            msg += "- A stretched exponential describes the observed curve; this does not identify a vitrimer.\n"
         elif best_model == "Dual_KWW":
-            msg += "- Complex behavior detected (**Dual-mode**). Likely distinct fast and slow relaxation processes.\n"
+            msg += "- A two-component function describes the data; distinct physical mechanisms require independent evidence.\n"
 
         # Fit Warning
         if r2 < 0.95:

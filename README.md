@@ -138,3 +138,34 @@ KWW beta is plotted against temperature, and dual KWW permits choosing the fast
 or slow component. Download fit parameters, kinetics selection, Arrhenius results
 and provenance to record the analysis. Further implementation details and known
 advanced-analysis limitations are in `shared_review/PLATEAU_BATCH.md`.
+
+## September 2026 project audit
+
+The current audit, reproducible checks and remaining validation gaps are in
+[PROJECT_AUDIT.md](shared_review/PROJECT_AUDIT.md). Earlier review reports describe
+historical versions and should be read with their dates in mind.
+
+- Input columns must contain time-domain relaxation modulus. Stress, storage/loss
+  modulus and frequency-labelled columns are rejected. Convert raw stress using
+  the known imposed strain before importing. Legacy XLS must be converted to XLSX.
+- Raw 1/e uses all retained observations before fitting downsampling, so short
+  recrossings cannot disappear through downsampling. Automatic peak/drift trimming
+  and duplicate-time averaging still occur first.
+- TTS offers observed-reference, model-extrapolated zero-time and absolute-modulus
+  conventions. The selected dual-KWW component also controls horizontal shifts.
+  These are shifted curves; overlap and shape compatibility require assessment.
+- Tv in publication/comparison/simulation is a **Maxwell-equivalent threshold**
+  based on characteristic tau and the supplied modulus. It is not a KWW integral
+  viscosity or a measured topology transition. Nonphysical roots are unavailable.
+- Publication exports are prepared on request. TIFF and JPEG are rendered at their
+  actual requested resolutions (TIFF defaults to 1200 DPI; JPEG uses 600 DPI).
+  Raster exports over 40 megapixels are rejected
+  with guidance to reduce dimensions or DPI. CMYK supports JPEG, TIFF and raster PDF;
+  no printer-specific ICC profile is applied.
+- Historical migration scripts in `archive/legacy_scripts/` are disabled, and the old publication import routes
+  to the maintained implementation. They should not be used to update this version.
+
+Install `requirements-audit.txt` to run the optional static checks. The added CI
+workflow targets Windows/Linux and Python 3.11/3.13; those CI jobs must run before
+claiming support for every combination. The locally tested environment is recorded
+in `shared_review/audit_evidence/environment.json`.

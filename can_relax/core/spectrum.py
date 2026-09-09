@@ -31,7 +31,7 @@ class SpectrumAnalyzer:
                 or not np.all(np.isfinite(t)) or not np.all(np.isfinite(g))
                 or np.any(t < 0) or np.any(np.diff(t) <= 0) or g[0] <= 0):
             raise ValueError('Spectrum requires finite, increasing nonnegative times and positive initial modulus')
-        if num_modes < 2 or alpha <= 0 or not np.isfinite(alpha):
+        if not isinstance(num_modes, (int, np.integer)) or num_modes < 2 or alpha <= 0 or not np.isfinite(alpha):
             raise ValueError('Use at least two modes and positive finite alpha')
         # 1. Detect and subtract G_eq (equilibration modulus tail)
         if subtract_G_eq:
@@ -125,7 +125,7 @@ class SpectrumAnalyzer:
         return tau_grid, H_values
 
     def get_weighted_avg_tau(self, tau_grid, H_values):
-        """Calculates the dominant relaxation time from the spectrum."""
+        """Calculate a weighted geometric mean, not a peak or first-moment time."""
         if np.sum(H_values) == 0: return 0
         # Weighted log average
         log_tau = np.log10(tau_grid)

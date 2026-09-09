@@ -106,3 +106,39 @@
 - Verified actual imports: VU2 has seven curves with 5399 observations each and
   one notice per curve; VUEG has four curves with 450 observations each and no
   import notices. Parser and Streamlit workflow tests: 25 passed in 18.59 seconds.
+
+## Timing and incorrect-point review — 2026-09-07
+- Added per-curve loading origin/cutoff controls and reversible point exclusions
+  with a preview plot and reviewed-points export. Source workbooks stay untouched.
+- Preserved time origin through exclusions, recorded selection provenance and
+  invalidated stale results on changes. Data editor persistence is regression-tested.
+- Handoff and usage: POINT_REVIEW.md. Six targeted tests passed in 9.06 seconds.
+- Full regression suite: 133 passed in 27.37 seconds; git diff --check passed.
+  Changes are local, uncommitted, and not pushed in this batch.
+
+## Whole-project audit — 2026-09-09
+
+- Completed three passes: source/contracts, counterexamples/fixes, and integrated
+  regression/export review. Details and limitations are in PROJECT_AUDIT.md.
+- Preserved the existing point-selection edits and historical review evidence.
+- Corrected comparison-state invalidation, input validation, raw crossings before
+  downsampling, export/DPI and UI-control defects, simulation numerical guards,
+  TTS amplitude/component conventions and misleading educational claims.
+- Added 29 regression cases; full integrated run reached 162 passing tests.
+  Final run is saved in final_test_run.txt. Static critical-error checks and pip
+  consistency passed; Bandit reported zero source findings.
+- Generated and visually inspected publication specimens, with actual 1200-DPI
+  TIFF and 600-DPI JPEG metadata verified. Reproduction script and inventory added.
+- Added future Windows/Linux CI jobs; no remote CI run, commit, push or deployment.
+  Experimental validation, nonlinear identifiability and cross-platform release
+  certification remain explicitly open.
+
+## Folder cleanup — 2026-09-09
+
+- Archived seven inactive root scripts, two test images, three intermediate audit
+  logs and the existing patch under `archive/`, preserving their contents.
+- Removed ten generated cache directories and the empty `models/` directory.
+- Retained application source, tests, reference PDFs, the installed virtual
+  environment, current audit documentation and final validation/export evidence.
+- Updated documentation and refreshed the file inventory. No application behavior
+  changed; no commit or push was made.

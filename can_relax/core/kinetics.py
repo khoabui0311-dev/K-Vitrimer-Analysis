@@ -181,7 +181,7 @@ class KineticsEngine:
                 "Params": {"A": popt[0], "B": popt[1], "T0": popt[2]},
                 "Plot": {"x": 1.0/T_K, "y": ln_tau, "y_pred": pred} # Plotted vs 1/T for comparison
             }
-        except:
+        except (RuntimeError, ValueError, FloatingPointError):
             return None
 
     def fit_coupled_kinetics(self, temps_C, taus, Tg=None):

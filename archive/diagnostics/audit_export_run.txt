@@ -1,0 +1,86 @@
+2026-09-09 10:36:30.380 WARNING streamlit.runtime.scriptrunner_utils.script_run_context: Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2026-09-09 10:36:31.193 The widget with key "plot_w" was created with a default value but also had its value set via the Session State API.
+Stack (most recent call last):
+  File "C:\Users\vbui\AppData\Local\spyder-6\Lib\threading.py", line 1002, in _bootstrap
+    self._bootstrap_inner()
+  File "C:\Users\vbui\AppData\Local\spyder-6\Lib\threading.py", line 1045, in _bootstrap_inner
+    self.run()
+  File "C:\Users\vbui\AppData\Local\spyder-6\Lib\threading.py", line 982, in run
+    self._target(*self._args, **self._kwargs)
+  File "C:\Users\vbui\OneDrive - CY Cergy Paris Universit�\K-Vitrimer-Analysis-main\.venv\Lib\site-packages\streamlit\runtime\scriptrunner\script_runner.py", line 419, in _run_script_thread
+    self._run_script(request.rerun_data)
+  File "C:\Users\vbui\OneDrive - CY Cergy Paris Universit�\K-Vitrimer-Analysis-main\.venv\Lib\site-packages\streamlit\runtime\scriptrunner\script_runner.py", line 814, in _run_script
+    ) = exec_func_with_error_handling(code_to_exec, ctx)
+  File "C:\Users\vbui\OneDrive - CY Cergy Paris Universit�\K-Vitrimer-Analysis-main\.venv\Lib\site-packages\streamlit\runtime\scriptrunner\exec_code.py", line 129, in exec_func_with_error_handling
+    result = func()
+  File "C:\Users\vbui\OneDrive - CY Cergy Paris Universit�\K-Vitrimer-Analysis-main\.venv\Lib\site-packages\streamlit\runtime\scriptrunner\script_runner.py", line 789, in code_to_exec
+    exec(code, module.__dict__)  # noqa: S102
+  File "C:\Users\vbui\OneDrive - CY Cergy Paris Universit�\K-Vitrimer-Analysis-main\can_relax\gui\app.py", line 814, in <module>
+    render_plotting_tab(tab_plotting)
+  File "C:\Users\vbui\OneDrive - CY Cergy Paris Universit�\K-Vitrimer-Analysis-main\can_relax\gui\components\ui_plotting.py", line 387, in render_plotting_tab
+    exp = _render_export_settings()
+  File "C:\Users\vbui\OneDrive - CY Cergy Paris Universit�\K-Vitrimer-Analysis-main\can_relax\gui\components\ui_plotting.py", line 233, in _render_export_settings
+    exp['fig_width_cm'] = st.number_input("Width (cm)", 1.0, 50.0, float(default_w), 0.1, disabled=disable_w_h, key="plot_w")
+  File "C:\Users\vbui\OneDrive - CY Cergy Paris Universit�\K-Vitrimer-Analysis-main\.venv\Lib\site-packages\streamlit\runtime\metrics_util.py", line 698, in wrapped_func
+    result = non_optional_func(*args, **kwargs)
+  File "C:\Users\vbui\OneDrive - CY Cergy Paris Universit�\K-Vitrimer-Analysis-main\.venv\Lib\site-packages\streamlit\elements\widgets\number_input.py", line 446, in number_input
+    return self._number_input(
+  File "C:\Users\vbui\OneDrive - CY Cergy Paris Universit�\K-Vitrimer-Analysis-main\.venv\Lib\site-packages\streamlit\elements\widgets\number_input.py", line 491, in _number_input
+    check_widget_policies(
+  File "C:\Users\vbui\OneDrive - CY Cergy Paris Universit�\K-Vitrimer-Analysis-main\.venv\Lib\site-packages\streamlit\elements\lib\policies.py", line 187, in check_widget_policies
+    check_session_state_rules(
+  File "C:\Users\vbui\OneDrive - CY Cergy Paris Universit�\K-Vitrimer-Analysis-main\.venv\Lib\site-packages\streamlit\elements\lib\policies.py", line 92, in check_session_state_rules
+    _LOGGER.warning(
+2026-09-09 10:36:32.483 Please replace `use_container_width` with `width`.
+
+`use_container_width` will be removed after 2025-12-31.
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+2026-09-09 10:36:32.889 Please replace `use_container_width` with `width`.
+
+`use_container_width` will be removed after 2025-12-31.
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+2026-09-09 10:36:35.709 Please replace `use_container_width` with `width`.
+
+`use_container_width` will be removed after 2025-12-31.
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+2026-09-09 10:36:36.885 Please replace `use_container_width` with `width`.
+
+`use_container_width` will be removed after 2025-12-31.
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+2026-09-09 10:36:38.744 Please replace `use_container_width` with `width`.
+
+`use_container_width` will be removed after 2025-12-31.
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+{
+  "files": 103,
+  "python_files": 52,
+  "exports": {
+    "tiff": {
+      "pixels": [
+        4015,
+        3543
+      ],
+      "dpi": [
+        1200.0,
+        1200.0
+      ],
+      "mode": "RGB"
+    },
+    "jpg": {
+      "pixels": [
+        2007,
+        1771
+      ],
+      "dpi": [
+        600.0,
+        600.0
+      ],
+      "mode": "RGB"
+    }
+  }
+}
