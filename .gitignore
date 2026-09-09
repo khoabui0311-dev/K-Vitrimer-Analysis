@@ -38,3 +38,8 @@ Desktop.ini
 # IDE configurations
 .vscode/
 .idea/
+
+# Desktop build tools and generated installers
+.build-tools/
+build/
+dist/

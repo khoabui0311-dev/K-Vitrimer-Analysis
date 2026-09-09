@@ -51,7 +51,7 @@ def test_replicates_incomplete_raw_curves_and_dataset_replacement(monkeypatch):
     monkeypatch.setattr(tab_pub_main, 'save_and_download', lambda *args: None)
     version = [1]
     real_read_bytes = Path.read_bytes
-    monkeypatch.setattr(Path, 'read_bytes', lambda self: str(version[0]).encode() if self.as_posix() == 'examples/toy_data.csv' else real_read_bytes(self))
+    monkeypatch.setattr(Path, 'read_bytes', lambda self: str(version[0]).encode() if self == Path(__file__).resolve().parents[1] / 'examples/toy_data.csv' else real_read_bytes(self))
     def records(path):
         t = np.geomspace(.01, 100, 100)
         return [{'Temp': temp, 'Curve_ID': f'curve_{i}', 'Data': pd.DataFrame({

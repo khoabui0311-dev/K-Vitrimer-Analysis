@@ -22,6 +22,7 @@ from can_relax.core.state import analysis_identity, clear_analysis, clear_derive
 from can_relax.core.selection import prepare_curve
 from can_relax.gui.labels import curve_labels
 from pathlib import Path
+EXAMPLE_DATA = Path(__file__).resolve().parents[2] / 'examples' / 'toy_data.csv'
 from can_relax.core.simulator import MaterialSimulator
 from can_relax.core.kinetics import KineticsEngine, predict_van_t_hoff, predict_coupled
 from can_relax.core.tts import TTSEngine
@@ -42,11 +43,10 @@ PLOTLY_STYLE = dict(
 def inject_custom_css():
     st.markdown("""
     <style>
-    /* Google Fonts */
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    /* System fonts keep the interface available without an internet connection. */
     
     html, body, [class*="css"] {
-        font-family: 'Inter', sans-serif;
+        font-family: 'Segoe UI', Arial, sans-serif;
     }
     
     /* Subtle Glassmorphism for Metric Cards */
@@ -200,13 +200,13 @@ with tab_analysis:
     st.sidebar.markdown("---")
     run_btn = st.sidebar.button("▶ Run Analysis", type="primary", width='stretch')
 
-    source_bytes = uploaded_file.getvalue() if uploaded_file else (Path("examples/toy_data.csv").read_bytes() if use_example_data else b'')
+    source_bytes = uploaded_file.getvalue() if uploaded_file else (EXAMPLE_DATA.read_bytes() if use_example_data else b'')
     curves = []
     review_settings = {}
     exclusions = {}
     if source_bytes:
         try:
-            curves = parse_uploaded_file(uploaded_file) if uploaded_file else parser_module_func('examples/toy_data.csv')
+            curves = parse_uploaded_file(uploaded_file) if uploaded_file else parser_module_func(EXAMPLE_DATA)
         except (ValueError, OSError) as exc:
             clear_analysis(st.session_state)
             st.error(f'Input rejected: {exc}')

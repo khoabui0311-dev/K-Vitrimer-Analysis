@@ -2,7 +2,24 @@
 
 **Kinetic Analysis of Vitrimer Relaxation & Kinetics** - Professional stress relaxation analysis software for materials research.
 
-## No-Code Launch (Windows)
+## Installable offline application (Windows)
+
+Run `K_Vitrimer_Analysis_Setup_1.0.0_x64.exe` from the `dist` folder to install
+the desktop edition. Launch **K Vitrimer Analysis** from the desktop or Start menu.
+The installer includes Python and the analysis libraries; no Python installation
+or internet connection is needed to use it. Windows 10/11 x64 and a web browser
+are required.
+
+The small launcher opens the interface in your browser at a private localhost
+address. Keep the launcher open while working; **Quit** stops its local server.
+Uploaded files and calculations stay on your computer. Save downloads before
+quitting, because analysis sessions are held in memory. Citation links still
+require internet access when clicked.
+
+Uninstall through Windows **Settings > Apps**. See [desktop/README.md](desktop/README.md)
+for build instructions, package verification, and distribution limitations.
+
+## Launch from source (Windows)
 
 **Easiest method:**
 1) Install Python 3.11+ from https://www.python.org/downloads/windows/ (check "Add python.exe to PATH").
@@ -93,7 +110,8 @@ independent experimental validation or parameter-identifiability assessment.
 
 ---
 
-**Note:** PyInstaller EXE builds are experimental due to Streamlit compatibility issues. For best results, use the BAT launchers above.
+The BAT launchers install dependencies from the internet on first use. Use the
+desktop installer for computers that need to remain offline.
 
 
 ## How to Cite
