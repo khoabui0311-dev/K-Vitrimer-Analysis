@@ -1,7 +1,7 @@
 param([string]$Installer = '')
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
-if (-not $Installer) { $Installer = Join-Path $projectRoot 'dist\K_Vitrimer_Analysis_Setup_1.0.0_x64.exe' }
+if (-not $Installer) { $Installer = Join-Path $projectRoot 'dist\K_Vitrimer_Analysis_Setup_1.1.0_x64.exe' }
 $registryPath = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{FE35CE06-96C6-4B7F-A692-6785A084BAF0}_is1'
 if (Test-Path -LiteralPath $registryPath) { throw 'An installed copy already exists. Run this integration test on a clean account.' }
 $testDir = [IO.Path]::GetFullPath((Join-Path $projectRoot 'dist\installer-test'))

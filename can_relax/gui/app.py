@@ -27,6 +27,7 @@ from can_relax.core.simulator import MaterialSimulator
 from can_relax.core.kinetics import KineticsEngine, predict_van_t_hoff, predict_coupled
 from can_relax.core.tts import TTSEngine
 from can_relax.core.analyzer import CurveAnalyzer
+from can_relax.core.models import PRONY, TAU_INDICES
 from can_relax.core.spectrum import SpectrumAnalyzer
 
 # Shared Plotly layout for visual consistency across all tabs
@@ -127,7 +128,7 @@ def parse_uploaded_file(uploaded_file):
 st.set_page_config(layout="wide", page_title="K Vitrimer Analysis", page_icon="🧪")
 inject_custom_css()
 st.sidebar.title("🧪 K Vitrimer Analysis")
-st.sidebar.caption("v1.0 | Professional Edition")
+st.sidebar.caption("v1.1 | Professional Edition")
 
 # Init Modules
 sim = MaterialSimulator()
@@ -183,12 +184,15 @@ with tab_analysis:
         time_cutoff = st.number_input("Short-Time Cutoff (s)", min_value=0.0, value=0.0, step=0.1, help="Exclude elapsed times below this value after subtracting the loading origin. This does not reset time to zero.")
         st.caption('Elapsed time = recorded time − loading origin. Cutoff removes early elapsed times; it does not move the loading origin. Defaults apply to all curves; individual adjustments are available in Data review.')
         st.markdown("---")
-        fit_model = st.selectbox("Model", ["Maxwell", "Single_KWW", "Dual_KWW"], key="analysis_fit_model")
+        fit_model = st.selectbox("Model", ["Maxwell", "Single_KWW", "Dual_KWW", PRONY], key="analysis_fit_model")
+        if fit_model == PRONY:
+            st.latex(r"G(t)=G_\infty+G_1 e^{-t/\tau_1}+G_2 e^{-t/\tau_2}")
+            st.caption('Mode 1 is fast and mode 2 is slow. Both are exponential. Mode moduli refer to loading time (t = 0).')
         plateau_mode = st.selectbox('Long-time plateau', ['Zero', 'Fit', 'Fixed'],
                                     key='plateau_mode', disabled=fit_model == 'Dual_KWW')
         if fit_model == 'Dual_KWW':
             plateau_mode = 'Zero'
-            st.caption('Plateau options apply to Maxwell and single KWW.')
+            st.caption('Plateau options apply to Maxwell, single KWW and two-Maxwell (Prony).')
         fixed_plateau = st.number_input('Fixed plateau (MPa)', min_value=0.0, value=0.0,
                                          key='fixed_plateau') if plateau_mode == 'Fixed' else 0.0
         if plateau_mode != 'Zero':
@@ -413,6 +417,13 @@ with tab_analysis:
                             fit_details.append({"Curve ID": r["Curve_ID"], "Temperature (\u00b0C)": temp, "G0 (MPa)": g0, "Tau (s)": p[0], "R\u00b2": r2, "AICc": aic, "BIC": bic})
                         elif fit_model == "Single_KWW":
                             fit_details.append({"Curve ID": r["Curve_ID"], "Temperature (\u00b0C)": temp, "G0 (MPa)": g0, "Tau (s)": p[0], "Beta (\u03b2)": p[1], "R\u00b2": r2, "AICc": aic, "BIC": bic})
+                        elif fit_model == PRONY:
+                            g1, g2 = r['Fits'][fit_model]['mode_moduli_MPa']
+                            fit_details.append({"Curve ID": r["Curve_ID"], "Temperature (°C)": temp, "G0 (MPa)": g0,
+                                                "Model": PRONY, "Fast fraction": p[0], "Slow fraction": 1-p[0],
+                                                "G1 fast (MPa)": g1, "Tau 1 fast (s)": p[1],
+                                                "G2 slow (MPa)": g2, "Tau 2 slow (s)": p[2],
+                                                "R²": r2, "AICc": aic, "BIC": bic})
                         elif fit_model == "Dual_KWW":
                             fit_details.append({"Curve ID": r["Curve_ID"], "Temperature (\u00b0C)": temp, "G0 (MPa)": g0, "Fraction A": p[0], "Tau 1 (s)": p[1], "Beta 1 (\u03b21)": p[2], "Tau 2 (s)": p[3], "Beta 2 (\u03b22)": p[4], "R\u00b2": r2, "AICc": aic, "BIC": bic})
                 if fit_details:
@@ -460,7 +471,7 @@ with tab_analysis:
 
         # 2. KINETICS
         with t2:
-            kinetic_component = st.radio('Fitted component', ['Slow (tau2)', 'Fast (tau1)'], horizontal=True) if fit_model == 'Dual_KWW' else None
+            kinetic_component = st.radio('Fitted component', ['Slow (tau2)', 'Fast (tau1)'], horizontal=True) if len(TAU_INDICES[fit_model]) == 2 else None
             st.caption("G0 denotes the first retained reference modulus, not an inferred zero-time plateau. Raw 1/e requires one observed crossing.")
             k_data = []
             st.session_state.kinetics_df = pd.DataFrame()
@@ -469,10 +480,7 @@ with tab_analysis:
                 if kinetics_mode == "Raw 1/e": t_val = r.get('Tau_1e', np.nan)
                 elif fit_model in r['Fits']:
                     p = r['Fits'][fit_model]['popt']
-                    if fit_model == "Maxwell": idx = 0
-                    elif fit_model == "Single_KWW": idx = 0
-                    elif fit_model == "Dual_KWW": idx = 3 if kinetic_component == 'Slow (tau2)' else 1
-                    else: idx = 0
+                    idx = TAU_INDICES[fit_model][-1 if kinetic_component == 'Slow (tau2)' else 0]
                     t_val = p[idx]
                 if kinetics_mode == 'Raw 1/e' and r['Crossing']['status'] != 'observed':
                     st.warning(f"{r['Temp']:g} C / {r['Curve_ID']}: 1/e {r['Crossing']['status']}; excluded from raw kinetics.")

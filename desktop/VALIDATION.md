@@ -1,4 +1,18 @@
-# Desktop edition 1.0.0 validation
+# Desktop edition 1.1.0 validation
+
+On 2026-11-06, the regression suite passed (170 tests), followed by six
+focused Prony tests including an additional UI/CSV test. Synthetic curves
+with a delayed first measurement recovered the prescribed 1.2 and 0.6 MPa
+arms and 4 and 68 s relaxation times under zero, fixed and fitted plateaus.
+The UI test checked the exported coefficients and the kinetics component
+switch. These are software checks, not experimental validation.
+
+The standalone Windows executable passed its offline smoke test on all four
+bundled example curves with **Two-Maxwell (Prony)** selected, including
+mastercurve generation, Excel, and figure exports. The installer upgrade
+has not been exercised against an existing user installation.
+
+## Desktop edition 1.0.0 validation
 
 Built and checked on Windows x64 on 2026-09-09 with Python 3.11.13,
 Streamlit 1.58.0, PyInstaller 6.22.2, and Inno Setup 6.7.3.

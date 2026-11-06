@@ -1,6 +1,7 @@
 """Synthetic relaxation anchored to a Maxwell-equivalent threshold."""
 import numpy as np
 from can_relax.core.kinetics import R_GAS
+from can_relax.core.models import PRONY, TwoMaxwell
 
 
 class MaterialSimulator:
@@ -10,7 +11,7 @@ class MaterialSimulator:
         Tv anchors G*tau=10^12 Pa s for the primary mode. For KWW/dual KWW
         it is a characteristic-time convention, not a total-viscosity threshold.
         """
-        if model_name not in ('Maxwell', 'Single_KWW', 'Dual_KWW'):
+        if model_name not in ('Maxwell', 'Single_KWW', 'Dual_KWW', PRONY):
             raise ValueError(f"Model '{model_name}' is not implemented in the simulator.")
         temperature, anchor = float(T) + 273.15, float(p['Tv']) + 273.15
         modulus, energy = float(p['G_plateau']), float(p['Ea'])
@@ -33,7 +34,7 @@ class MaterialSimulator:
 
         tau = mode_time(energy)
         tau2 = tau
-        if model_name == 'Dual_KWW':
+        if model_name in ('Dual_KWW', PRONY):
             tau2 = mode_time(float(p.get('Ea_2', energy)), float(p.get('tau_factor', 10.)))
             fraction = float(p.get('fraction_fast', .5))
             if not np.isfinite(fraction) or not 0 <= fraction <= 1:
@@ -44,6 +45,8 @@ class MaterialSimulator:
                 g = modulus * np.exp(-t/tau)
             elif model_name == 'Single_KWW':
                 g = modulus * np.exp(-(t/tau)**beta(p['beta']))
+            elif model_name == PRONY:
+                g = modulus * TwoMaxwell().func(t, fraction, tau, tau2)
             else:
                 g = modulus*(fraction*np.exp(-(t/tau)**beta(p['beta'])) +
                              (1-fraction)*np.exp(-(t/tau2)**beta(p.get('beta_2', p['beta']))))

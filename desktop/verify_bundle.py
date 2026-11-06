@@ -61,11 +61,13 @@ def verify():
         if app.exception:
             raise RuntimeError(str(app.exception))
         app.checkbox(key='use_example_data').check().run()
+        from can_relax.core.models import PRONY
+        app.selectbox(key='analysis_fit_model').select(PRONY).run()
         next(button for button in app.button if 'Run Analysis' in button.label).click().run()
         if app.exception:
             raise RuntimeError(str(app.exception))
         results = app.session_state['results']
-        if len(results) != 4 or not all(result['Valid'] for result in results):
+        if len(results) != 4 or not all(result['Valid'] and result['Fits'][PRONY]['success'] for result in results):
             raise RuntimeError('Bundled example analysis failed.')
         next(button for button in app.button if 'Generate Mastercurve' in button.label).click().run()
         if app.exception or 'master_data' not in app.session_state:
@@ -91,7 +93,7 @@ def verify():
                     exports[fmt] = {'bytes': len(payload)}
         finally:
             plt.close('all')
-        return {'http': 'ok', 'frontend_scripts': len(scripts), 'example_curves': len(results),
+        return {'http': 'ok', 'frontend_scripts': len(scripts), 'example_curves': len(results), 'fit_model': PRONY,
                 'mastercurve': 'ok', 'excel': 'ok', 'exports': exports,
                 'desktop_window': 'ok' if sys.platform == 'win32' else 'not tested',
                 'analysis_outbound_connections': 'blocked during test'}

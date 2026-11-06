@@ -4,7 +4,7 @@
 
 ## Installable offline application (Windows)
 
-Run `K_Vitrimer_Analysis_Setup_1.0.0_x64.exe` from the `dist` folder to install
+Run `K_Vitrimer_Analysis_Setup_1.1.0_x64.exe` from the `dist` folder to install
 the desktop edition. Launch **K Vitrimer Analysis** from the desktop or Start menu.
 The installer includes Python and the analysis libraries; no Python installation
 or internet connection is needed to use it. Windows 10/11 x64 and a web browser
@@ -101,7 +101,19 @@ This is a window-sensitivity heuristic, not proof of incomplete relaxation.
 Download the provenance JSON alongside fit parameters to retain the data/configuration
 hash, unit convention, reference observations, and preprocessing settings.
 
-### 4. Validation and shared review
+### 4. Two-Maxwell (Prony) fitting
+
+For a two-term Prony series, select **Physics & Fitting > Model > Two-Maxwell (Prony)**,
+choose a zero, fixed, or fitted long-time plateau, and click **Run Analysis**.
+The model is `G(t) = G_inf + G1 exp(-t/tau1) + G2 exp(-t/tau2)`, with
+mode 1 fast and mode 2 slow. **Download Fit Parameters CSV** includes both
+times in seconds, both loading-time moduli in MPa, and each arm's fraction of
+the relaxing modulus (excluding the plateau). Loading-time moduli are
+extrapolations when the first measurement is later than zero. Use **Fitted
+component** to choose the time used for fitted kinetics and mastercurve shifts.
+Similar times or a weak arm can fit the curve well without resolving two processes.
+
+### 5. Validation and shared review
 
 Run `python -m pytest -q` after installing `requirements-dev.txt`.
 The shared review entry point is [shared_review/README.md](shared_review/README.md).

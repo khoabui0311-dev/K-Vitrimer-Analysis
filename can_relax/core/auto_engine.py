@@ -59,7 +59,7 @@ class AutoEngine:
             msg += "- Behavior matches a **Maxwellian** fluid (simple exponential decay).\n"
         elif best_model == "Single_KWW":
             msg += "- A stretched exponential describes the observed curve; this does not identify a vitrimer.\n"
-        elif best_model == "Dual_KWW":
+        elif best_model in ("Dual_KWW", "Two-Maxwell (Prony)"):
             msg += "- A two-component function describes the data; distinct physical mechanisms require independent evidence.\n"
 
         # Fit Warning

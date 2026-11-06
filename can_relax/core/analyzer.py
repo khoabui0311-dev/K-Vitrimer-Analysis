@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 from scipy.optimize import curve_fit
 from typing import Dict, Any, Tuple, Optional
-from can_relax.core.models import Maxwell, SingleKWW, DualKWW
+from can_relax.core.models import Maxwell, SingleKWW, DualKWW, TwoMaxwell, PRONY, TAU_INDICES, prony_log_decay
 from can_relax.core.processing import DataProcessor
 from can_relax.core.auto_engine import AutoEngine
 
@@ -13,7 +13,8 @@ class CurveAnalyzer:
         self.models = {
             'Maxwell': Maxwell(),
             'Single_KWW': SingleKWW(),
-            'Dual_KWW': DualKWW()
+            'Dual_KWW': DualKWW(),
+            PRONY: TwoMaxwell(),
         }
 
     def _calculate_metrics(self, g_true: np.ndarray, g_pred: np.ndarray, n_params: int) -> Tuple[float, float, float]:
@@ -38,8 +39,8 @@ class CurveAnalyzer:
         """
         if plateau_mode not in ('Zero', 'Fit', 'Fixed'):
             raise ValueError('Unknown plateau mode')
-        if plateau_mode != 'Zero' and fit_model not in ('Maxwell', 'Single_KWW'):
-            raise ValueError('Plateau fitting requires Maxwell or Single_KWW')
+        if plateau_mode != 'Zero' and fit_model not in ('Maxwell', 'Single_KWW', PRONY):
+            raise ValueError('Plateau fitting requires Maxwell, Single_KWW or Two-Maxwell (Prony)')
         if plateau_mode == 'Fixed' and (not np.isfinite(fixed_plateau) or fixed_plateau < 0):
             raise ValueError('Fixed plateau must be finite and nonnegative (MPa)')
         # --- PHYSICS BARRIER CHECK ---
@@ -90,7 +91,7 @@ class CurveAnalyzer:
             result['Warnings'].append('Fit uses a retained-reference ratio; G0 is the observed reference modulus, not an inferred plateau.')
         for name in models_to_fit:
             model = self.models[name]
-            n_params = len(model.get_initial_guess(t, g))
+            n_params = len(model.get_bounds()[0])
             base_count = n_params
             if plateau_mode == 'Fit':
                 n_params += 1
@@ -106,6 +107,15 @@ class CurveAnalyzer:
                     bounds = (list(bounds[0]) + [0.0], list(bounds[1]) + [1.0 - 1e-9])
                 popt, covariance = curve_fit(prediction, t, g, p0=guess,
                     bounds=bounds, maxfev=15000, x_scale='jac')
+                if name == PRONY and popt[1] > popt[2]:
+                    # Keep any plateau parameter last. Permute/sign-flip covariance
+                    # directly (a matrix product with infinite entries can create NaNs).
+                    order = [0, 2, 1] + list(range(3, n_params))
+                    popt = popt[order]
+                    popt[0] = 1 - popt[0]
+                    covariance = covariance[np.ix_(order, order)]
+                    covariance[0, 1:] *= -1
+                    covariance[1:, 0] *= -1
                 if name == 'Dual_KWW' and popt[1] > popt[3]:
                     A, tau1, beta1, tau2, beta2 = popt
                     popt = np.array([1-A, tau2, beta2, tau1, beta1])
@@ -119,15 +129,25 @@ class CurveAnalyzer:
                 r2, aicc, bic = self._calculate_metrics(g, pred, n_params)
                 q = float(popt[-1]) if plateau_mode == 'Fit' else (fixed_plateau/G0 if plateau_mode == 'Fixed' else 0.0)
                 flags = []
-                taus = [popt[1], popt[3]] if name == 'Dual_KWW' else [popt[0]]
+                tau_indices = TAU_INDICES[name]
+                taus = [popt[i] for i in tau_indices]
                 if any(tau < t[0] or tau > t[-1] for tau in taus):
                     flags.append('Tau outside measurement window; review before kinetics.')
                 errors = np.sqrt(np.maximum(np.diag(covariance), 0))
-                tau_indices = [1, 3] if name == 'Dual_KWW' else [0]
                 if any(not np.isfinite(errors[i]) or errors[i] > .5*popt[i] for i in tau_indices):
                     flags.append('Tau has large local fit uncertainty.')
                 if name == 'Dual_KWW' and min(popt[0], 1-popt[0]) < .05:
                     flags.append('Dual-KWW component below 5% amplitude; its time may be unresolved.')
+                if name == PRONY:
+                    fraction, fast, slow = popt[:3]
+                    # Scale the relaxing modulus back to loading, not to G(t_ref).
+                    with np.errstate(divide='ignore', over='ignore'):
+                        log_scale = np.log(G0 * (1-q)) - prony_log_decay(t[0], fraction, fast, slow)
+                        moduli = np.exp(log_scale + np.log([fraction, 1-fraction]))
+                    if not np.all(np.isfinite(moduli)):
+                        flags.append('Loading-time Prony moduli exceed the numerical extrapolation range.')
+                    if min(fraction, 1-fraction) < .05 or slow / fast < 1.2:
+                        flags.append('Two Maxwell modes may be unresolved: small amplitude or similar relaxation times.')
                 if plateau_mode == 'Fit':
                     if not np.isfinite(errors[-1]) or errors[-1] > .05:
                         flags.append('Plateau is poorly constrained by local fit uncertainty.')
@@ -139,6 +159,8 @@ class CurveAnalyzer:
                     'plateau_mode': plateau_mode, 'G_inf': q*G0,
                     'G_inf_std': float(errors[-1]*G0) if plateau_mode == 'Fit' else None,
                     'flags': flags}
+                if name == PRONY:
+                    result['Fits'][name]['mode_moduli_MPa'] = np.where(np.isfinite(moduli), moduli, np.nan)
             except (RuntimeError, ValueError, FloatingPointError) as exc:
                 result['Fits'][name] = {'success': False, 'error': str(exc),
                     'r2': np.nan, 'aic': np.inf, 'bic': np.inf,
@@ -152,7 +174,7 @@ class CurveAnalyzer:
         result['Best_Model'] = best_model
         result['Warnings'].extend(result['Fits'][best_model]['flags'])
         params = result['Fits'][best_model]['popt']
-        taus = [params[1], params[3]] if best_model == 'Dual_KWW' else [params[0]]
+        taus = [params[i] for i in TAU_INDICES[best_model]]
         if any(tau < t[0] or tau > t[-1] for tau in taus):
             result['Warnings'].append('A fitted relaxation time lies outside the retained measurement window; parameter recovery may be weakly constrained.')
 

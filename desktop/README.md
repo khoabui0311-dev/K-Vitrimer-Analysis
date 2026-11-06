@@ -7,7 +7,7 @@ in the user's web browser; a small native launcher starts and stops the server.
 
 ## Install and use
 
-1. Run `dist/K_Vitrimer_Analysis_Setup_1.0.0_x64.exe`.
+1. Run `dist/K_Vitrimer_Analysis_Setup_1.1.0_x64.exe`.
 2. Launch **K Vitrimer Analysis** from the desktop or Start menu.
 3. Use the browser interface normally. Save downloaded results before quitting.
 4. Click **Quit** in the launcher to stop the server. Closing the browser tab alone
@@ -45,8 +45,8 @@ is required for portable use. The Setup EXE includes that complete folder.
 Outputs under ignored `dist/`:
 
 - `K_Vitrimer_Analysis/`: complete portable application.
-- `K_Vitrimer_Analysis_Setup_1.0.0_x64.exe`: installable package.
-- `K_Vitrimer_Analysis_Setup_1.0.0_x64.exe.sha256`: download verification hash.
+- `K_Vitrimer_Analysis_Setup_1.1.0_x64.exe`: installable package.
+- `K_Vitrimer_Analysis_Setup_1.1.0_x64.exe.sha256`: download verification hash.
 - `desktop-self-test.json`: packaged application verification report.
 
 The build refuses to produce an installer if its bundled self-test fails. That

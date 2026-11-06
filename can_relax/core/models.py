@@ -1,10 +1,43 @@
 import numpy as np
 
 
+PRONY = 'Two-Maxwell (Prony)'
+TAU_INDICES = {'Maxwell': (0,), 'Single_KWW': (0,), 'Dual_KWW': (1, 3), PRONY: (1, 2)}
+
+
+def prony_log_decay(t, fraction, tau_fast, tau_slow):
+    with np.errstate(divide='ignore'):
+        return np.logaddexp(np.log(fraction) - t/tau_fast,
+                            np.log1p(-fraction) - t/tau_slow)
+
+
+class TwoMaxwell:
+    """Two parallel Maxwell arms; fraction is of relaxing modulus at loading."""
+
+    def func(self, t, fraction, tau_fast, tau_slow):
+        return np.exp(prony_log_decay(np.asarray(t), fraction, tau_fast, tau_slow))
+
+    def get_initial_guess(self, t, g):
+        # Seed on decay levels, not row indices (sampling may be linear or logarithmic).
+        dt = t - t[0]
+        positive = dt[dt > 0]
+        if not len(positive):
+            raise ValueError('Two Maxwell modes require a nonzero measurement window.')
+        lo = positive[0]
+        fast = max(lo, dt[np.argmin(np.abs(g - .85))])
+        slow = max(3 * fast, dt[np.argmin(np.abs(g - .2))])
+        return [.5, np.clip(fast, 1e-9, 1e12), np.clip(slow, 1e-9, 1e12)]
+
+    def get_bounds(self):
+        return ([0., 1e-9, 1e-9], [1., 1e12, 1e12])
+
+
 def conditional_relaxation(name, t, params, reference_time):
     """Predict G(t)/G(reference_time) in log space without resetting physical time."""
     t = np.asarray(t, dtype=float)
     def log_decay(x):
+        if name == PRONY:
+            return prony_log_decay(x, *params)
         if name == 'Maxwell':
             return -x / params[0]
         if name == 'Single_KWW':

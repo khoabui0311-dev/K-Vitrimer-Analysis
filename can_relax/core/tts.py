@@ -6,6 +6,7 @@ Created on Thu Dec  4 15:33:24 2025
 """
 
 import numpy as np
+from can_relax.core.models import TAU_INDICES
 from scipy.interpolate import interp1d
 
 class TTSEngine:
@@ -47,14 +48,9 @@ class TTSEngine:
         def get_tau(res):
             best = res['Best_Model']
             popt = res['Fits'][best]['popt']
-            if best == 'Maxwell': return popt[0]
-            if best == 'Single_KWW': return popt[0]
-            # Dual_KWW: popt = [A, tau1, beta1, tau2, beta2]
-            # We use tau2 (slow mode, index 3) as the canonical network exchange time.
-            # tau1 is guaranteed < tau2 after the label-switching fix in analyzer.py.
-            # This is consistent with the Kinetics tab which also uses popt[3].
-            if best == 'Dual_KWW': return popt[3 if component == 'slow' else 1]
-            raise ValueError('Unknown relaxation model')
+            if best not in TAU_INDICES:
+                raise ValueError('Unknown relaxation model')
+            return popt[TAU_INDICES[best][-1 if component == 'slow' else 0]]
 
         if ref_curve_id is not None:
             ref_results = [r for r in sorted_res if r.get('Curve_ID') == ref_curve_id]

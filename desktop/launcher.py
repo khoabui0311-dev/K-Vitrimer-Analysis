@@ -17,7 +17,7 @@ import urllib.request
 import webbrowser
 
 APP_NAME = 'K Vitrimer Analysis'
-VERSION = '1.0.0'
+VERSION = '1.1.0'
 
 
 def resource_root():

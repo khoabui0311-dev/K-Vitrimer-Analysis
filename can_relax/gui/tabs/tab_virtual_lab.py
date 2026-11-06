@@ -8,6 +8,7 @@ Extracted from app.py to keep app.py as a thin orchestration layer.
 All dependencies are passed in as arguments to keep this module stateless.
 """
 import io
+from can_relax.core.models import PRONY
 import numpy as np
 import streamlit as st
 import plotly.graph_objects as go
@@ -35,17 +36,17 @@ def _render_controls():
         disable_Tv = mode.startswith("⚗️")
         Tv_sim = st.number_input("Tv (°C)", -100.0, 400.0, 120.0, disabled=disable_Tv)
         st.markdown("---")
-        sim_model = st.selectbox("Model", ["Single_KWW", "Maxwell", "Dual_KWW"])
-        beta_sim = st.slider("Beta", 0.2, 1.0, 0.8)
+        sim_model = st.selectbox("Model", ["Single_KWW", "Maxwell", "Dual_KWW", PRONY])
+        beta_sim = st.slider("Beta", 0.2, 1.0, 0.8) if sim_model in ("Single_KWW", "Dual_KWW") else 1.
         Tg_sim = st.number_input("Tg (°C)", value=50.0)
 
         frac_val = 0.5
         factor_val = 50.0
         Ea2_sim = Ea_sim
         beta2_sim = beta_sim
-        if sim_model == "Dual_KWW":
+        if sim_model in ("Dual_KWW", PRONY):
             Ea2_sim = st.number_input("Ea₂ (kJ/mol)", value=Ea_sim)
-            frac_val = st.slider("Fast-mode fraction", 0.1, 0.9, 0.5)
+            frac_val = st.slider("Mode 1 fraction" if sim_model == PRONY else "Fast-mode fraction", 0.1, 0.9, 0.5)
             factor_val = st.number_input("τ₂/τ₁ separation factor", value=50.0)
         st.markdown("---")
         temp_input = st.text_input("Temperatures (°C)", "130, 140, 150, 160, 170")
