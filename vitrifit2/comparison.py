@@ -55,8 +55,8 @@ def compare_runs(store: VitriFitStore, run_ids: list[str], mode: str,
         if temperature_c is None or not math.isfinite(float(temperature_c)):
             raise ValueError("Select the measured comparison temperature")
         selected = [r for r in rows if abs(r["temperature_c"] - float(temperature_c)) < 1e-6]
-        if not selected:
-            raise ValueError(f"No selected measurements at {temperature_c} °C; no interpolation was performed")
+        if len(selected) < 2:
+            raise ValueError(f"At least two matching measurements at {temperature_c} °C are needed; no interpolation was performed")
         return {"mode": mode, "temperature_c": temperature_c, "rows": selected,
                 "missing_run_ids": [r["run_id"] for r in rows if r not in selected],
                 "tau_definition": rows[0]["tau_definition"],
