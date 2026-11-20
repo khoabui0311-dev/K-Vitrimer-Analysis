@@ -62,6 +62,9 @@ export default function App() {
   const [selectedRuns, setSelectedRuns] = useState<string[]>([]);
   const [compareMode, setCompareMode] = useState("kinetics");
   const [kineticModel, setKineticModel] = useState("Arrhenius");
+  const [fitWindows, setFitWindows] = useState<Record<string, [number, number]>>({});
+  const [savedComparisons, setSavedComparisons] = useState<Item[]>([]);
+  const [savedFigures, setSavedFigures] = useState<Item[]>([]);
   const [temperature, setTemperature] = useState(100);
   const [comparison, setComparison] = useState<any>(null);
   const [style, setStyle] = useState<Record<string, unknown>>({ ...initialStyle });
@@ -69,7 +72,9 @@ export default function App() {
   const refreshProjects = () => api<Item[]>("/projects").then(setProjects);
   const refreshRuns = () => api<Run[]>("/analyses").then(setRuns);
   const refreshPresets = () => api<Preset[]>("/figures/presets").then(setPresets);
-  useEffect(() => { Promise.all([refreshProjects(), refreshRuns(), refreshPresets()]).catch(e => setError(errorMessage(e))); }, []);
+  const refreshComparisons = () => api<Item[]>("/comparisons").then(setSavedComparisons);
+  const refreshFigures = () => api<Item[]>("/figures").then(setSavedFigures);
+  useEffect(() => { Promise.all([refreshProjects(), refreshRuns(), refreshPresets(), refreshComparisons(), refreshFigures()]).catch(e => setError(errorMessage(e))); }, []);
   useEffect(() => {
     setSamples([]); setSampleId("");
     if (projectId) api<Item[]>("/projects/" + projectId + "/samples").then(setSamples).catch(e => setError(errorMessage(e)));
@@ -176,13 +181,14 @@ export default function App() {
   async function doComparison() {
     if (selectedRuns.length < 2) return;
     await run(async () => setComparison(await api<any>("/compare","POST",
-      {run_ids:selectedRuns, mode:compareMode, temperature_c:temperature, kinetic_model:kineticModel})));
+      {run_ids:selectedRuns, mode:compareMode, temperature_c:temperature, kinetic_model:kineticModel, windows:fitWindows})));
   }
   async function saveComparison() {
     if (!comparison) return;
     const name=window.prompt("Name this comparison","Cross-sample comparison"); if(!name?.trim()) return;
     await run(async () => {await api("/comparisons","POST",
-      {name,run_ids:selectedRuns,mode:compareMode,settings:{temperature_c:temperature,kinetic_model:kineticModel}});});
+      {name,run_ids:selectedRuns,mode:compareMode,settings:{temperature_c:temperature,kinetic_model:kineticModel,windows:fitWindows}});
+      await refreshComparisons();});
   }
   async function savePreset() {
     const name=window.prompt("Name this figure style","ACS/RSC style"); if(!name?.trim()) return;
@@ -192,7 +198,31 @@ export default function App() {
     if (!selectedRuns.length) return;
     const name=window.prompt("Name this figure project","Publication figure"); if(!name?.trim()) return;
     await run(async () => {await api("/figures","POST",
-      {name,run_ids:selectedRuns,composition:{plot_type:compareMode},overrides:style});});
+      {name,run_ids:selectedRuns,composition:{plot_type:compareMode},overrides:style});await refreshFigures();});
+  }
+  async function reopenComparison(id:string) {
+    if (!id) return;
+    await run(async () => {
+      const saved:any = await api("/comparisons/" + id);
+      setSelectedRuns(saved.run_ids); setCompareMode(saved.mode);
+      setTemperature(Number(saved.settings.temperature_c ?? 100));
+      setKineticModel(saved.settings.kinetic_model || "Arrhenius");
+      setFitWindows(saved.settings.windows || {});
+      setComparison(await api("/compare","POST",{
+        run_ids:saved.run_ids,mode:saved.mode,temperature_c:saved.settings.temperature_c,
+        kinetic_model:saved.settings.kinetic_model || "Arrhenius",
+        windows:saved.settings.windows || {}
+      }));
+    });
+  }
+  async function reopenFigure(id:string) {
+    if (!id) return;
+    await run(async () => {
+      const saved:any = await api("/figures/" + id);
+      setSelectedRuns(saved.run_ids);
+      setStyle({...initialStyle,...saved.overrides});
+      setCompareMode(saved.composition.plot_type || "curves");
+    });
   }
   function comparisonGraph() {
     if (!comparison) return <p className="muted">Select at least two saved analyses to compare.</p>;
@@ -299,6 +329,15 @@ export default function App() {
               {plateau==="Fixed"&&<label className="field">G∞ (MPa)<input type="number" step="any" value={fixedPlateau}
                 onChange={e=>setFixedPlateau(Number(e.target.value))}/></label>}
               <button className="primary" disabled={busy} onClick={fitCurve}>Run & save</button></div>
+            <label className="field" style={{maxWidth:380}}>Reopen saved analysis for this curve
+              <select defaultValue="" onChange={e=>{
+                const existing=runs.find(r=>r.id===e.target.value);
+                if(existing)setFit({results:existing.results});
+              }}><option value="">Select saved fit</option>
+                {runs.filter(r=>r.curve_id===curveId).map(r=>
+                  <option key={r.id} value={r.id}>{r.model} · τ {r.results.tau_s?.toPrecision(4)} s {r.is_current?"":"(stale)"}</option>)}
+              </select>
+            </label>
             <p className="hint">The manually selected points go directly to the existing fitting engine; the old automatic trimming routine is not run again.</p>
             {fit?.results&&<><div className="stats"><div><strong>{Number(fit.results.tau_s).toPrecision(5)} s</strong><small>τ</small></div>
               <div><strong>{Number(fit.results.r2).toFixed(4)}</strong><small>R²</small></div>
@@ -312,6 +351,12 @@ export default function App() {
         </section>}
         {tab==="Comparison"&&<section className="card"><h2>Cross-sample analysis</h2>
           <p className="muted">Select analyses from different experiments. Definitions of τ must agree. Stale fits are blocked.</p>
+          <label className="field" style={{maxWidth:360}}>Reopen saved comparison
+            <select value="" onChange={e=>reopenComparison(e.target.value)}>
+              <option value="">Choose comparison</option>
+              {savedComparisons.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          </label>
           <div className="run-list">{runs.map(r=><label key={r.id} className={"run-item "+(r.is_current?"":"stale")}>
             <input type="checkbox" checked={selectedRuns.includes(r.id)} onChange={e=>{
               setComparison(null);setSelectedRuns(a=>e.target.checked?[...a,r.id]:a.filter(x=>x!==r.id));}}/>
@@ -328,6 +373,25 @@ export default function App() {
             <button className="primary" disabled={busy||selectedRuns.length<2} onClick={doComparison}>Compare</button>
             <button className="subtle" disabled={busy||!comparison} onClick={saveComparison}>Save comparison</button>
           </div>
+          {compareMode==="kinetics"&&selectedRuns.length>0&&
+            <div className="window-editor"><p className="small-heading">Independent kinetic fitting windows (°C)</p>
+              {Array.from(new Map(runs.filter(r=>selectedRuns.includes(r.id)).map(r=>[r.sample_id,r])).values()).map(r=>{
+                const sampleRuns=runs.filter(x=>x.sample_id===r.sample_id&&selectedRuns.includes(x.id));
+                const low=Math.min(...sampleRuns.map(x=>x.temperature_c));
+                const high=Math.max(...sampleRuns.map(x=>x.temperature_c));
+                const bounds=fitWindows[r.sample_id]||[low,high];
+                return <div className="window-row" key={r.sample_id}><span>{r.sample_name}</span>
+                  <input aria-label={r.sample_name+" min C"} type="number" value={bounds[0]}
+                    onChange={e=>setFitWindows(s=>({...s,[r.sample_id]:[Number(e.target.value),bounds[1]]}))}/>
+                  <span>to</span>
+                  <input aria-label={r.sample_name+" max C"} type="number" value={bounds[1]}
+                    onChange={e=>setFitWindows(s=>({...s,[r.sample_id]:[bounds[0],Number(e.target.value)]}))}/>
+                  <button className="subtle" onClick={()=>setFitWindows(s=>{
+                    const next={...s};delete next[r.sample_id];return next;
+                  })}>Reset</button>
+                </div>;
+              })}
+            </div>}
           {comparisonGraph()}
           {comparison?.samples&&<table className="results"><thead><tr><th>Sample</th><th>Points</th><th>Ea (kJ/mol)</th><th>R²</th><th>Notes</th></tr></thead>
             <tbody>{comparison.samples.map((s:any)=><tr key={s.sample_id}>
@@ -338,6 +402,11 @@ export default function App() {
         </section>}
         {tab==="Figure Studio"&&<section className="card"><div className="card-head"><h2>Publication settings</h2><span className="tag">v1 standards protected</span></div>
           <p className="muted">This first version saves and restores publication style settings. Full figure rendering remains in the existing Publication tab until feature parity is verified.</p>
+          <label className="field" style={{maxWidth:360}}>Reopen figure project
+            <select value="" onChange={e=>reopenFigure(e.target.value)}><option value="">Choose saved figure</option>
+              {savedFigures.map(f=><option key={f.id} value={f.id}>{f.name}</option>)}
+            </select>
+          </label>
           <div className="controls"><label className="field">Saved preset<select defaultValue="" onChange={e=>{
             const preset=presets.find(p=>p.id===e.target.value);
             if(preset)setStyle({...initialStyle,...preset.settings});
