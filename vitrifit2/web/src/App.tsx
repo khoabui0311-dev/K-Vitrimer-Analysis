@@ -3,6 +3,16 @@ import Plot from "react-plotly.js";
 
 type Item = { id: string; name: string };
 type Experiment = { id: string; original_filename: string };
+type PreviewCurve = { source_curve_id: string; temperature_c: number; points: number;
+  first_time_s: number; last_time_s: number; time_min_s: number; time_max_s: number;
+  nonpositive_modulus_points: number; duplicate_time_steps: number;
+  decreasing_time_steps: number; warnings: string[];
+  preview_time_s: number[]; preview_modulus_mpa: number[]; };
+type ImportPreview = { filename: string; file_sha256: string; file_bytes: number;
+  curve_count: number; curves: PreviewCurve[]; temperatures_c: number[];
+  replicates_per_temperature: Record<string, number>;
+  canonical_units: Record<string, string>; warnings: string[];
+  needs_review: boolean; saved: boolean; };
 type CurveSummary = { id: string; temperature_c: number; source_curve_id: string };
 type Curve = { curve_id: string; source_curve_id: string; temperature_c: number; time_s: number[];
   modulus_mpa: number[]; mask: boolean[]; active_revision_id: string; can_undo: boolean; can_redo: boolean };
@@ -44,6 +54,9 @@ export default function App() {
   const [curveId, setCurveId] = useState("");
   const [curve, setCurve] = useState<Curve | null>(null);
   const [upload, setUpload] = useState<File | null>(null);
+  const [importPreview, setImportPreview] = useState<ImportPreview | null>(null);
+  const [importAcknowledged, setImportAcknowledged] = useState(false);
+  const [previewCurveIndex, setPreviewCurveIndex] = useState(0);
   const [runs, setRuns] = useState<Run[]>([]);
   const [presets, setPresets] = useState<Preset[]>([]);
   const [busy, setBusy] = useState(false);
@@ -119,13 +132,37 @@ export default function App() {
       setSamples(await api<Item[]>("/projects/" + projectId + "/samples")); setSampleId(added.id);
     });
   }
-  async function importData() {
-    if (!sampleId || !upload) return;
+  async function previewImport() {
+    if (!upload) return;
+    setImportPreview(null);
+    setImportAcknowledged(false);
     await run(async () => {
       const form = new FormData(); form.append("file", upload);
+      const result = await api<ImportPreview>("/import-preview", "POST", form);
+      if (result.filename !== upload.name || result.file_bytes !== upload.size) {
+        throw new Error("Preview source does not match the selected file");
+      }
+      setPreviewCurveIndex(0);
+      setImportPreview(result);
+    });
+  }
+  async function importData() {
+    if (!sampleId || !upload || !importPreview ||
+        importPreview.filename !== upload.name ||
+        importPreview.file_bytes !== upload.size ||
+        (importPreview.needs_review && !importAcknowledged)) return;
+    await run(async () => {
+      const form = new FormData(); form.append("file", upload);
+      form.append("metadata", JSON.stringify({
+        preview_sha256: importPreview.file_sha256,
+        review_warnings_acknowledged: Boolean(importAcknowledged),
+        preview_curve_count: importPreview.curve_count,
+      }));
       const result = await api<{experiment_id:string}>("/samples/" + sampleId + "/experiments", "POST", form);
       setExperiments(await api<Experiment[]>("/samples/" + sampleId + "/experiments"));
-      setExperimentId(result.experiment_id); setUpload(null); setTab("Preparation");
+      setExperimentId(result.experiment_id);
+      setImportPreview(null); setImportAcknowledged(false); setUpload(null);
+      setTab("Preparation");
     });
   }
   function graph(data: any[], xLabel: string, yLabel: string, xScale = "linear", yScale = "linear",
@@ -331,10 +368,53 @@ export default function App() {
         {error&&<div className="error"><strong>Action failed:</strong> {error}<button onClick={()=>setError("")}>×</button></div>}
         {busy&&<p className="loading">Processing…</p>}
         {tab==="Library"&&<section className="card"><h2>Import relaxation experiment</h2>
-          <p className="muted">Use the validated wide-format CSV/TXT/XLSX parser already in VitriFit v1. Select a project and sample first.</p>
-          <div className="row"><input type="file" disabled={!sampleId} accept=".csv,.txt,.xlsx"
-            onChange={e=>setUpload(e.target.files?.[0]||null)}/>
-            <button className="primary" disabled={!sampleId||!upload||busy} onClick={importData}>Import & save</button></div>
+          <p className="muted">Inspect CSV, TXT, Excel 97–2003 XLS, or XLSX first. The existing unit-validated relaxation parser reads one or more temperature curves, including replicates. No automatic trimming occurs during import.</p>
+          <div className="row">
+            <input type="file" disabled={!sampleId} accept=".csv,.txt,.xls,.xlsx"
+              onChange={e=>{setUpload(e.target.files?.[0]||null);setImportPreview(null);setImportAcknowledged(false);}}/>
+            <button className="subtle" disabled={!sampleId||!upload||busy} onClick={previewImport}>Inspect file</button>
+            <button className="primary" disabled={!sampleId||!upload||!importPreview||
+              importPreview.filename!==upload?.name||importPreview.file_bytes!==upload?.size||
+              (importPreview.needs_review&&!importAcknowledged)||busy} onClick={importData}>Save to library</button>
+          </div>
+          {importPreview&&<div className="import-preview">
+            <div className="card-head"><h3>Import review — {importPreview.filename}</h3>
+              <span className="tag">{importPreview.curve_count} curves detected</span></div>
+            <p className="hint">Canonical units: seconds (s), MPa, °C. Original uploaded bytes are retained unchanged; the preview does not save anything.</p>
+            <div className="preview-meta">
+              <span><strong>Temperatures:</strong> {importPreview.temperatures_c.map(t=>t+" °C").join(", ")}</span>
+              <span><strong>Replicates:</strong> {Object.keys(importPreview.replicates_per_temperature).length?
+                Object.entries(importPreview.replicates_per_temperature).map(([t,n])=>t+" °C × "+n).join("; "):"None detected"}</span>
+            </div>
+            <div className="preview-table"><table className="results">
+              <thead><tr><th>Curve</th><th>Temperature</th><th>Points</th><th>Time (s)</th><th>Quality</th></tr></thead>
+              <tbody>{importPreview.curves.map((c,i)=><tr key={i}
+                className={previewCurveIndex===i?"selected-row":""}
+                onClick={()=>setPreviewCurveIndex(i)}>
+                <td>{c.source_curve_id}</td><td>{c.temperature_c} °C</td>
+                <td>{c.points}</td><td>{c.time_min_s.toPrecision(4)} – {c.time_max_s.toPrecision(4)}</td>
+                <td>{c.warnings.length?<span className="warn-text">{c.warnings.length} warnings</span>:
+                  <span className="ok-text">No detected issues</span>}</td>
+              </tr>)}</tbody></table></div>
+            {importPreview.curves[previewCurveIndex]&&<div className="preview-curve">
+              <h3>Curve preview: {importPreview.curves[previewCurveIndex].temperature_c} °C</h3>
+              {graph([{
+                x:importPreview.curves[previewCurveIndex].preview_time_s,
+                y:importPreview.curves[previewCurveIndex].preview_modulus_mpa,
+                type:"scatter", mode:"lines+markers", name:"Original observations",
+                line:{color:"#2563eb",width:2},marker:{size:4},
+              }],"Instrument time (s)","Modulus (MPa)")}
+              <p className="hint">The chart is decimated for inspection (up to 120 points). Import preserves every original parsed point.</p>
+            </div>}
+            {importPreview.warnings.length>0&&<div className="import-warnings">
+              <strong>Scientific review required</strong>
+              <ul>{importPreview.warnings.map((w,i)=><li key={i}>{w}</li>)}</ul>
+              <label><input type="checkbox" checked={importAcknowledged}
+                onChange={e=>setImportAcknowledged(e.target.checked)}/>
+                I have reviewed these warnings. Keep the original points and correct them in Data Preparation.
+              </label>
+            </div>}
+          </div>}
           <p className="hint"><a href="/api/backup" download>Download complete local-library backup (SQLite + original uploads)</a></p>
           <div className="stats"><div><strong>{projects.length}</strong><small>Projects</small></div>
             <div><strong>{samples.length}</strong><small>Samples</small></div>
