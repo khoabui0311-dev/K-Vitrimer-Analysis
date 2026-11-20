@@ -107,6 +107,26 @@ def compare_runs(store: VitriFitStore, run_ids: list[str], mode: str,
                 entry["warning"] = fit.get("Warning")
             else:
                 entry["parameters"] = {k: _finite(v) for k,v in fit["Params"].items()}
+            # Publication/interactive plot points are generated from the fitted
+            # equation strictly within this sample's selected measured window.
+            # This is not extrapolation and cannot fill missing experimental data.
+            low_x = 1000.0 / (max(ts) + 273.15)
+            high_x = 1000.0 / (min(ts) + 273.15)
+            x_grid = [low_x + (high_x - low_x) * i / 99 for i in range(100)]
+            if kinetic_model == "Arrhenius":
+                predictions = [fit["Params"]["slope"] * x / 1000.0
+                               + fit["Params"]["intercept"] for x in x_grid]
+            else:
+                params = fit["Params"]
+                predictions = [params["A"] + params["B"] /
+                               (1000.0 / x - params["T0"]) for x in x_grid]
+            if all(math.isfinite(value) for value in predictions):
+                entry["fitted_curve"] = {
+                    "x_1000_per_k": x_grid,
+                    "ln_tau": predictions,
+                    "measured_window_c": [min(ts), max(ts)],
+                    "extrapolated": False,
+                }
         samples.append(entry)
     return {"mode": mode, "kinetic_model": kinetic_model, "samples": samples,
             "tau_definition": rows[0]["tau_definition"],
