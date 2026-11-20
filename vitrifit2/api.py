@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field
 from .comparison import compare_runs
 from .import_adapter import import_relaxation_upload
 from .persistence import VitriFitStore
-from .science import fit_saved_curve
+from .science import fit_saved_curve, suggest_automatic_trim
 
 DATA_DIR = Path.home() / ".vitrifit2"
 MAX_UPLOAD = 50 * 1024 * 1024
@@ -164,6 +164,11 @@ def list_curves(experiment_id: str, store: VitriFitStore = Depends(get_store)):
 @app.get("/api/curves/{curve_id}")
 def get_curve(curve_id: str, store: VitriFitStore = Depends(get_store)):
     return store.get_curve(curve_id)
+
+
+@app.get("/api/curves/{curve_id}/suggest-trim")
+def suggest_trim(curve_id: str, store: VitriFitStore = Depends(get_store)):
+    return suggest_automatic_trim(store, curve_id)
 
 
 @app.post("/api/curves/{curve_id}/region")
