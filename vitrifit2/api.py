@@ -30,6 +30,23 @@ def get_store() -> VitriFitStore:
 
 app = FastAPI(title="VitriFit 2.0", version="0.1.0", docs_url="/api/docs",
               openapi_url="/api/openapi.json")
+
+# This service has no user authentication: enforce local host and origin.
+@app.middleware("http")
+async def localhost_only(request, call_next):
+    from fastapi.responses import JSONResponse as Response
+    hostname = (request.headers.get("host", "").split(":")[0]).lower()
+    origin = request.headers.get("origin")
+    if hostname not in ("127.0.0.1", "localhost", "testserver"):
+        return Response(status_code=403, content={"detail": "Localhost access only"})
+    if origin and origin not in (
+        "http://127.0.0.1:8000", "http://localhost:8000",
+        "http://127.0.0.1:5173", "http://localhost:5173"
+    ):
+        return Response(status_code=403, content={"detail": "Untrusted request origin"})
+    return await call_next(request)
+
+
 app.add_middleware(CORSMiddleware,
                    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
                    allow_credentials=False, allow_methods=["GET", "POST"],
