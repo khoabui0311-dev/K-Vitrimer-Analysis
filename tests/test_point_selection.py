@@ -1,3 +1,4 @@
+from pathlib import Path
 import numpy as np
 import pandas as pd
 import pytest
@@ -36,7 +37,7 @@ def test_review_workflow_invalidation_and_provenance(monkeypatch):
     from streamlit.testing.v1 import AppTest
     from can_relax.gui.tabs import tab_pub_main
     monkeypatch.setattr(tab_pub_main, 'save_and_download', lambda *args: None)
-    app = AppTest.from_file('can_relax/gui/app.py', default_timeout=60).run()
+    app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / 'can_relax/gui/app.py'), default_timeout=60).run()
     app.checkbox(key='use_example_data').check().run()
     def run_analysis():
         next(b for b in app.button if 'Run Analysis' in b.label).click().run()
