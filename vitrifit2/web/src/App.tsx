@@ -68,6 +68,9 @@ export default function App() {
   const [temperature, setTemperature] = useState(100);
   const [comparison, setComparison] = useState<any>(null);
   const [style, setStyle] = useState<Record<string, unknown>>({ ...initialStyle });
+  const [activeFigureId, setActiveFigureId] = useState("");
+  const [exportFormat, setExportFormat] = useState("tiff");
+  const [exportDpi, setExportDpi] = useState(300);
 
   const refreshProjects = () => api<Item[]>("/projects").then(setProjects);
   const refreshRuns = () => api<Run[]>("/analyses").then(setRuns);
@@ -204,8 +207,15 @@ export default function App() {
   async function saveFigure() {
     if (!selectedRuns.length) return;
     const name=window.prompt("Name this figure project","Publication figure"); if(!name?.trim()) return;
-    await run(async () => {await api("/figures","POST",
-      {name,run_ids:selectedRuns,composition:{plot_type:compareMode},overrides:style});await refreshFigures();});
+    await run(async () => {
+      const created = await api<{id:string}>("/figures", "POST", {
+        name, run_ids:selectedRuns,
+        composition:{plot_type:compareMode, kinetic_model:kineticModel,
+                     temperature_c:temperature, windows:fitWindows},
+        overrides:style
+      });
+      setActiveFigureId(created.id); await refreshFigures();
+    });
   }
   async function reopenComparison(id:string) {
     if (!id) return;
@@ -229,6 +239,31 @@ export default function App() {
       setSelectedRuns(saved.run_ids);
       setStyle({...initialStyle,...saved.overrides});
       setCompareMode(saved.composition.plot_type || "curves");
+      setTemperature(Number(saved.composition.temperature_c ?? 100));
+      setKineticModel(saved.composition.kinetic_model || "Arrhenius");
+      setFitWindows(saved.composition.windows || {});
+      setActiveFigureId(id);
+    });
+  }
+  async function exportFigure() {
+    if (!activeFigureId) return;
+    await run(async () => {
+      const query = new URLSearchParams({fmt:exportFormat,dpi:String(exportDpi)});
+      const response = await fetch("/api/figures/"+activeFigureId+"/export?"+query);
+      if(!response.ok) {
+        const detail = await response.json();
+        throw new Error(detail.detail || "Publication export failed");
+      }
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = "VitriFit_Figure_"+activeFigureId.slice(0,8)+
+                      "."+(exportFormat==="jpeg"?"jpg":exportFormat);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(()=>URL.revokeObjectURL(objectUrl),1000);
     });
   }
   function comparisonGraph() {
@@ -432,8 +467,45 @@ export default function App() {
             <label className="field">Color space<select value={String(style.pub_colorspace)} onChange={e=>setStyle(s=>({...s,pub_colorspace:e.target.value}))}>
               <option>RGB</option><option>CMYK (for Print/Publication)</option></select></label>
           </div>
+          <div className="controls"><label className="field">Figure content
+            <select value={compareMode} onChange={e=>setCompareMode(e.target.value)}>
+              <option value="curves">Relaxation curves</option>
+              <option value="kinetics">Arrhenius / VFT kinetics</option>
+              <option value="fixed_temperature">τ at measured temperature</option>
+            </select></label>
+            {compareMode==="kinetics"&&<label className="field">Kinetic model
+              <select value={kineticModel} onChange={e=>setKineticModel(e.target.value)}>
+                <option>Arrhenius</option><option>VFT</option>
+              </select></label>}
+            {compareMode==="fixed_temperature"&&<label className="field">Measured temperature (°C)
+              <input type="number" value={temperature} onChange={e=>setTemperature(Number(e.target.value))}/>
+              </label>}
+          </div>
           <div className="row"><button className="primary" disabled={busy} onClick={savePreset}>Save style preset</button>
             <button className="subtle" disabled={!selectedRuns.length||busy} onClick={saveFigure}>Save figure project ({selectedRuns.length} analyses)</button></div>
+          <div className="export-panel">
+            <h3>Export saved figure</h3>
+            <p className="hint">Saved figures use the exact processing revision of each analysis, even if you later trim the source data. Journal dimensions, typefaces and export conversion follow the existing Publication implementation.</p>
+            <div className="controls">
+              <label className="field">Format<select value={exportFormat} onChange={e=>setExportFormat(e.target.value)}>
+                <option value="tiff">TIFF (publication)</option>
+                <option value="jpeg">JPEG</option>
+                <option value="pdf">PDF</option>
+                <option value="svg">SVG</option>
+                <option value="png">PNG</option>
+              </select></label>
+              <label className="field">Resolution<select value={exportDpi} onChange={e=>setExportDpi(Number(e.target.value))}>
+                <option value={300}>300 DPI</option>
+                <option value={600}>600 DPI</option>
+                <option value={1200}>1200 DPI</option>
+              </select></label>
+              <button className="primary" disabled={!activeFigureId||busy} onClick={exportFigure}>
+                Download figure
+              </button>
+            </div>
+            {!activeFigureId&&<p className="muted">Save or reopen a figure project to enable export.</p>}
+            <p className="hint">CMYK is supported for TIFF/JPEG/PDF, and RGB for PNG/SVG. The original v1 Eyring and Van 't Hoff Publication figures remain available in v1; full v2 feature parity is not yet complete.</p>
+          </div>
           <p className="hint">Saving a style does not alter current v1 exports. Figure snapshots and presets are stored separately.</p>
         </section>}
         <footer>VitriFit 2.0 experimental local browser interface · built on the existing validated scientific core</footer>
