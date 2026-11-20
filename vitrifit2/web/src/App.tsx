@@ -688,6 +688,12 @@ export default function App() {
           })()}
           <div className="row"><button className="primary" disabled={busy} onClick={savePreset}>Save style preset</button>
             <button className="subtle" disabled={!selectedRuns.length||busy} onClick={saveFigure}>Save figure project ({selectedRuns.length} analyses)</button></div>
+          {activeFigureId&&<div className="saved-figure-preview">
+            <h3>Saved-figure preview</h3>
+            <p className="hint">This preview comes from the saved source-analysis revisions and stored figure settings. To use new controls, save a new figure project.</p>
+            <img alt="Saved publication figure" loading="lazy"
+              src={"/api/figures/"+activeFigureId+"/export?fmt=svg&dpi=300"}/>
+          </div>}
           <div className="export-panel">
             <h3>Export saved figure</h3>
             <p className="hint">Saved figures use the exact processing revision of each analysis, even if you later trim the source data. Journal dimensions, typefaces and export conversion follow the existing Publication implementation.</p>
