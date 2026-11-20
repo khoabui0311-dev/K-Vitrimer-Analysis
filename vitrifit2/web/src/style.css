@@ -37,3 +37,10 @@ h1{font-size:27px;line-height:1.2;margin:0 0 8px;letter-spacing:-.025em}h2{font-
 .results{width:100%;border-collapse:collapse;font-size:12px;margin-top:15px}.results td,.results th{padding:10px;border-bottom:1px solid #e7edf4;text-align:left}.results th{background:#f6f9fd;color:#526581}
 footer{color:#9ba8b8;font-size:11px;margin-top:24px}
 @media(max-width:800px){.shell{grid-template-columns:1fr}.sidebar{border-right:0;border-bottom:1px solid #e1e7ee;padding:15px}.main{padding:25px 15px}.head-note{display:none}.nav{width:auto;display:inline-block;margin:2px}.topbar{padding:0 15px}.stats>div{flex:1}.card{padding:14px}}
+
+.window-editor{border:1px solid #e7edf5;background:#f9fbff;border-radius:8px;padding:10px 14px;margin:16px 0}
+.small-heading{font-size:11px;font-weight:700;letter-spacing:.02em;color:#597089;margin:2px 0 10px}
+.window-row{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:8px 0;font-size:12px}
+.window-row>span:first-child{min-width:130px;font-weight:600}
+.window-row input{max-width:100px;border:1px solid #d8e1ec;border-radius:6px;padding:7px}
+.window-row button{padding:7px 9px;min-height:28px}
