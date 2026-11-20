@@ -170,6 +170,13 @@ export default function App() {
       loadCurve(mode === "region" ? data.curve : data); await refreshRuns();
     });
   }
+  async function suggestTrim() {
+    if (!curveId) return;
+    await run(async () => {
+      const proposal = await api<{start_s:number,end_s:number}>("/curves/" + curveId + "/suggest-trim");
+      setStart(proposal.start_s); setEnd(proposal.end_s); setTrimMode("keep");
+    });
+  }
   async function fitCurve() {
     if (!curveId) return;
     await run(async () => {
@@ -309,6 +316,7 @@ export default function App() {
               <option value="keep">Keep region</option><option value="exclude">Exclude region</option></select></label>
               <label className="field">Start (s)<input type="number" step="any" value={start} onChange={e=>setStart(Number(e.target.value))}/></label>
               <label className="field">End (s)<input type="number" step="any" value={end} onChange={e=>setEnd(Number(e.target.value))}/></label>
+              <button className="subtle" disabled={busy} onClick={suggestTrim}>Suggest auto trim</button>
               <button className="primary" disabled={busy||end<=start} onClick={()=>editCurve("region")}>Apply</button>
               <button className="subtle" disabled={!curve.can_undo||busy} onClick={()=>editCurve("undo")}>↶ Undo</button>
               <button className="subtle" disabled={!curve.can_redo||busy} onClick={()=>editCurve("redo")}>↷ Redo</button>
