@@ -30,7 +30,9 @@ def _load_file_robustly(file_path):
         try:
             # A genuine BIFF workbook; a renamed XLSX or HTML file is not XLS.
             return pd.read_excel(path, header=None, engine="xlrd")
-        except (ImportError, ValueError, OSError, BadZipFile) as exc:
+        except Exception as exc:
+            # xlrd raises XLRDError (a direct Exception subclass) for an
+            # invalid BIFF container; surface a safe, actionable parser error.
             raise ValueError(f'Cannot read legacy XLS workbook: {exc}. '
                              'Check that the file is a genuine Excel 97-2003 XLS file.') from exc
     raise ValueError("Unsupported relaxation input; use CSV, TXT, XLS or XLSX.")
