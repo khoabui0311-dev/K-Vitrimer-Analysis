@@ -26,6 +26,6 @@ def test_reject_unhandled_legacy_xls(tmp_path):
     try:
         import_relaxation_upload(store, sample, "raw.xls", b"legacy")
     except ValueError as exc:
-        assert "CSV, TXT or XLSX" in str(exc)
+        assert "Cannot read legacy XLS workbook" in str(exc)
     else:
         raise AssertionError("Expected unsupported format error")
