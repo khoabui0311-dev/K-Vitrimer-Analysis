@@ -246,10 +246,9 @@ export default function App() {
       const x=r.observations.map((a:any)=>1000/(a.temperature_c+273.15));
       const y=r.observations.map((a:any)=>Math.log(a.tau_s));
       traces.push({x,y,type:"scatter",mode:"markers",name:r.sample});
-      if (r.slope != null && r.intercept != null) {
-        const ends=[Math.min(...x),Math.max(...x)];
-        traces.push({x:ends,y:ends.map(v=>r.slope*v/1000+r.intercept),
-          type:"scatter",mode:"lines",showlegend:false});
+      if (r.fitted_curve?.x_1000_per_k?.length && r.fitted_curve?.ln_tau?.length) {
+        traces.push({x:r.fitted_curve.x_1000_per_k,y:r.fitted_curve.ln_tau,
+          type:"scatter",mode:"lines",showlegend:false,name:r.sample+" fit"});
       }
     });
     return graph(traces,"1000/T (K⁻¹)","ln(τ / s)");
