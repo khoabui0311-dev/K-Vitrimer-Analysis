@@ -44,7 +44,7 @@ def test_review_workflow_invalidation_and_provenance(monkeypatch):
         assert not app.exception
     run_analysis()
     old_id = app.session_state['analysis_id']
-    point_key = next(k for k in app.session_state.filtered_state if k.startswith('points_'))
+    point_key = next(k for k in app.session_state._state.filtered_state if k.startswith('points_'))
     app.session_state[point_key] = {'edited_rows': {1: {'Keep': False}}, 'added_rows': [], 'deleted_rows': []}
     app.run()
     assert not app.exception
@@ -53,7 +53,7 @@ def test_review_workflow_invalidation_and_provenance(monkeypatch):
     assert app.session_state['analysis_id'] != old_id
     first = app.session_state['results'][0]
     assert first['Preprocessing']['manual_selection']['excluded_point_numbers'] == [2]
-    timing_key = next(k for k in app.session_state.filtered_state if k.startswith('timing_'))
+    timing_key = next(k for k in app.session_state._state.filtered_state if k.startswith('timing_'))
     app.session_state[timing_key] = {'edited_rows': {0: {'Loading origin (s)': .01, 'Cutoff (s)': 1.}}, 'added_rows': [], 'deleted_rows': []}
     app.run()
     assert not app.exception
