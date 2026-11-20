@@ -301,6 +301,7 @@ export default function App() {
           <div className="row"><input type="file" disabled={!sampleId} accept=".csv,.txt,.xlsx"
             onChange={e=>setUpload(e.target.files?.[0]||null)}/>
             <button className="primary" disabled={!sampleId||!upload||busy} onClick={importData}>Import & save</button></div>
+          <p className="hint"><a href="/api/backup" download>Download complete local-library backup (SQLite + original uploads)</a></p>
           <div className="stats"><div><strong>{projects.length}</strong><small>Projects</small></div>
             <div><strong>{samples.length}</strong><small>Samples</small></div>
             <div><strong>{experiments.length}</strong><small>Experiments</small></div>
