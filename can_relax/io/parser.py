@@ -42,12 +42,15 @@ def _kind(label):
     text = str(label).strip().lower()
     if re.search(r"storage|loss|g_prime|g['′]|frequency|stress", text):
         raise ValueError("Expected time-domain relaxation modulus. Convert stress using the imposed strain; storage/loss modulus and frequency data are not relaxation modulus.")
-    if re.search(r"temp|celsius|°c", text):
-        return "temp"
+    # Descriptive headers may append acquisition temperature to every label:
+    # 'Time (s) — 60°C' and 'Modulus (MPa) — 60°C'. Identify the
+    # primary measurement field BEFORE treating °C as a temp-column signal.
     if re.search(r"modulus|\b(?:mpa|kpa|pa)\b", text):
         return "mod"
     if re.search(r"time|\b(?:sec|seconds?|min|minutes?|s)\b", text):
         return "time"
+    if re.search(r"temp|celsius|°c", text):
+        return "temp"
     return None
 
 
