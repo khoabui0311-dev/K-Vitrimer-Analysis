@@ -7,6 +7,9 @@ This is a standalone prototype store, not a replacement for v1 analysis code.
 from __future__ import annotations
 
 from contextlib import contextmanager
+from io import BytesIO
+import tempfile
+from zipfile import ZIP_DEFLATED, ZipFile
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -429,3 +432,36 @@ class VitriFitStore:
             return [{"id": row["id"], "name": row["name"], "preset_id": row["preset_id"]}
                     for row in db.execute(
                         "SELECT id, name, preset_id FROM saved_figures ORDER BY created_at, id")]
+
+    def export_backup_bytes(self) -> bytes:
+        """Export a consistent SQLite snapshot plus referenced original uploads.
+
+        Snapshot is safe while the local app remains open. Backups should be
+        stored off-computer as the local database has no cloud replication.
+        """
+        with tempfile.TemporaryDirectory(prefix="vitrifit2-backup-") as temp:
+            snapshot = Path(temp) / "vitrifit.sqlite3"
+            source = sqlite3.connect(self.db_path)
+            destination = sqlite3.connect(snapshot)
+            try:
+                source.backup(destination)
+            finally:
+                destination.close()
+                source.close()
+            with sqlite3.connect(snapshot) as db:
+                hashes = [row[0] for row in db.execute(
+                    "SELECT DISTINCT file_sha256 FROM experiments")]
+            buffer = BytesIO()
+            with ZipFile(buffer, "w", ZIP_DEFLATED) as archive:
+                archive.write(snapshot, "vitrifit.sqlite3")
+                for digest in hashes:
+                    raw = (self.blobs / digest).read_bytes()
+                    if hashlib.sha256(raw).hexdigest() != digest:
+                        raise IOError(f"Corrupt or missing raw upload {digest}")
+                    archive.writestr("raw_blobs/" + digest, raw)
+                archive.writestr("manifest.json", _json({
+                    "format": "vitrifit2-backup-v1", "created_at": _now(),
+                    "original_file_hashes": hashes, "database": "vitrifit.sqlite3",
+                    "restore": "Stop the app, then extract this archive into the configured VITRIFIT2_DATA_DIR."
+                }))
+            return buffer.getvalue()
