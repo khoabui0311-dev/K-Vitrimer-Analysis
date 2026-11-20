@@ -6,7 +6,7 @@ This is a standalone prototype store, not a replacement for v1 analysis code.
 """
 from __future__ import annotations
 
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 from io import BytesIO
 import tempfile
 from zipfile import ZIP_DEFLATED, ZipFile
@@ -448,7 +448,7 @@ class VitriFitStore:
             finally:
                 destination.close()
                 source.close()
-            with sqlite3.connect(snapshot) as db:
+            with closing(sqlite3.connect(snapshot)) as db:
                 hashes = [row[0] for row in db.execute(
                     "SELECT DISTINCT file_sha256 FROM experiments")]
             buffer = BytesIO()
