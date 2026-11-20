@@ -16,7 +16,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from .comparison import compare_runs
-from .import_adapter import import_relaxation_upload
+from .import_adapter import import_relaxation_upload, preview_relaxation_upload
 from .persistence import VitriFitStore
 from .publication_export import export_publication_figure
 from .science import fit_saved_curve, suggest_automatic_trim
@@ -143,6 +143,15 @@ def create_sample(project_id: str, req: Named, store: VitriFitStore = Depends(ge
 @app.get("/api/samples/{sample_id}/experiments")
 def list_experiments(sample_id: str, store: VitriFitStore = Depends(get_store)):
     return store.list_experiments(sample_id)
+
+
+@app.post("/api/import-preview")
+async def preview_import(file: UploadFile = File(...)):
+    """Inspect all detected curves and quality issues without saving the file."""
+    content = await file.read(MAX_UPLOAD + 1)
+    if len(content) > MAX_UPLOAD:
+        raise HTTPException(413, f"File limit is {MAX_UPLOAD} bytes")
+    return preview_relaxation_upload(Path(file.filename or "").name, content)
 
 
 @app.post("/api/samples/{sample_id}/experiments", status_code=201)
