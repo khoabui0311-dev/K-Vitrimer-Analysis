@@ -11,7 +11,7 @@ from pathlib import Path
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -111,6 +111,12 @@ class NewFigure(BaseModel):
 @app.get("/api/health")
 def health():
     return {"status": "ok", "application": "VitriFit 2.0", "storage": "local"}
+
+
+@app.get("/api/backup")
+def export_backup(store: VitriFitStore = Depends(get_store)):
+    return Response(store.export_backup_bytes(), media_type="application/zip",
+                    headers={"Content-Disposition": 'attachment; filename="vitrifit2-backup.zip"'})
 
 
 @app.get("/api/projects")
