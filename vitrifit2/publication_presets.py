@@ -6,6 +6,7 @@ Matplotlib format, or renderer. Presets use the v2 SQLite data store.
 from __future__ import annotations
 
 import numbers
+from pathlib import Path
 
 from .persistence import VitriFitStore
 
@@ -45,8 +46,7 @@ def apply_publication_settings(state, settings: dict) -> int:
 
 def render_preset_controls(st):
     """Insert at the start of render_publication, before existing controls."""
-    store = VitriFitStore.home() if hasattr(VitriFitStore, "home") else VitriFitStore(
-        __import__("pathlib").Path.home() / ".vitrifit2")
+    store = VitriFitStore(Path.home() / ".vitrifit2")
     with st.expander("💾 Saved publication figure styles", expanded=False):
         st.caption("Preserve all current v1 Publication controls and reuse the same settings next session.")
         presets = store.list_figure_presets()
