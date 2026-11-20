@@ -6,7 +6,7 @@ type Experiment = { id: string; original_filename: string };
 type CurveSummary = { id: string; temperature_c: number; source_curve_id: string };
 type Curve = { curve_id: string; source_curve_id: string; temperature_c: number; time_s: number[];
   modulus_mpa: number[]; mask: boolean[]; active_revision_id: string; can_undo: boolean; can_redo: boolean };
-type Run = { id: string; project_name: string; sample_name: string; sample_id: string;
+type Run = { id: string; curve_id: string; project_name: string; sample_name: string; sample_id: string;
   temperature_c: number; model: string; tau_definition: string; is_current: boolean;
   results: { tau_s?: number; r2?: number; beta?: number; flags?: string[] } };
 type Preset = { id: string; name: string; settings: Record<string, unknown> };
@@ -384,7 +384,7 @@ export default function App() {
           </div>
           {compareMode==="kinetics"&&selectedRuns.length>0&&
             <div className="window-editor"><p className="small-heading">Independent kinetic fitting windows (°C)</p>
-              {Array.from(new Map(runs.filter(r=>selectedRuns.includes(r.id)).map(r=>[r.sample_id,r])).values()).map(r=>{
+              {Array.from(new Map<string,Run>(runs.filter(r=>selectedRuns.includes(r.id)).map(r=>[r.sample_id,r] as [string,Run])).values()).map(r=>{
                 const sampleRuns=runs.filter(x=>x.sample_id===r.sample_id&&selectedRuns.includes(x.id));
                 const low=Math.min(...sampleRuns.map(x=>x.temperature_c));
                 const high=Math.max(...sampleRuns.map(x=>x.temperature_c));
