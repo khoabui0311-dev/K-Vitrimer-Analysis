@@ -356,3 +356,76 @@ class VitriFitStore:
                     "preset_id": row["preset_id"],
                     "overrides": json.loads(row["overrides_json"]),
                     "composition": json.loads(row["composition_json"])}
+
+    # Read-only library queries for the browser UI.
+    def list_projects(self) -> list[dict]:
+        with self._db() as db:
+            return [dict(row) for row in db.execute(
+                "SELECT * FROM projects ORDER BY created_at, id")]
+
+    def list_samples(self, project_id: str) -> list[dict]:
+        with self._db() as db:
+            self._require(db, "projects", project_id)
+            return [dict(row) for row in db.execute(
+                "SELECT * FROM samples WHERE project_id=? ORDER BY created_at, id", (project_id,))]
+
+    def list_experiments(self, sample_id: str) -> list[dict]:
+        with self._db() as db:
+            self._require(db, "samples", sample_id)
+            rows = db.execute("SELECT * FROM experiments WHERE sample_id=? ORDER BY created_at, id",
+                              (sample_id,)).fetchall()
+            return [{**dict(row), "metadata": json.loads(row["metadata_json"])}
+                    for row in rows]
+
+    def list_curves(self, experiment_id: str) -> list[dict]:
+        with self._db() as db:
+            self._require(db, "experiments", experiment_id)
+            rows = db.execute("""SELECT id, source_curve_id, temperature_c, active_revision_id
+                                 FROM curves WHERE experiment_id=? ORDER BY created_at, id""",
+                              (experiment_id,)).fetchall()
+            return [dict(row) for row in rows]
+
+    def list_analysis_runs(self, project_id: str | None = None) -> list[dict]:
+        with self._db() as db:
+            sql = """SELECT a.*, c.temperature_c, c.active_revision_id, c.source_curve_id,
+                            s.name AS sample_name, s.id AS sample_id,
+                            p.name AS project_name, p.id AS project_id
+                     FROM analysis_runs a
+                     JOIN curves c ON c.id=a.curve_id
+                     JOIN experiments e ON e.id=c.experiment_id
+                     JOIN samples s ON s.id=e.sample_id
+                     JOIN projects p ON p.id=s.project_id"""
+            params: tuple = ()
+            if project_id is not None:
+                self._require(db, "projects", project_id)
+                sql += " WHERE p.id=?"
+                params = (project_id,)
+            sql += " ORDER BY a.created_at, a.id"
+            rows = db.execute(sql, params).fetchall()
+            return [
+                {"id": row["id"], "curve_id": row["curve_id"],
+                 "temperature_c": row["temperature_c"],
+                 "source_curve_id": row["source_curve_id"],
+                 "sample_name": row["sample_name"], "sample_id": row["sample_id"],
+                 "project_name": row["project_name"], "project_id": row["project_id"],
+                 "model": row["model"], "tau_definition": row["tau_definition"],
+                 "results": json.loads(row["results_json"]),
+                 "is_current": row["revision_id"] == row["active_revision_id"]}
+                for row in rows]
+
+    def list_comparisons(self) -> list[dict]:
+        with self._db() as db:
+            return [{"id": row["id"], "name": row["name"], "mode": row["mode"]}
+                    for row in db.execute(
+                        "SELECT id, name, mode FROM comparison_sessions ORDER BY created_at, id")]
+
+    def list_figure_presets(self) -> list[dict]:
+        with self._db() as db:
+            return [self.get_figure_preset(row["id"]) for row in db.execute(
+                "SELECT id FROM figure_presets ORDER BY created_at, id")]
+
+    def list_saved_figures(self) -> list[dict]:
+        with self._db() as db:
+            return [{"id": row["id"], "name": row["name"], "preset_id": row["preset_id"]}
+                    for row in db.execute(
+                        "SELECT id, name, preset_id FROM saved_figures ORDER BY created_at, id")]
