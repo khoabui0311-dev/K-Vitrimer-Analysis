@@ -290,7 +290,9 @@ def export_saved_publication(figure_id: str, fmt: str = "tiff",
     composition = saved["composition"]
     kind = {"curves": "relaxation", "relaxation": "relaxation",
             "kinetics": "kinetics",
-            "fixed_temperature": "fixed_temperature"}.get(
+            "fixed_temperature": "fixed_temperature",
+            "eyring": "eyring",
+            "van_t_hoff": "van_t_hoff"}.get(
                 composition.get("plot_type", "relaxation"))
     if kind is None:
         raise ValueError("Unknown figure-composition plot type")
