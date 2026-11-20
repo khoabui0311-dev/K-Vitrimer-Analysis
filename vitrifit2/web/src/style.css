@@ -60,3 +60,9 @@ footer{color:#9ba8b8;font-size:11px;margin-top:24px}
 .import-warnings ul{padding-left:20px;line-height:1.6}
 .import-warnings label{display:flex;align-items:flex-start;gap:8px;line-height:1.5}
 .import-warnings input{margin-top:3px}
+
+.advanced-figure-controls{border:1px solid #dce7f2;border-radius:10px;background:#fcfdff;padding:16px;margin:16px 0}
+.advanced-figure-controls h3{font-size:14px;font-weight:700;margin:0 0 10px;color:#24476e}
+.advanced-figure-controls .controls{align-items:center;border-top:1px solid #edf1f6;padding-top:13px;margin:13px 0}
+.figure-check{display:inline-flex;align-items:center;gap:7px;color:#52647c;font-size:12px;font-weight:600;max-width:160px}
+.figure-check input{accent-color:#255ca9}
