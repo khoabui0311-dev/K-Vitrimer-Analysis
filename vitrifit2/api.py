@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field
 from .comparison import compare_runs
 from .import_adapter import import_relaxation_upload
 from .persistence import VitriFitStore
+from .publication_export import export_publication_figure
 from .science import fit_saved_curve, suggest_automatic_trim
 
 DATA_DIR = Path.home() / ".vitrifit2"
@@ -264,6 +265,35 @@ def save_figure(req: NewFigure, store: VitriFitStore = Depends(get_store)):
 @app.get("/api/figures/{figure_id}")
 def get_figure(figure_id: str, store: VitriFitStore = Depends(get_store)):
     return store.get_figure(figure_id)
+
+
+
+@app.get("/api/figures/{figure_id}/export")
+def export_saved_publication(figure_id: str, fmt: str = "tiff",
+                             dpi: int = 300,
+                             store: VitriFitStore = Depends(get_store)):
+    """Export a saved manuscript figure with the exact pinned fit revisions."""
+    saved = store.get_figure(figure_id)
+    settings = {}
+    if saved["preset_id"]:
+        settings.update(store.get_figure_preset(saved["preset_id"])["settings"])
+    settings.update(saved["overrides"])
+    composition = saved["composition"]
+    kind = {"curves": "relaxation", "relaxation": "relaxation",
+            "kinetics": "kinetics",
+            "fixed_temperature": "fixed_temperature"}.get(
+                composition.get("plot_type", "relaxation"))
+    if kind is None:
+        raise ValueError("Unknown figure-composition plot type")
+    content, media_type = export_publication_figure(
+        store, saved["run_ids"], kind, settings, fmt=fmt, dpi=dpi,
+        kinetic_model=composition.get("kinetic_model", "Arrhenius"),
+        windows=composition.get("windows", {}),
+        temperature_c=composition.get("temperature_c"))
+    extension = "jpg" if fmt == "jpeg" else fmt
+    return Response(content, media_type=media_type,
+                    headers={"Content-Disposition":
+                             f'attachment; filename="VitriFit_Figure_{figure_id[:8]}.{extension}"'})
 
 
 # In production, serve the prebuilt React interface from the same origin.
