@@ -118,7 +118,14 @@ def import_relaxation_upload(store: VitriFitStore, sample_id: str,
     The preview does not modify, normalize, trim or sort any recorded points.
     Import warnings are persisted with the experiment for future review.
     """
+    if metadata and metadata.get("preview_sha256") is not None:
+        digest = hashlib.sha256(original_bytes).hexdigest()
+        if str(metadata["preview_sha256"]) != digest:
+            raise ValueError("The selected source file changed after its preview; inspect it again.")
     parsed = _parse_relaxation_file(filename, original_bytes)
+    if metadata and metadata.get("preview_curve_count") is not None:
+        if int(metadata["preview_curve_count"]) != len(parsed):
+            raise ValueError("Curve count changed after preview; inspect this file again.")
     summaries = [_curve_quality(item) for item in parsed]
     curves = [
         {
