@@ -19,6 +19,7 @@ import numpy as np
 from can_relax.core.kinetics import KineticsEngine
 from can_relax.core.observations import relaxation_crossing
 from can_relax.gui.exporting import MIME_TYPES, figure_bytes
+from .thermodynamic_figures import draw_eyring, draw_van_t_hoff
 from .persistence import VitriFitStore
 
 # Same sequence as can_relax.gui.app.PLOTLY_STYLE["colorway"].
@@ -339,33 +340,53 @@ def export_publication_figure(store: VitriFitStore, run_ids: list[str],
         raise ValueError("Unsupported publication export format")
     if dpi not in (300, 600, 1200):
         raise ValueError("Select 300, 600 or 1200 DPI")
-    if kind not in ("relaxation", "kinetics", "fixed_temperature"):
+    if kind not in ("relaxation", "kinetics", "fixed_temperature", "eyring", "van_t_hoff"):
         raise ValueError("Unsupported persisted comparison figure type")
     runs = _get_pinned_runs(store, run_ids)
     width, height = _physical_size(settings)
-    font_prefix = "pub_kin_" if kind == "kinetics" else "pub_rel_"
-    family = str(_val(settings, "pub_kinfont_family" if kind == "kinetics"
-                      else "pub_relfont_family", "Arial"))
-    num_family = str(_val(settings, font_prefix+"num_font", "Same as Label"))
-    if num_family == "Same as Label":
-        num_family = family
+    # Figure 3/4 have their own long-established widget settings, not the
+    # generic relaxation/Arrhenius keys. Preserve them for saved exports.
+    if kind in ("eyring", "van_t_hoff"):
+        prefix = "eyr" if kind == "eyring" else "vh"
+        family = str(_val(settings, prefix+"_ff", "Arial"))
+        num_family = str(_val(settings, prefix+"_nf", "Same as Label"))
+        if num_family == "Same as Label":
+            num_family = family
+        tick_size = _validated_number(settings, prefix+"_nsz", 10, 4, 30)
+    else:
+        font_prefix = "pub_kin_" if kind == "kinetics" else "pub_rel_"
+        family = str(_val(settings, "pub_kinfont_family" if kind == "kinetics"
+                          else "pub_relfont_family", "Arial"))
+        num_family = str(_val(settings, font_prefix+"num_font", "Same as Label"))
+        if num_family == "Same as Label":
+            num_family = family
+        tick_size = _validated_number(settings, font_prefix+"num_sz", 10, 4, 30)
     with plt.rc_context({
         "font.family": num_family, "axes.unicode_minus": False,
         "svg.fonttype": "none", "pdf.fonttype": 42,
-        "xtick.labelsize": _validated_number(settings, font_prefix+"num_sz", 10, 4, 30),
-        "ytick.labelsize": _validated_number(settings, font_prefix+"num_sz", 10, 4, 30),
+        "xtick.labelsize": tick_size,
+        "ytick.labelsize": tick_size,
     }):
         fig, ax = plt.subplots(figsize=(width/2.54, height/2.54), facecolor="white")
         try:
-            labels = _style_axes(ax, settings, "kinetics" if kind == "kinetics" else "relaxation")
-            if kind == "relaxation":
-                _relaxation(ax, runs, settings)
-            elif kind == "kinetics":
-                _kinetics(ax, runs, settings, kinetic_model, windows)
+            if kind in ("eyring", "van_t_hoff"):
+                if kind == "eyring":
+                    draw_eyring(ax, runs, settings, windows)
+                    _panel(ax, settings, 3)
+                else:
+                    draw_van_t_hoff(ax, runs, settings, windows)
+                    _panel(ax, settings, 4)
             else:
-                _fixed_temperature(ax, runs, settings, temperature_c)
-            ax.xaxis.label.set_fontproperties(mpl.font_manager.FontProperties(**labels))
-            ax.yaxis.label.set_fontproperties(mpl.font_manager.FontProperties(**labels))
+                labels = _style_axes(ax, settings,
+                                     "kinetics" if kind == "kinetics" else "relaxation")
+                if kind == "relaxation":
+                    _relaxation(ax, runs, settings)
+                elif kind == "kinetics":
+                    _kinetics(ax, runs, settings, kinetic_model, windows)
+                else:
+                    _fixed_temperature(ax, runs, settings, temperature_c)
+                ax.xaxis.label.set_fontproperties(mpl.font_manager.FontProperties(**labels))
+                ax.yaxis.label.set_fontproperties(mpl.font_manager.FontProperties(**labels))
             fig.tight_layout()
             colorspace = str(_val(settings, "pub_colorspace", "RGB"))
             data = figure_bytes(fig, fmt, dpi=dpi, colorspace=colorspace)
