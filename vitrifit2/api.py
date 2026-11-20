@@ -279,7 +279,7 @@ def get_figure(figure_id: str, store: VitriFitStore = Depends(get_store)):
 
 @app.get("/api/figures/{figure_id}/export")
 def export_saved_publication(figure_id: str, fmt: str = "tiff",
-                             dpi: int = 300,
+                             dpi: int = 300, inline: bool = False,
                              store: VitriFitStore = Depends(get_store)):
     """Export a saved manuscript figure with the exact pinned fit revisions."""
     saved = store.get_figure(figure_id)
@@ -302,9 +302,10 @@ def export_saved_publication(figure_id: str, fmt: str = "tiff",
         windows=composition.get("windows", {}),
         temperature_c=composition.get("temperature_c"))
     extension = "jpg" if fmt == "jpeg" else fmt
+    disposition = "inline" if inline and fmt == "svg" else "attachment"
     return Response(content, media_type=media_type,
                     headers={"Content-Disposition":
-                             f'attachment; filename="VitriFit_Figure_{figure_id[:8]}.{extension}"'})
+                             f'{disposition}; filename="VitriFit_Figure_{figure_id[:8]}.{extension}"'})
 
 
 # In production, serve the prebuilt React interface from the same origin.
