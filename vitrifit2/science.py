@@ -102,3 +102,24 @@ def fit_saved_curve(store: VitriFitStore, curve_id: str, model: str = "Single_KW
     run_id = store.save_analysis(curve_id, model, definition, config, result)
     return {"run_id": run_id, "model": model, "tau_definition": definition,
             "is_current": True, "results": result}
+
+
+def suggest_automatic_trim(store: VitriFitStore, curve_id: str) -> dict:
+    """Propose (but never apply) boundaries from the existing v1 algorithm.
+
+    V1 also sorts, averages duplicate times, and filters invalid modulus.
+    This returns only a contiguous range; internal artifact exclusions are not
+    implied, and a manual fit still checks for nonpositive/duplicate data.
+    """
+    curve = store.get_curve(curve_id)
+    original_t = np.asarray(curve["time_s"], dtype=float)
+    original_g = np.asarray(curve["modulus_mpa"], dtype=float)
+    proposed_t, _, _ = DataProcessor().trim_curve(original_t, original_g,
+                                                  max_points=None)
+    if proposed_t is None:
+        raise ValueError("Automatic trim could not identify a valid measurement window")
+    start, end = float(proposed_t[0]), float(proposed_t[-1])
+    return {"curve_id": curve_id, "mode": "keep", "start_s": start,
+            "end_s": end, "proposed_points": int(len(proposed_t)),
+            "applied": False,
+            "note": "Suggested using the legacy heuristic. Inspect and apply for this curve only; no points were changed."}
