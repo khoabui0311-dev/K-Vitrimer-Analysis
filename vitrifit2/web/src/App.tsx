@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import Plot from "react-plotly.js";
 
 type Item = { id: string; name: string };
-type Experiment = { id: string; original_filename: string };
+type Experiment = { id: string; original_filename: string; metadata?: {
+  curve_quality?: {source_curve_id: string;temperature_c:number;warnings:string[]}[];
+  import_warnings?: string[]; import_requires_review?: boolean; }; };
 type PreviewCurve = { source_curve_id: string; temperature_c: number; points: number;
   first_time_s: number; last_time_s: number; time_min_s: number; time_max_s: number;
   nonpositive_modulus_points: number; duplicate_time_steps: number;
@@ -423,6 +425,15 @@ export default function App() {
         </section>}
         {tab==="Preparation"&&<section className="card"><div className="card-head"><h2>Individual curve editor</h2><span className="tag">Non-destructive</span></div>
           {!curve?<p className="muted">Select a curve from the research library on the left.</p>:<>
+            {(()=>{
+              const imported=experiments.find(e=>e.id===experimentId);
+              const quality=imported?.metadata?.curve_quality?.find(q=>q.source_curve_id===curve.source_curve_id);
+              return quality?.warnings?.length?<div className="import-warnings">
+                <strong>Original-file data-quality warnings for this curve</strong>
+                <ul>{quality.warnings.map((w,i)=><li key={i}>{w}</li>)}</ul>
+                <p className="hint">These are historical import observations. Trimming or excluding points does not overwrite the original instrument record.</p>
+              </div>:null;
+            })()}
             <div className="row compact"><label><input type="checkbox" checked={normalized} onChange={e=>setNormalized(e.target.checked)}/> Normalized modulus</label>
               <label><input type="checkbox" checked={timeLog} onChange={e=>setTimeLog(e.target.checked)}/> Log time</label></div>
             {graph(displayed,"Instrument time (s)",normalized?"G/G(ref)":"Modulus (MPa)",timeLog?"log":"linear","linear",selectedInterval,pointClicked)}
