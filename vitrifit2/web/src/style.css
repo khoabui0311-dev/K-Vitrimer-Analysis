@@ -66,3 +66,7 @@ footer{color:#9ba8b8;font-size:11px;margin-top:24px}
 .advanced-figure-controls .controls{align-items:center;border-top:1px solid #edf1f6;padding-top:13px;margin:13px 0}
 .figure-check{display:inline-flex;align-items:center;gap:7px;color:#52647c;font-size:12px;font-weight:600;max-width:160px}
 .figure-check input{accent-color:#255ca9}
+
+.saved-figure-preview{border:1px solid #dce7f2;background:#fff;border-radius:10px;padding:16px;margin:18px 0}
+.saved-figure-preview h3{font-size:14px;margin:0}
+.saved-figure-preview img{display:block;max-width:100%;width:auto;max-height:600px;margin:12px auto 0;border:1px solid #edf1f5;background:white}
