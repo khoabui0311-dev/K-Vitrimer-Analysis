@@ -24,9 +24,16 @@ def _load_file_robustly(file_path):
     if path.suffix.lower() == ".xlsx":
         try:
             return pd.read_excel(path, header=None)
-        except (BadZipFile, ImportError) as exc:
+        except (BadZipFile, ImportError, ValueError) as exc:
             raise ValueError(f'Cannot read XLSX workbook: {exc}') from exc
-    raise ValueError("Unsupported file type; use CSV, TXT or XLSX (convert legacy XLS first).")
+    if path.suffix.lower() == ".xls":
+        try:
+            # A genuine BIFF workbook; a renamed XLSX or HTML file is not XLS.
+            return pd.read_excel(path, header=None, engine="xlrd")
+        except (ImportError, ValueError, OSError, BadZipFile) as exc:
+            raise ValueError(f'Cannot read legacy XLS workbook: {exc}. '
+                             'Check that the file is a genuine Excel 97-2003 XLS file.') from exc
+    raise ValueError("Unsupported relaxation input; use CSV, TXT, XLS or XLSX.")
 
 
 def _kind(label):
