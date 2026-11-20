@@ -221,6 +221,33 @@ class VitriFitStore:
                     "can_undo": revision["parent_revision_id"] is not None,
                     "can_redo": bool(json.loads(state["redo_json"]))}
 
+    def get_curve_revision(self, curve_id: str, revision_id: str) -> dict:
+        """Read an immutable processing snapshot without changing the current edit.
+
+        A saved manuscript figure can therefore reproduce the exact points used
+        for a historical analysis even when the live curve has been retrimmed.
+        """
+        with self._db() as db:
+            curve = self._require(db, "curves", curve_id)
+            revision = self._require(db, "processing_revisions", revision_id)
+            if revision["curve_id"] != curve_id:
+                raise ValueError("Processing revision does not belong to the requested curve")
+            raw = json.loads(curve["raw_json"])
+            mask = json.loads(revision["mask_json"])
+            if len(mask) != len(raw["time_s"]) or not all(isinstance(x, bool) for x in mask):
+                raise ValueError("The saved processing mask is invalid")
+            return {
+                "curve_id": curve_id,
+                "experiment_id": curve["experiment_id"],
+                "source_curve_id": curve["source_curve_id"],
+                "temperature_c": curve["temperature_c"],
+                "revision_id": revision_id,
+                "time_s": raw["time_s"],
+                "modulus_mpa": raw["modulus_mpa"],
+                "mask": mask,
+                "operation": json.loads(revision["operation_json"]),
+            }
+
     def _set_head(self, db, curve_id: str, revision_id: str, redo: list[str]):
         db.execute("UPDATE curves SET active_revision_id=? WHERE id=?", (revision_id, curve_id))
         db.execute("UPDATE edit_state SET redo_json=? WHERE curve_id=?", (_json(redo), curve_id))
