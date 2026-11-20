@@ -692,7 +692,7 @@ export default function App() {
             <h3>Saved-figure preview</h3>
             <p className="hint">This preview comes from the saved source-analysis revisions and stored figure settings. To use new controls, save a new figure project.</p>
             <img alt="Saved publication figure" loading="lazy"
-              src={"/api/figures/"+activeFigureId+"/export?fmt=svg&dpi=300"}/>
+              src={"/api/figures/"+activeFigureId+"/export?fmt=svg&dpi=300&inline=true"}/>
           </div>}
           <div className="export-panel">
             <h3>Export saved figure</h3>
