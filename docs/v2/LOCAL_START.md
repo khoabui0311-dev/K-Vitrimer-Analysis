@@ -46,14 +46,14 @@ in another terminal, and open http://127.0.0.1:5173.
 - Keep independent offline backups, especially before upgrading the software.
 - Editing a curve produces masks and revisions, never destructive changes to
   the original uploaded file. A new edit flags earlier fitting runs as stale.
-- Inputs are subject to current parser limitations: CSV/TXT/XLSX, wide
-  relaxation time/modulus data (canonical seconds/MPa/°C). Legacy XLS requires
-  conversion. DMA, DSC and tensile import are not yet available in v2.
+- Inputs are subject to current parser limitations: CSV/TXT/XLS/XLSX, wide
+  relaxation time/modulus data (canonical seconds/MPa/°C). Genuine legacy BIFF XLS
+  workbooks are supported with xlrd; renamed/invalid XLS files are rejected. DMA, DSC and tensile import are not yet available in v2.
 
 ## Current feature status
 
 Implemented on branch: projects/samples/experiments, immutable uploaded files,
-independent curve trimming, undo/redo, auto trim proposal, revision-pinned
+import preview with warnings, native XLS support, independent curve trimming, undo/redo, auto trim proposal, revision-pinned
 Maxwell/KWW/Prony fitting, saved runs, fixed-temperature & kinetic comparisons,
 per-sample kinetic windows, style presets, saved figure-project records, and
 local database backup.
@@ -65,3 +65,5 @@ and additional DMA/DSC/tensile modules.
 
 Do not replace v1 for production publication work until the parity matrix
 in PUBLICATION_PARITY.md is checked.
+
+See [Import Preview](IMPORT_PREVIEW.md) for file review and scientific integrity rules.
