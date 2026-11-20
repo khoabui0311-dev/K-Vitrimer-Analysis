@@ -86,6 +86,20 @@ def test_kinetic_and_fixed_temperature_cross_sample(env):
     sample_fits = response.json()["samples"]
     assert len(sample_fits) == 2
     assert sorted(round(x["Ea_kj_mol"]) for x in sample_fits) == [60,85]
+    assert all(len(s["fitted_curve"]["x_1000_per_k"]) == 100 for s in sample_fits)
+    assert all(s["fitted_curve"]["extrapolated"] is False for s in sample_fits)
+    assert all(s["fitted_curve"]["measured_window_c"] == [90, 120] for s in sample_fits)
+    # Each sample can use a different kinetic fit window without changing
+    # the other sample's observations or extrapolating missing temperatures.
+    only_vugt = next(s for s in sample_fits if s["sample"] == "VUGT")
+    narrowed = client.post("/api/compare", json={
+        **payload, "windows": {only_vugt["sample_id"]: [100, 120]}
+    })
+    assert narrowed.status_code == 200, narrowed.text
+    by_name = {s["sample"]: s for s in narrowed.json()["samples"]}
+    assert len(by_name["VUGT"]["observations"]) == 3
+    assert len(by_name["LCE2"]["observations"]) == 4
+    assert by_name["VUGT"]["fitted_curve"]["measured_window_c"] == [100, 120]
     same_temp = client.post("/api/compare", json={"run_ids": all_runs,
                              "mode": "fixed_temperature", "temperature_c": 100})
     assert same_temp.status_code == 200
@@ -121,3 +135,34 @@ def test_figure_presets_round_trip_and_stale_fit_rejection(env):
     response = client.post("/api/compare", json={"mode": "curves", "run_ids": [r1, r2]})
     assert response.status_code == 422
     assert "stale" in response.json()["detail"].lower()
+
+
+def test_vft_comparison_curve_within_measured_window(env):
+    client, store = env
+    project = store.create_project("VFT polymer relaxation")
+    selected = []
+    for sample_name, params in (("VUGT", (-10.0, 1400.0, 270.0)),
+                                ("IPN", (-8.0, 1100.0, 255.0))):
+        sample = store.create_sample(project, sample_name)
+        for temperature in (70, 80, 90, 100, 110):
+            t_kelvin = temperature + 273.15
+            ln_tau = params[0] + params[1] / (t_kelvin - params[2])
+            exp = store.import_experiment(
+                sample, "synthetic.csv", (sample_name+str(temperature)).encode(),
+                [{"source_curve_id": "c", "temperature_c": temperature,
+                  "time_s": [0.01, 1, 2], "modulus_mpa": [1.5, 1.0, 0.5]}])
+            run = store.save_analysis(
+                exp["curve_ids"][0], "Single_KWW", "fit:Single_KWW:characteristic",
+                {}, {"tau_s": math.exp(ln_tau), "r2": 0.99})
+            selected.append(run)
+    response = client.post("/api/compare", json={
+        "mode": "kinetics", "kinetic_model": "VFT", "run_ids": selected})
+    assert response.status_code == 200, response.text
+    groups = response.json()["samples"]
+    assert len(groups) == 2
+    for group in groups:
+        assert group["fit_available"]
+        assert group["fitted_curve"]["measured_window_c"] == [70, 110]
+        assert group["fitted_curve"]["extrapolated"] is False
+        assert len(group["fitted_curve"]["ln_tau"]) == 100
+        assert group["parameters"]["T0"] < 70 + 273.15
