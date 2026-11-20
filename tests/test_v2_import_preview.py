@@ -9,6 +9,7 @@ import hashlib
 from fastapi.testclient import TestClient
 import pytest
 import xlwt
+import pandas as pd
 
 from can_relax.io.parser import parse_curve_records
 from vitrifit2.api import app, get_store
@@ -145,3 +146,60 @@ def test_preview_respects_canonical_units_and_replicates(tmp_path):
     assert preview["curves"][0]["first_modulus_mpa"] == 1.0
     assert preview["curves"][1]["first_modulus_mpa"] == 1.2
     assert preview["saved"] is False
+
+
+@pytest.mark.parametrize("temperatures,header_pattern,replicates", [
+    (
+        [60, 40, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 160, 150, 140],
+        "VUGT",
+        {"140": 2, "150": 2, "160": 2}
+    ),
+    (
+        [40, 100, 120, 140, 150, 160, 170, 170],
+        "LCE2",
+        {"170": 2}
+    ),
+])
+def test_lab_style_wide_xlsx_preserves_every_temperature_and_replicate(
+    tmp_path, temperatures, header_pattern, replicates
+):
+    """Mirrors column counts, signed unit labels and repeated T from lab exports.
+
+    Synthetic observations only: no real VUGT/LCE2 data is committed to Git.
+    """
+    header = []
+    for index, t in enumerate(temperatures, start=1):
+        if header_pattern == "VUGT":
+            header.extend([f"Temperature (°C) — {t}°C",
+                           f"Time (s) — {t}°C",
+                           f"Modulus (MPa) — {t}°C"])
+        else:
+            header.extend([f"R{index} Temperature (°C)",
+                           f"R{index} Time (s)",
+                           f"R{index} Modulus (MPa)"])
+    observations = []
+    for j in range(40):
+        row = []
+        for t in temperatures:
+            row.extend([t, 0.01 + j*0.25,
+                        0.05 * (0.99**j) * (1 + t/1000)])
+        observations.append(row)
+    file_path = tmp_path / (header_pattern + ".xlsx")
+    pd.DataFrame([header, *observations]).to_excel(
+        file_path, header=False, index=False)
+    content = file_path.read_bytes()
+    preview = preview_relaxation_upload(file_path.name, content)
+    assert preview["curve_count"] == len(temperatures)
+    assert len(preview["curves"]) == len(temperatures)
+    assert preview["replicates_per_temperature"] == replicates
+    assert [r["temperature_c"] for r in preview["curves"]] == temperatures
+    assert all(r["points"] == 40 for r in preview["curves"])
+    assert all(r["warnings"] == [] for r in preview["curves"])
+    store = VitriFitStore(tmp_path / "db")
+    sample = store.create_sample(store.create_project("Research"), header_pattern)
+    imported = import_relaxation_upload(store, sample, file_path.name, content,
+        metadata={"preview_sha256": preview["file_sha256"],
+                  "preview_curve_count": preview["curve_count"]})
+    assert len(imported["curve_ids"]) == len(temperatures)
+    assert store.get_original_file(imported["experiment_id"]) == content
+    assert [store.get_curve(cid)["temperature_c"] for cid in imported["curve_ids"]] == temperatures
