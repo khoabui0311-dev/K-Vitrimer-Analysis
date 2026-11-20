@@ -70,7 +70,7 @@ export default function App() {
   const [style, setStyle] = useState<Record<string, unknown>>({ ...initialStyle });
   const [activeFigureId, setActiveFigureId] = useState("");
   const [exportFormat, setExportFormat] = useState("tiff");
-  const [exportDpi, setExportDpi] = useState(300);
+  const [exportDpi, setExportDpi] = useState(1200);
 
   const refreshProjects = () => api<Item[]>("/projects").then(setProjects);
   const refreshRuns = () => api<Run[]>("/analyses").then(setRuns);
@@ -487,7 +487,7 @@ export default function App() {
             <h3>Export saved figure</h3>
             <p className="hint">Saved figures use the exact processing revision of each analysis, even if you later trim the source data. Journal dimensions, typefaces and export conversion follow the existing Publication implementation.</p>
             <div className="controls">
-              <label className="field">Format<select value={exportFormat} onChange={e=>setExportFormat(e.target.value)}>
+              <label className="field">Format<select value={exportFormat} onChange={e=>{setExportFormat(e.target.value);setExportDpi(e.target.value==="tiff"?1200:e.target.value==="jpeg"?600:300);}}>
                 <option value="tiff">TIFF (publication)</option>
                 <option value="jpeg">JPEG</option>
                 <option value="pdf">PDF</option>
@@ -504,7 +504,7 @@ export default function App() {
               </button>
             </div>
             {!activeFigureId&&<p className="muted">Save or reopen a figure project to enable export.</p>}
-            <p className="hint">CMYK is supported for TIFF/JPEG/PDF, and RGB for PNG/SVG. The original v1 Eyring and Van 't Hoff Publication figures remain available in v1; full v2 feature parity is not yet complete.</p>
+            <p className="hint">Default TIFF resolution is 1200 DPI and JPEG is 600 DPI, matching v1. The existing 40-megapixel safety limit still applies. CMYK is supported for TIFF/JPEG/PDF, RGB for PNG/SVG. Eyring and Van 't Hoff Publication figures remain available in v1; full v2 feature parity is not yet complete.</p>
           </div>
           <p className="hint">Saving a style does not alter current v1 exports. Figure snapshots and presets are stored separately.</p>
         </section>}
