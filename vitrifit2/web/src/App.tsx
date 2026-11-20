@@ -28,7 +28,20 @@ const initialStyle: Record<string, unknown> = {
   pub_preset: "ACS/RSC Single-Column (85 x 75 mm)", pub_w: 8.5, pub_h: 7.5,
   pub_relfont_family: "Arial", pub_rel_lbl_sz: 12, pub_rel_num_sz: 10,
   pub_rel_lw: 1.5, pub_rel_ms: 4, pub_xscale: "Log", pub_yscale: "Linear",
-  pub_colorspace: "RGB", pub_relleg: true
+  pub_colorspace: "RGB", pub_relleg: true,
+  // These are the exact persisted widget keys of v1 Publication Figures 3/4.
+  eyr_lw: 1.5, eyr_ms: 6, eyr_ff: "Arial", eyr_lsz: 12,
+  eyr_lwt: "normal", eyr_lst: "normal", eyr_nf: "Same as Label",
+  eyr_nsz: 10, eyr_nwt: "normal", eyr_nst: "normal", eyr_mir: false,
+  eyr_clim: false, eyr_leg: true, eyr_legpos: "Best (Auto)",
+  eyr_legfont: 8, eyr_legncol: 1, eyr_legbox: false,
+  vh_lw: 1.5, vh_ms: 6, vh_ff: "Arial", vh_lsz: 12,
+  vh_lwt: "normal", vh_lst: "normal", vh_nf: "Same as Label",
+  vh_nsz: 10, vh_nwt: "normal", vh_nst: "normal", vh_mir: false,
+  vh_clim: false, vh_leg: true, vh_legpos: "Best (Auto)",
+  vh_legfont: 8, vh_legncol: 1, vh_legbox: false, vh_yscale: "Linear",
+  pl_3: "c", plx_3: -0.12, ply_3: 1.02,
+  pl_4: "d", plx_4: -0.12, ply_4: 1.02
 };
 async function api<T>(url: string, method = "GET", body?: unknown): Promise<T> {
   const options: RequestInit = { method };
@@ -76,6 +89,7 @@ export default function App() {
   const [fit, setFit] = useState<any>(null);
   const [selectedRuns, setSelectedRuns] = useState<string[]>([]);
   const [compareMode, setCompareMode] = useState("kinetics");
+  const [figureKind, setFigureKind] = useState("curves");
   const [kineticModel, setKineticModel] = useState("Arrhenius");
   const [fitWindows, setFitWindows] = useState<Record<string, [number, number]>>({});
   const [savedComparisons, setSavedComparisons] = useState<Item[]>([]);
@@ -249,7 +263,7 @@ export default function App() {
     await run(async () => {
       const created = await api<{id:string}>("/figures", "POST", {
         name, run_ids:selectedRuns,
-        composition:{plot_type:compareMode, kinetic_model:kineticModel,
+        composition:{plot_type:figureKind, kinetic_model:kineticModel,
                      temperature_c:temperature, windows:fitWindows},
         overrides:style
       });
@@ -277,7 +291,7 @@ export default function App() {
       const saved:any = await api("/figures/" + id);
       setSelectedRuns(saved.run_ids);
       setStyle({...initialStyle,...saved.overrides});
-      setCompareMode(saved.composition.plot_type || "curves");
+      setFigureKind(saved.composition.plot_type || "curves");
       setTemperature(Number(saved.composition.temperature_c ?? 100));
       setKineticModel(saved.composition.kinetic_model || "Arrhenius");
       setFitWindows(saved.composition.windows || {});
@@ -326,6 +340,49 @@ export default function App() {
       }
     });
     return graph(traces,"1000/T (K⁻¹)","ln(τ / s)");
+  }
+  function advancedStyleNumber(key:string,label:string,defaultValue:number,step=0.5) {
+    return <label className="field">{label}
+      <input type="number" step={step} value={Number(style[key] ?? defaultValue)}
+        onChange={e=>setStyle(s=>({...s,[key]:Number(e.target.value)}))}/>
+    </label>;
+  }
+  function advancedStyleSelect(key:string,label:string,values:string[],defaultValue:string) {
+    return <label className="field">{label}
+      <select value={String(style[key] ?? defaultValue)}
+        onChange={e=>setStyle(s=>({...s,[key]:e.target.value}))}>
+        {values.map(v=><option value={v} key={v}>{v}</option>)}
+      </select>
+    </label>;
+  }
+  function advancedStyleToggle(key:string,label:string,defaultValue=false) {
+    return <label className="figure-check"><input type="checkbox"
+      checked={Boolean(style[key] ?? defaultValue)}
+      onChange={e=>setStyle(s=>({...s,[key]:e.target.checked}))}/>
+      {label}</label>;
+  }
+  function kineticWindowEditor() {
+    return <div className="window-editor">
+      <p className="small-heading">Independent temperature windows (°C)</p>
+      {Array.from(new Map<string,Run>(runs.filter(r=>selectedRuns.includes(r.id))
+          .map(r=>[r.sample_id,r] as [string,Run])).values()).map(r=>{
+        const grouped=runs.filter(x=>x.sample_id===r.sample_id&&selectedRuns.includes(x.id));
+        const low=Math.min(...grouped.map(x=>x.temperature_c));
+        const high=Math.max(...grouped.map(x=>x.temperature_c));
+        const bounds=fitWindows[r.sample_id]||[low,high];
+        return <div className="window-row" key={r.sample_id}>
+          <span>{r.sample_name}</span>
+          <input type="number" value={bounds[0]} aria-label={r.sample_name+" minimum"}
+            onChange={e=>setFitWindows(s=>({...s,[r.sample_id]:[Number(e.target.value),bounds[1]]}))}/>
+          <span>to</span>
+          <input type="number" value={bounds[1]} aria-label={r.sample_name+" maximum"}
+            onChange={e=>setFitWindows(s=>({...s,[r.sample_id]:[bounds[0],Number(e.target.value)]}))}/>
+          <button className="subtle" onClick={()=>setFitWindows(s=>{
+            const next={...s};delete next[r.sample_id];return next;
+          })}>Reset</button>
+        </div>;
+      })}
+    </div>;
   }
   function numberStyle(key:string,label:string,step=0.5) {
     return <label className="field">{label}<input type="number" step={step} min="0"
@@ -559,19 +616,76 @@ export default function App() {
               <option>RGB</option><option>CMYK (for Print/Publication)</option></select></label>
           </div>
           <div className="controls"><label className="field">Figure content
-            <select value={compareMode} onChange={e=>setCompareMode(e.target.value)}>
+            <select value={figureKind} onChange={e=>setFigureKind(e.target.value)}>
               <option value="curves">Relaxation curves</option>
               <option value="kinetics">Arrhenius / VFT kinetics</option>
+              <option value="eyring">Eyring activation kinetics (Fig. 3)</option>
+              <option value="van_t_hoff">Observed G₀ — empirical Van 't Hoff (Fig. 4)</option>
               <option value="fixed_temperature">τ at measured temperature</option>
             </select></label>
-            {compareMode==="kinetics"&&<label className="field">Kinetic model
+            {figureKind==="kinetics"&&<label className="field">Kinetic model
               <select value={kineticModel} onChange={e=>setKineticModel(e.target.value)}>
                 <option>Arrhenius</option><option>VFT</option>
               </select></label>}
-            {compareMode==="fixed_temperature"&&<label className="field">Measured temperature (°C)
+            {figureKind==="fixed_temperature"&&<label className="field">Measured temperature (°C)
               <input type="number" value={temperature} onChange={e=>setTemperature(Number(e.target.value))}/>
               </label>}
           </div>
+
+          {(figureKind==="kinetics"||figureKind==="eyring"||figureKind==="van_t_hoff")&&selectedRuns.length>0&&
+            kineticWindowEditor()}
+          {(figureKind==="eyring"||figureKind==="van_t_hoff")&&(()=>{
+            const p=figureKind==="eyring"?"eyr":"vh";
+            const panel=figureKind==="eyring"?3:4;
+            return <div className="advanced-figure-controls">
+              <h3>{figureKind==="eyring"?"Eyring (Figure 3)":"Empirical Van 't Hoff (Figure 4)"} — v1 publication formatting</h3>
+              <p className="hint">{figureKind==="eyring"?
+                "ln(τ·T) versus 1000/T. Apparent activation parameters assume that τ is proportional to an inverse rate.":
+                "Observed reference modulus G₀ versus 1000/T. This is an empirical trend, not independent evidence of equilibrium network dissociation."}</p>
+              <div className="controls">
+                {advancedStyleNumber(p+"_lw","Fit line width (pt)",1.5)}
+                {advancedStyleNumber(p+"_ms","Marker size (pt)",6,1)}
+                {advancedStyleSelect(p+"_ff","Font family",
+                  ["Arial","Times New Roman","Courier New","DejaVu Sans"],"Arial")}
+                {advancedStyleNumber(p+"_lsz","Label size (pt)",12,1)}
+                {advancedStyleSelect(p+"_lwt","Label weight",["normal","bold"],"normal")}
+                {advancedStyleSelect(p+"_lst","Label style",["normal","italic"],"normal")}
+                {advancedStyleSelect(p+"_nf","Tick font",
+                  ["Same as Label","Arial","Times New Roman"],"Same as Label")}
+                {advancedStyleNumber(p+"_nsz","Tick size (pt)",10,1)}
+                {advancedStyleSelect(p+"_nwt","Tick weight",["normal","bold"],"normal")}
+                {advancedStyleSelect(p+"_nst","Tick style",["normal","italic"],"normal")}
+                {advancedStyleToggle(p+"_mir","Mirror ticks")}
+                {figureKind==="van_t_hoff"&&advancedStyleSelect("vh_yscale","Modulus scale",
+                  ["Linear","Log"],"Linear")}
+              </div>
+              <div className="controls">
+                {advancedStyleToggle(p+"_leg","Show legend",true)}
+                {Boolean(style[p+"_leg"]??true)&&<>
+                  {advancedStyleSelect(p+"_legpos","Legend position",
+                    ["Best (Auto)","Upper Right","Upper Left","Lower Left",
+                     "Lower Right","Right (Outside)"],"Best (Auto)")}
+                  {advancedStyleNumber(p+"_legfont","Legend font (pt)",8,1)}
+                  {advancedStyleNumber(p+"_legncol","Legend columns",1,1)}
+                  {advancedStyleToggle(p+"_legbox","Legend box")}
+                </>}
+                {advancedStyleToggle(p+"_clim","Manual axis limits")}
+                {Boolean(style[p+"_clim"])&&<>
+                  {advancedStyleNumber(p+"_xmin","X min",0,.1)}
+                  {advancedStyleNumber(p+"_xmax","X max",5,.1)}
+                  {advancedStyleNumber(p+"_ymin","Y min",0,.1)}
+                  {advancedStyleNumber(p+"_ymax","Y max",1,.1)}
+                </>}
+              </div>
+              <div className="controls">
+                <label className="field">Panel letter<input type="text" maxLength={3}
+                  value={String(style["pl_"+panel]??(panel===3?"c":"d"))}
+                  onChange={e=>setStyle(s=>({...s,["pl_"+panel]:e.target.value}))}/></label>
+                {advancedStyleNumber("plx_"+panel,"Panel letter X",-0.12,.01)}
+                {advancedStyleNumber("ply_"+panel,"Panel letter Y",1.02,.01)}
+              </div>
+            </div>;
+          })()}
           <div className="row"><button className="primary" disabled={busy} onClick={savePreset}>Save style preset</button>
             <button className="subtle" disabled={!selectedRuns.length||busy} onClick={saveFigure}>Save figure project ({selectedRuns.length} analyses)</button></div>
           <div className="export-panel">
@@ -595,7 +709,7 @@ export default function App() {
               </button>
             </div>
             {!activeFigureId&&<p className="muted">Save or reopen a figure project to enable export.</p>}
-            <p className="hint">Default TIFF resolution is 1200 DPI and JPEG is 600 DPI, matching v1. The existing 40-megapixel safety limit still applies. CMYK is supported for TIFF/JPEG/PDF, RGB for PNG/SVG. Eyring and Van 't Hoff Publication figures remain available in v1; full v2 feature parity is not yet complete.</p>
+            <p className="hint">Default TIFF resolution is 1200 DPI and JPEG is 600 DPI, matching v1. The existing 40-megapixel limit still applies. CMYK is supported for TIFF/JPEG/PDF, RGB for PNG/SVG. Eyring and Van 't Hoff now export from saved analyses; visual parity and advanced controls still require further qualification.</p>
           </div>
           <p className="hint">Saving a style does not alter current v1 exports. Figure snapshots and presets are stored separately.</p>
         </section>}
