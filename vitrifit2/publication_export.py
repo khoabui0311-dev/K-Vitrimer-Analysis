@@ -176,6 +176,8 @@ def _relaxation(ax, runs: list[dict], style: dict) -> None:
     line = _validated_number(style, "pub_rel_lw", 1.5, .5, 6)
     marker = _validated_number(style, "pub_rel_ms", 4, 1, 15)
     density = int(_validated_number(style, "pub_rel_md", 20, 0, 100))
+    if data_style == "Markers Only" and density == 0:
+        raise ValueError("Markers Only requires a positive marker density")
     step = max(1, int(100/density)) if density else 0
     fit_overlay = bool(_val(style, "pub_showfit", False))
     tau_mark = bool(_val(style, "pub_taustar", True))
