@@ -370,3 +370,10 @@ def test_publication_rejects_invalid_run_identifiers(populated, bad_id):
     store, _ = populated
     with pytest.raises(ValueError, match="nonempty strings"):
         _get_pinned_runs(store, [bad_id])
+
+
+def test_publication_rejects_unhashable_run_identifier_cleanly(populated):
+    from vitrifit2.publication_export import _get_pinned_runs
+    store, _ = populated
+    with pytest.raises(ValueError, match="nonempty strings"):
+        _get_pinned_runs(store, [["not-an-id"]])
