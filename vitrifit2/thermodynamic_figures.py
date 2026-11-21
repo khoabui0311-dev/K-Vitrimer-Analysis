@@ -118,7 +118,13 @@ def _groups(runs: list[dict], windows: dict | None, property_name: str):
             # fitting interval, not the fitted long-time plateau modulus.
             value = run["analysis"]["results"].get("reference_modulus_mpa")
             if value is None:
-                value = float(run["modulus_mpa"][0])  # legacy pinned results
+                # Legacy pinned results may lack the explicit reference value.
+                # Never substitute a fitted plateau or silently accept an
+                # empty/nonphysical measurement array as an observed G0.
+                measured = run.get("modulus_mpa")
+                if measured is None or len(measured) == 0:
+                    raise ValueError("Missing observed reference modulus in saved analysis")
+                value = measured[0]
         if value is None or not math.isfinite(float(value)) or float(value) <= 0:
             raise ValueError(f"Invalid {property_name} in saved analysis")
         groups[sample_id].append((run, float(value)))
