@@ -377,3 +377,11 @@ def test_publication_rejects_unhashable_run_identifier_cleanly(populated):
     store, _ = populated
     with pytest.raises(ValueError, match="nonempty strings"):
         _get_pinned_runs(store, [["not-an-id"]])
+
+
+@pytest.mark.parametrize("selection", [None, "run-id", 3, {}])
+def test_publication_rejects_nonsequence_run_selection(populated, selection):
+    from vitrifit2.publication_export import _get_pinned_runs
+    store, _ = populated
+    with pytest.raises(ValueError, match="nonempty sequence"):
+        _get_pinned_runs(store, selection)
