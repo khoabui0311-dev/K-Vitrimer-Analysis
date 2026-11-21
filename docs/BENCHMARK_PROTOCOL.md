@@ -100,3 +100,21 @@ equivalent representation. Near-identical time constants, short measurement
 windows, noisy plateaus and boundary-constrained fits require profile
 likelihood or bootstrap checks before quantitative claims. Do not report
 precise exchange-kinetic parameters solely from a well-conditioned fit.
+
+
+## Bootstrap uncertainty (initial implementation)
+
+`vitrifit2.benchmark_uncertainty.bootstrap_relaxation` performs fixed-seed
+percentile residual bootstrap for Maxwell, KWW and two-Maxwell. It reports
+point estimates, percentile limits, successful/failed refits and the seed
+controlled by the caller. For two-Maxwell, exchangeable arms are canonicalized
+in the bootstrap draws before marginal intervals are computed.
+
+**Caveats:** Independent residual resampling assumes exchangeable errors.
+DMA stress-relaxation traces may exhibit time-correlated and
+heteroscedastic errors, so these intervals are preliminary, not validated
+experimental confidence intervals. Parameter bounds, multimodal solutions
+and poor identifiability can also compromise percentile intervals.
+Do not interpret 95% confidence as guaranteed coverage for a single
+synthetic realization. Assess empirical coverage over repeated independently
+seeded datasets before claiming calibrated intervals.
