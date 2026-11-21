@@ -141,6 +141,8 @@ def _limits(ax, style: dict, prefix: str) -> bool:
 def _get_pinned_runs(store: VitriFitStore, run_ids: list[str]) -> list[dict]:
     if not run_ids or len(run_ids) != len(set(run_ids)):
         raise ValueError("Select distinct saved analysis runs")
+    if len(run_ids) > 100:
+        raise ValueError("Publication export supports at most 100 saved analysis runs")
     catalog = {r["id"]: r for r in store.list_analysis_runs()}
     records = []
     for run_id in run_ids:
