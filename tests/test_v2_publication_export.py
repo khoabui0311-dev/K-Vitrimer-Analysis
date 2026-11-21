@@ -440,3 +440,21 @@ def test_relaxation_publication_rejects_malformed_measured_arrays(
             _relaxation(ax, runs, {"pub_taustar": False})
     finally:
         plt.close(fig)
+
+
+def test_publication_rejects_multidimensional_fit_overlay(populated):
+    from vitrifit2.publication_export import _get_pinned_runs, _relaxation
+    import matplotlib.pyplot as plt
+    store, ids = populated
+    runs = _get_pinned_runs(store, [ids["LCE2"][1][1]])
+    run = dict(runs[0])
+    run["analysis"] = dict(run["analysis"])
+    run["analysis"]["results"] = dict(
+        run["analysis"]["results"],
+        fit_time_s=[[0.01, 1.0]], fit_normalized_prediction=[[1.0, 0.8]])
+    fig, ax = plt.subplots()
+    try:
+        with pytest.raises(ValueError, match="equal-length finite"):
+            _relaxation(ax, [run], {"pub_showfit": True, "pub_taustar": False})
+    finally:
+        plt.close(fig)
