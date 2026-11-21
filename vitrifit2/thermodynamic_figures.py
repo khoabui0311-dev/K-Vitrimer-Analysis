@@ -87,6 +87,8 @@ def _limits(ax, style: dict, prefix: str):
               for axis in ("xmin", "xmax", "ymin", "ymax")]
     if bounds[0] >= bounds[1] or bounds[2] >= bounds[3]:
         raise ValueError(f"{prefix}: manual bounds must be increasing")
+    if ax.get_xscale() == "log" and bounds[0] <= 0:
+        raise ValueError(f"{prefix}: logarithmic X bounds must be positive")
     if ax.get_yscale() == "log" and bounds[2] <= 0:
         raise ValueError(f"{prefix}: logarithmic Y bounds must be positive")
     ax.set_xlim(bounds[0], bounds[1])
