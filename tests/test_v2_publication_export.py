@@ -305,3 +305,44 @@ def test_publication_autolimits_include_measured_overshoot_and_tail(populated, s
         assert upper > 1.3
     finally:
         plt.close(fig)
+
+
+def test_fixed_temperature_rejects_one_sample_replicates_as_comparison(populated):
+    from vitrifit2.publication_export import _fixed_temperature, _get_pinned_runs
+    import matplotlib.pyplot as plt
+    store, ids = populated
+    runs = _get_pinned_runs(store, [ids["LCE2"][0][1], ids["LCE2"][1][1]])
+    runs[0] = dict(runs[0], temperature_c=100)
+    fig, ax = plt.subplots()
+    try:
+        with pytest.raises(ValueError, match="at least two distinct samples"):
+            _fixed_temperature(ax, runs, {}, 100)
+    finally:
+        plt.close(fig)
+
+
+def test_fixed_temperature_labels_independent_replicates(populated):
+    from vitrifit2.publication_export import _fixed_temperature, _get_pinned_runs
+    import matplotlib.pyplot as plt
+    store, ids = populated
+    runs = _get_pinned_runs(store, [
+        ids["LCE2"][0][1], ids["LCE2"][1][1], ids["VUGT"][1][1]])
+    runs[0] = dict(runs[0], temperature_c=100)
+    fig, ax = plt.subplots()
+    try:
+        _fixed_temperature(ax, runs, {}, 100)
+        labels = [tick.get_text() for tick in ax.get_xticklabels()]
+        assert "LCE2 (rep 1)" in labels
+        assert "LCE2 (rep 2)" in labels
+        assert "VUGT" in labels
+    finally:
+        plt.close(fig)
+
+
+def test_kinetic_publication_rejects_one_temperature_per_sample(populated):
+    store, ids = populated
+    runs = [ids["LCE2"][1][1], ids["VUGT"][1][1]]
+    with pytest.raises(ValueError, match="two distinct measured temperatures per sample"):
+        export_publication_figure(store, runs, "kinetics",
+                                  {"pub_kinfont_family": "DejaVu Sans"},
+                                  fmt="png", dpi=300)
