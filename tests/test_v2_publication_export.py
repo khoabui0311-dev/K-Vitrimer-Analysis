@@ -487,3 +487,20 @@ def test_fixed_temperature_rejects_invalid_saved_metadata(populated, bad_tempera
             _fixed_temperature(ax, runs, {}, 100)
     finally:
         plt.close(fig)
+
+
+@pytest.mark.parametrize("bad_tau", [None, "not-a-number", [], float("inf"), -1.0])
+def test_fixed_temperature_rejects_invalid_saved_tau(populated, bad_tau):
+    from vitrifit2.publication_export import _fixed_temperature, _get_pinned_runs
+    import matplotlib.pyplot as plt
+    store, ids = populated
+    runs = _get_pinned_runs(store, [ids["LCE2"][1][1], ids["VUGT"][1][1]])
+    runs[0] = dict(runs[0])
+    runs[0]["analysis"] = dict(runs[0]["analysis"])
+    runs[0]["analysis"]["results"] = dict(runs[0]["analysis"]["results"], tau_s=bad_tau)
+    fig, ax = plt.subplots()
+    try:
+        with pytest.raises(ValueError, match="positive tau values"):
+            _fixed_temperature(ax, runs, {}, 100)
+    finally:
+        plt.close(fig)
