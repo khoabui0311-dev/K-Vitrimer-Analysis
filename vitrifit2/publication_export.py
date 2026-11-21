@@ -219,6 +219,8 @@ def _relaxation(ax, runs: list[dict], style: dict) -> None:
                 if (fit_t.ndim != 1 or fit_g.ndim != 1 or fit_t.size != fit_g.size
                         or not np.all(np.isfinite(fit_t)) or not np.all(np.isfinite(fit_g))):
                     raise ValueError("Saved fit overlay must have equal-length finite time and prediction arrays")
+                if fit_t.size < 2:
+                    raise ValueError("Saved fit overlay must contain at least two prediction points")
                 if np.any(np.diff(fit_t) <= 0):
                     raise ValueError("Saved fit overlay times must be strictly increasing")
                 if xscale == "Log" and np.any(fit_t <= 0):
