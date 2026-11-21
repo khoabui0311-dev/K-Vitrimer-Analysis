@@ -43,6 +43,8 @@ def _physical_size(style: dict) -> tuple[float, float]:
     w, h = float(_val(style, "pub_w", 12.7)), float(_val(style, "pub_h", 10.0))
     if not (math.isfinite(w) and math.isfinite(h) and 1 <= w <= 40 and 1 <= h <= 40):
         raise ValueError("Custom publication dimensions must be between 1 and 40 cm")
+    if w*h > 400:
+        raise ValueError("Custom publication area must not exceed 400 cm²")
     return w, h
 
 
