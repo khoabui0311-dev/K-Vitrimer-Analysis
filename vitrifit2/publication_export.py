@@ -129,6 +129,10 @@ def _limits(ax, style: dict, prefix: str) -> bool:
     ymin, ymax = float(style[prefix+"ymin"]), float(style[prefix+"ymax"])
     if not all(math.isfinite(x) for x in (xmin, xmax, ymin, ymax)) or xmin >= xmax or ymin >= ymax:
         raise ValueError("Publication axis limits must be finite and strictly increasing")
+    if ax.get_xscale() == "log" and xmin <= 0:
+        raise ValueError("Logarithmic X-axis limits must be positive")
+    if ax.get_yscale() == "log" and ymin <= 0:
+        raise ValueError("Logarithmic Y-axis limits must be positive")
     ax.set_xlim(xmin, xmax)
     ax.set_ylim(ymin, ymax)
     return True
