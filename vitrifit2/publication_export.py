@@ -207,7 +207,15 @@ def _relaxation(ax, runs: list[dict], style: dict) -> None:
             predicted = item["analysis"]["results"]
             fit_t = np.asarray(predicted.get("fit_time_s", []), dtype=float)
             fit_g = np.asarray(predicted.get("fit_normalized_prediction", []), dtype=float)
-            if fit_t.size and fit_t.size == fit_g.size:
+            if fit_t.size or fit_g.size:
+                if fit_t.size != fit_g.size or not np.all(np.isfinite(fit_t)) or not np.all(np.isfinite(fit_g)):
+                    raise ValueError("Saved fit overlay must have equal-length finite time and prediction arrays")
+                if np.any(np.diff(fit_t) <= 0):
+                    raise ValueError("Saved fit overlay times must be strictly increasing")
+                if xscale == "Log" and np.any(fit_t <= 0):
+                    raise ValueError("Saved fit overlay requires positive times on a log X-axis")
+                if yscale == "Log" and np.any(fit_g <= 0):
+                    raise ValueError("Saved fit overlay requires positive predictions on a log Y-axis")
                 ax.plot(fit_t/factor, fit_g if norm else fit_g*g[0], ":",
                         color="black", linewidth=1, alpha=.7)
         if tau_mark:
