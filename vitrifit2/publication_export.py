@@ -143,6 +143,8 @@ def _get_pinned_runs(store: VitriFitStore, run_ids: list[str]) -> list[dict]:
         raise ValueError("Select distinct saved analysis runs")
     if len(run_ids) > 100:
         raise ValueError("Publication export supports at most 100 saved analysis runs")
+    if any(not isinstance(run_id, str) or not run_id.strip() for run_id in run_ids):
+        raise ValueError("Saved analysis run IDs must be nonempty strings")
     catalog = {r["id"]: r for r in store.list_analysis_runs()}
     records = []
     for run_id in run_ids:
