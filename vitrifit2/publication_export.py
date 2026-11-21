@@ -191,8 +191,10 @@ def _relaxation(ax, runs: list[dict], style: dict) -> None:
     ylabel_symbol = "G" if modulus_type.startswith("G") else "E"
     for i, item in enumerate(runs):
         t, g = item["time_s"], item["modulus_mpa"]
-        if not np.all(np.isfinite(t)) or not np.all(np.isfinite(g)) or np.any(np.diff(t) <= 0):
-            raise ValueError("Selected curve contains invalid or unordered times")
+        if (t.ndim != 1 or g.ndim != 1 or t.size != g.size or t.size < 2
+                or not np.all(np.isfinite(t)) or not np.all(np.isfinite(g))
+                or np.any(np.diff(t) <= 0)):
+            raise ValueError("Selected curve requires equal-length finite 1D arrays with increasing times")
         if g[0] <= 0:
             raise ValueError("Reference modulus must be positive")
         color = V1_PALETTE[i % len(V1_PALETTE)]
