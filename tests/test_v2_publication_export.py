@@ -385,3 +385,12 @@ def test_publication_rejects_nonsequence_run_selection(populated, selection):
     store, _ = populated
     with pytest.raises(ValueError, match="nonempty sequence"):
         _get_pinned_runs(store, selection)
+
+
+@pytest.mark.parametrize("width,height", [(0.5, 10), (41, 10), (10, 0.5),
+                                           (10, 41), (float("nan"), 10),
+                                           (10, float("inf"))])
+def test_custom_publication_dimensions_reject_invalid_geometry(width, height):
+    from vitrifit2.publication_export import _physical_size
+    with pytest.raises(ValueError, match="between 1 and 40 cm"):
+        _physical_size({"pub_preset": "Custom", "pub_w": width, "pub_h": height})
