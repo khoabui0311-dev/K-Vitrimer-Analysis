@@ -352,6 +352,8 @@ def _fixed_temperature(ax, runs: list[dict], style: dict, temp: float | None) ->
     matched = [r for r in runs if abs(float(r["temperature_c"])-float(temp)) < 1e-6]
     if len(matched) < 2:
         raise ValueError("At least two measured relaxation times at that temperature are required")
+    if len({r["sample_id"] for r in matched}) < 2:
+        raise ValueError("Fixed-temperature comparison requires at least two distinct samples")
     taus = [float(r["analysis"]["results"].get("tau_s", 0)) for r in matched]
     if any(not math.isfinite(t) or t <= 0 for t in taus):
         raise ValueError("All selected comparisons must have positive tau values")
