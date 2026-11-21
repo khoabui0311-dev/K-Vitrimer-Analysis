@@ -244,3 +244,42 @@ def test_logarithmic_publication_rejects_nonpositive_manual_limits(populated, ax
     with pytest.raises(ValueError, match=f"Logarithmic {axis.upper()}-axis limits must be positive"):
         export_publication_figure(
             store, runs, "relaxation", settings, fmt="png", dpi=300)
+
+
+def test_marker_only_publication_requires_visible_markers(populated):
+    store, ids = populated
+    runs = [ids["LCE2"][1][1], ids["VUGT"][1][1]]
+    with pytest.raises(ValueError, match="positive marker density"):
+        export_publication_figure(store, runs, "relaxation", {
+            "pub_relfont_family": "DejaVu Sans",
+            "pub_style": "Markers Only", "pub_rel_md": 0,
+        }, fmt="png", dpi=300)
+
+
+@pytest.mark.parametrize("fit_t,fit_g,expected", [
+    ([0.01, 1.0], [1.0], "equal-length finite"),
+    ([0.01, float("nan")], [1.0, .8], "equal-length finite"),
+    ([1.0, 0.01], [1.0, .8], "strictly increasing"),
+    ([0.0, 1.0], [1.0, .8], "positive times"),
+    ([0.01, 1.0], [1.0, 0.0], "positive predictions"),
+])
+def test_publication_rejects_invalid_saved_fit_overlays(
+        populated, fit_t, fit_g, expected):
+    from vitrifit2.publication_export import _get_pinned_runs, _relaxation
+    import matplotlib.pyplot as plt
+    store, ids = populated
+    runs = _get_pinned_runs(store, [ids["LCE2"][1][1]])
+    runs[0] = dict(runs[0])
+    runs[0]["analysis"] = dict(runs[0]["analysis"])
+    results = dict(runs[0]["analysis"]["results"])
+    results.update(fit_time_s=fit_t, fit_normalized_prediction=fit_g)
+    runs[0]["analysis"]["results"] = results
+    fig, ax = plt.subplots()
+    try:
+        with pytest.raises(ValueError, match=expected):
+            _relaxation(ax, runs, {
+                "pub_showfit": True, "pub_xscale": "Log",
+                "pub_yscale": "Log", "pub_taustar": False,
+            })
+    finally:
+        plt.close(fig)
