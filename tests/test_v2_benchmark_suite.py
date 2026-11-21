@@ -86,3 +86,36 @@ def test_invalid_vft_temperature_rejected():
 def test_duplicate_temperature_cannot_determine_activation_energy():
     with pytest.raises(ValueError):
         apparent_arrhenius_ea((100., 100.), (1., 2.))
+
+
+def test_production_arrhenius_engine_recovers_independent_ground_truth():
+    from can_relax.core.kinetics import KineticsEngine
+    temperatures = (100., 120., 140., 160., 180., 200.)
+    taus = arrhenius_tau(temperatures, activation_kj_mol=85.)
+    fit = KineticsEngine().fit_arrhenius(temperatures, taus)
+    assert fit is not None
+    assert fit["Ea"] == pytest.approx(85., abs=.1)
+    assert fit["R2"] == pytest.approx(1., abs=1e-10)
+
+
+def test_production_vft_engine_recovers_independent_ground_truth():
+    from can_relax.core.kinetics import KineticsEngine
+    temperatures = (70., 85., 100., 115., 130., 145., 160.)
+    taus = vft_tau(temperatures, a=-4., b_kelvin=500., t0_c=20.)
+    fit = KineticsEngine().fit_vft(temperatures, taus)
+    assert fit is not None
+    assert fit["Params"]["A"] == pytest.approx(-4., abs=.2)
+    assert fit["Params"]["B"] == pytest.approx(500., abs=30.)
+    assert fit["Params"]["T0"] == pytest.approx(293.15, abs=3.)
+    assert fit["R2"] > .999
+
+
+@pytest.mark.parametrize("key", ["evs_tau_s", "evd_tau_s"])
+def test_production_arrhenius_engine_on_published_summary_values(key):
+    from can_relax.core.kinetics import KineticsEngine
+    ref = LITERATURE_EPOXY_REFERENCE
+    fit = KineticsEngine().fit_arrhenius(ref["temperature_c"], ref[key])
+    assert fit is not None
+    expected = apparent_arrhenius_ea(ref["temperature_c"], ref[key])
+    assert fit["Ea"] == pytest.approx(expected, abs=.01)
+    assert fit["R2"] > .9
