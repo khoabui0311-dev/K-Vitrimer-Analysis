@@ -394,3 +394,27 @@ def test_custom_publication_dimensions_reject_invalid_geometry(width, height):
     from vitrifit2.publication_export import _physical_size
     with pytest.raises(ValueError, match="between 1 and 40 cm"):
         _physical_size({"pub_preset": "Custom", "pub_w": width, "pub_h": height})
+
+
+@pytest.mark.parametrize("scale", ["Linear", "Log"])
+def test_publication_autolimits_include_saved_fit_overlay(populated, scale):
+    from vitrifit2.publication_export import _get_pinned_runs, _relaxation
+    import matplotlib.pyplot as plt
+    store, ids = populated
+    runs = _get_pinned_runs(store, [ids["LCE2"][1][1]])
+    run = dict(runs[0])
+    run["analysis"] = dict(run["analysis"])
+    run["analysis"]["results"] = dict(
+        run["analysis"]["results"],
+        fit_time_s=[0.01, 1000.0],
+        fit_normalized_prediction=[1.0, 0.00001])
+    fig, ax = plt.subplots()
+    try:
+        _relaxation(ax, [run], {
+            "pub_showfit": True, "pub_xscale": "Log",
+            "pub_yscale": scale, "pub_taustar": False,
+        })
+        assert ax.get_xlim()[1] > 1000
+        assert ax.get_ylim()[0] < 0.00001
+    finally:
+        plt.close(fig)
