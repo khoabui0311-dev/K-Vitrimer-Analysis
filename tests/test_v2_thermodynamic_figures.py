@@ -21,7 +21,7 @@ from can_relax.core.kinetics import (
 from vitrifit2.api import app, get_store
 from vitrifit2.persistence import VitriFitStore
 from vitrifit2.publication_export import _get_pinned_runs, export_publication_figure
-from vitrifit2.thermodynamic_figures import draw_eyring, draw_van_t_hoff
+from vitrifit2.thermodynamic_figures import draw_eyring, draw_van_t_hoff, _limits
 
 
 @pytest.fixture
