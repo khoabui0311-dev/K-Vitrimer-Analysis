@@ -63,3 +63,23 @@ from a macroscopic relaxation fit.
 A Windows clean-install run, browser upload → per-curve trim/undo → fit →
 compare → export, and v1 publication golden-image comparisons are separate
 required checks. Passing synthetic tests alone does not constitute a release.
+
+
+## Model discrimination diagnostics
+
+`vitrifit2.benchmark_diagnostics.evaluate_relaxation_models` fits the same
+observations using Maxwell, KWW and two-Maxwell models. It reports RMSE,
+AICc and lag-one residual correlation. This is an **unweighted additive
+Gaussian-error** comparison, not a universal likelihood model.
+
+`rank_relaxation_models` orders successful fits by AICc, identifies
+alternatives within delta AICc < 2, and always warns that statistical
+preference is not proof of bond-exchange mechanism. Failed fits are excluded
+rather than treated as arbitrarily poor models.
+
+**Limitations:** AICc assumes an appropriate independent-error likelihood.
+Serial correlation in relaxation data, heteroscedastic instrument noise,
+different preprocessing, and parameter non-identifiability can invalidate
+naive rankings. The benchmark must expose these limitations rather than
+silently selecting a mechanistic explanation. In particular, a dual-mode
+fit is not evidence of two distinct molecular exchange reactions.
