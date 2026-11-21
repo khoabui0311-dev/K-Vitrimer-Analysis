@@ -83,3 +83,20 @@ different preprocessing, and parameter non-identifiability can invalidate
 naive rankings. The benchmark must expose these limitations rather than
 silently selecting a mechanistic explanation. In particular, a dual-mode
 fit is not evidence of two distinct molecular exchange reactions.
+
+
+## Local parameter identifiability
+
+`assess_parameter_identifiability` evaluates the singular values of a
+finite-difference prediction Jacobian at the fitted optimum. Positive
+relaxation times are represented on a logarithmic parameter scale to
+reduce arbitrary units-related conditioning artifacts. A high condition
+number indicates weak local separation of parameter effects.
+
+**Interpretation limitations:** This is a *local numerical diagnostic*, not
+proof of global identifiability, valid confidence intervals, or a physical
+mechanism. In particular, exchanging the two Maxwell arms can yield an
+equivalent representation. Near-identical time constants, short measurement
+windows, noisy plateaus and boundary-constrained fits require profile
+likelihood or bootstrap checks before quantitative claims. Do not report
+precise exchange-kinetic parameters solely from a well-conditioned fit.
