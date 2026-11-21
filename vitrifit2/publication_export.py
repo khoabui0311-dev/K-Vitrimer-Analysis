@@ -251,9 +251,21 @@ def _relaxation(ax, runs: list[dict], style: dict) -> None:
     ax.set_ylabel(r"$%s(t)/%s_0$" % (symbol, symbol) if norm
                   else r"$%s(t)$ (MPa)" % symbol)
     if not _limits(ax, style, "pub_rel_"):
-        xx = np.concatenate([r["time_s"]/factor for r in runs])
-        yy = np.concatenate([r["modulus_mpa"]/(r["modulus_mpa"][0] if norm else 1)
-                             for r in runs])
+        # Include saved fit overlays in autoscaling: an exported fitted curve
+        # must never disappear simply because it extends beyond measured time.
+        xx_parts = [r["time_s"]/factor for r in runs]
+        yy_parts = [r["modulus_mpa"]/(r["modulus_mpa"][0] if norm else 1)
+                    for r in runs]
+        if fit_overlay:
+            for r in runs:
+                results = r["analysis"]["results"]
+                ft = np.asarray(results.get("fit_time_s", []), dtype=float)
+                fg = np.asarray(results.get("fit_normalized_prediction", []), dtype=float)
+                if ft.size and fg.size:
+                    xx_parts.append(ft/factor)
+                    yy_parts.append(fg if norm else fg*r["modulus_mpa"][0])
+        xx = np.concatenate(xx_parts)
+        yy = np.concatenate(yy_parts)
         min_x = np.min(xx[xx > 0]) if xscale == "Log" else float(np.min(xx))
         ax.set_xlim(min_x*.8 if min_x != 0 else 0, float(np.max(xx))*1.2)
         if norm:
