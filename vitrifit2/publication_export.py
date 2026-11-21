@@ -139,8 +139,8 @@ def _limits(ax, style: dict, prefix: str) -> bool:
 
 
 def _get_pinned_runs(store: VitriFitStore, run_ids: list[str]) -> list[dict]:
-    if not run_ids:
-        raise ValueError("Select distinct saved analysis runs")
+    if not isinstance(run_ids, (list, tuple)) or not run_ids:
+        raise ValueError("Select a nonempty sequence of saved analysis runs")
     if len(run_ids) > 100:
         raise ValueError("Publication export supports at most 100 saved analysis runs")
     if any(not isinstance(run_id, str) or not run_id.strip() for run_id in run_ids):
