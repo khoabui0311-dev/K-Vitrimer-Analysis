@@ -283,3 +283,25 @@ def test_publication_rejects_invalid_saved_fit_overlays(
             })
     finally:
         plt.close(fig)
+
+
+@pytest.mark.parametrize("scale", ["Linear", "Log"])
+def test_publication_autolimits_include_measured_overshoot_and_tail(populated, scale):
+    from vitrifit2.publication_export import _get_pinned_runs, _relaxation
+    import matplotlib.pyplot as plt
+    import numpy as np
+    store, ids = populated
+    runs = _get_pinned_runs(store, [ids["LCE2"][1][1]])
+    runs[0] = dict(runs[0], modulus_mpa=np.array([1.0, 1.3, 0.0001]))
+    runs[0]["time_s"] = np.array([0.01, 1.0, 100.0])
+    fig, ax = plt.subplots()
+    try:
+        _relaxation(ax, runs, {
+            "pub_yscale": scale, "pub_taustar": False,
+            "pub_ynorm": "Normalized (G/G₀ or E/E₀)",
+        })
+        lower, upper = ax.get_ylim()
+        assert lower < 0.0001
+        assert upper > 1.3
+    finally:
+        plt.close(fig)
