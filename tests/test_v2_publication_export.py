@@ -418,3 +418,25 @@ def test_publication_autolimits_include_saved_fit_overlay(populated, scale):
         assert ax.get_ylim()[0] < 0.00001
     finally:
         plt.close(fig)
+
+
+@pytest.mark.parametrize("times,moduli", [
+    ([0.01, 1.0, 10.0], [1.0, 0.8]),
+    ([[0.01, 1.0]], [[1.0, 0.8]]),
+    ([0.01], [1.0]),
+    ([0.01, 0.01], [1.0, 0.8]),
+])
+def test_relaxation_publication_rejects_malformed_measured_arrays(
+        populated, times, moduli):
+    from vitrifit2.publication_export import _get_pinned_runs, _relaxation
+    import matplotlib.pyplot as plt
+    store, ids = populated
+    runs = _get_pinned_runs(store, [ids["LCE2"][1][1]])
+    runs[0] = dict(runs[0], time_s=np.asarray(times),
+                   modulus_mpa=np.asarray(moduli))
+    fig, ax = plt.subplots()
+    try:
+        with pytest.raises(ValueError, match="equal-length finite 1D arrays"):
+            _relaxation(ax, runs, {"pub_taustar": False})
+    finally:
+        plt.close(fig)
