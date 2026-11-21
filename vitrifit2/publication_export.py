@@ -312,6 +312,8 @@ def _kinetics(ax, runs: list[dict], style: dict, model: str,
                    label=name, zorder=3)
         engine = KineticsEngine()
         fit = engine.fit_arrhenius(temps, taus) if model == "Arrhenius" else engine.fit_vft(temps, taus)
+        if fit is None:
+            raise ValueError(f"{name}: {model} fit could not be determined from the selected measurements")
         if fit:
             tc = np.linspace(temps.min(), temps.max(), 100)
             if model == "Arrhenius":
