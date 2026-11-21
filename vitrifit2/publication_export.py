@@ -315,9 +315,20 @@ def _kinetics(ax, runs: list[dict], style: dict, model: str,
 def _fixed_temperature(ax, runs: list[dict], style: dict, temp: float | None) -> None:
     if temp is None or not math.isfinite(float(temp)):
         raise ValueError("Select a measured comparison temperature")
+    if float(temp) <= -273.15:
+        raise ValueError("Comparison temperature must be above absolute zero")
+    # Alternative fits to one instrument curve are not independent replicates.
+    curve_ids = [r["curve_id"] for r in runs]
+    if len(curve_ids) != len(set(curve_ids)):
+        raise ValueError("Select only one analysis run per measured curve")
     defs = {r["tau_definition"] for r in runs}
     if len(defs) != 1:
         raise ValueError("Do not mix different definitions of relaxation time")
+    # Validate all metadata before filtering; invalid values must not be hidden
+    # simply because they do not match the requested comparison temperature.
+    if any(not math.isfinite(float(r["temperature_c"])) or
+           float(r["temperature_c"]) <= -273.15 for r in runs):
+        raise ValueError("Saved temperatures must be finite and above absolute zero")
     matched = [r for r in runs if abs(float(r["temperature_c"])-float(temp)) < 1e-6]
     if len(matched) < 2:
         raise ValueError("At least two measured relaxation times at that temperature are required")
