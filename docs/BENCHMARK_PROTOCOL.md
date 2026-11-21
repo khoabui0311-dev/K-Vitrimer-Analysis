@@ -134,3 +134,17 @@ robustness but is not proof of model validity. A short window that never
 reaches a meaningful relaxation fraction can give weakly identified tau
 even when the optimizer converges. Use this alongside Jacobian
 conditioning, residual checks and independent replicates.
+
+
+## Monte Carlo bootstrap coverage
+
+`bootstrap_coverage_study` creates independent, fixed-seed noisy Maxwell
+or KWW datasets and computes the fraction of nominal percentile bootstrap
+intervals containing the known synthetic parameters. Dataset-level failures
+are reported separately and excluded from the coverage denominator.
+A small smoke test (2–3 datasets, 20 resamples) checks software behavior,
+**not** whether a 95% interval is calibrated. A scientifically meaningful
+coverage study requires substantially more independent datasets, noise
+models and confidence-level diagnostics. This is conditional on the
+correct synthetic model and does not establish performance on real
+instrument data.
