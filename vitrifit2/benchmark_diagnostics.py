@@ -97,3 +97,63 @@ def rank_relaxation_models(results: dict, ambiguity_threshold: float = 2.0):
             "Statistical model preference does not establish microscopic mechanism"
         ),
     }
+
+
+def assess_parameter_identifiability(time_s, normalized_modulus, model="kww",
+                                     condition_limit=1e8):
+    """Local numerical Jacobian check for parameter identifiability.
+
+    Uses log-time-constant parameterization to avoid mixed seconds/fractions
+    scaling. Reports local conditioning only; does not claim global uniqueness.
+    """
+    if model not in _MODELS:
+        raise ValueError("Unknown relaxation model")
+    if not math.isfinite(condition_limit) or condition_limit <= 1:
+        raise ValueError("condition_limit must be finite and > 1")
+    t = np.asarray(time_s, dtype=float)
+    y = np.asarray(normalized_modulus, dtype=float)
+    if (t.ndim != 1 or y.ndim != 1 or t.shape != y.shape
+            or len(t) < 8 or not np.all(np.isfinite(t))
+            or not np.all(np.isfinite(y)) or np.any(t < 0)
+            or np.any(np.diff(t) <= 0)):
+        raise ValueError("Need >=8 finite ordered observations")
+    implementation = _MODELS[model]()
+    params, _ = curve_fit(implementation.func, t, y,
+                          p0=implementation.get_initial_guess(t, y),
+                          bounds=implementation.get_bounds(), maxfev=20000)
+    params = np.asarray(params, dtype=float)
+    # Transform strictly positive time constants to log(tau).
+    tau_indices = {"maxwell": (0,), "kww": (0,),
+                   "dual_maxwell": (1, 2)}[model]
+    transformed = params.copy()
+    for index in tau_indices:
+        transformed[index] = math.log(params[index])
+
+    def prediction(z):
+        physical = z.copy()
+        for index in tau_indices:
+            physical[index] = math.exp(z[index])
+        return np.asarray(implementation.func(t, *physical), dtype=float)
+
+    columns = []
+    for i in range(len(transformed)):
+        h = 1e-5 * max(1.0, abs(transformed[i]))
+        plus, minus = transformed.copy(), transformed.copy()
+        plus[i] += h
+        minus[i] -= h
+        columns.append((prediction(plus) - prediction(minus)) / (2 * h))
+    jacobian = np.column_stack(columns)
+    singular = np.linalg.svd(jacobian, compute_uv=False)
+    condition = (float(singular[0] / singular[-1])
+                 if singular[-1] > 0 else float("inf"))
+    identifiable = bool(np.isfinite(condition) and condition < condition_limit)
+    return {
+        "model": model,
+        "parameters": [float(p) for p in params],
+        "jacobian_condition_number": condition,
+        "singular_values": [float(v) for v in singular],
+        "locally_identifiable": identifiable,
+        "warning": (None if identifiable else
+                    "Poor local parameter identifiability; report intervals and "
+                    "avoid mechanistic interpretation"),
+    }
