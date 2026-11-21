@@ -361,7 +361,13 @@ def _kinetics(ax, runs: list[dict], style: dict, model: str,
 
 
 def _fixed_temperature(ax, runs: list[dict], style: dict, temp: float | None) -> None:
-    if temp is None or not math.isfinite(float(temp)):
+    if temp is None or isinstance(temp, bool):
+        raise ValueError("Select a measured comparison temperature")
+    try:
+        temp = float(temp)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise ValueError("Select a measured comparison temperature") from exc
+    if not math.isfinite(temp):
         raise ValueError("Select a measured comparison temperature")
     if float(temp) <= -273.15:
         raise ValueError("Comparison temperature must be above absolute zero")
