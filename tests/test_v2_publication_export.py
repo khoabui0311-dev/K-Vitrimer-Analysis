@@ -151,3 +151,39 @@ def test_export_figure_api_reopens_saved_overrides(populated):
             assert no.status_code == 422
     finally:
         app.dependency_overrides.clear()
+
+
+@pytest.mark.parametrize("model", ["Arrhenius", "VFT"])
+def test_kinetic_publication_rejects_duplicate_fits_of_one_curve(populated, model):
+    """Two fits of one measured trace cannot count as two observations."""
+    store, ids = populated
+    curve, _ = ids["LCE2"][0]
+    alternate = store.save_analysis(
+        curve, "Maxwell", "fit:Single_KWW:characteristic",
+        {}, {"tau_s": 100., "r2": .98})
+    runs = [rid for _, rid in ids["LCE2"]] + [alternate]
+    with pytest.raises(ValueError, match="one analysis run per measured curve"):
+        export_publication_figure(
+            store, runs, "kinetics",
+            {"pub_kinfont_family": "DejaVu Sans"}, fmt="png", dpi=300,
+            kinetic_model=model)
+
+
+@pytest.mark.parametrize("invalid", [float("nan"), float("inf"), -273.15, -300.])
+@pytest.mark.parametrize("model", ["Arrhenius", "VFT"])
+def test_kinetic_publication_rejects_invalid_temperatures_before_window_filter(
+        populated, invalid, model):
+    from vitrifit2.publication_export import _get_pinned_runs, _kinetics
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    store, ids = populated
+    runs = _get_pinned_runs(store, [rid for _, rid in ids["LCE2"]])
+    runs[0] = dict(runs[0], temperature_c=invalid)
+    fig, ax = plt.subplots()
+    try:
+        with pytest.raises(ValueError, match="finite temperatures above absolute zero"):
+            _kinetics(ax, runs, {}, model, {runs[0]["sample_id"]: [100, 120]})
+    finally:
+        plt.close(fig)
