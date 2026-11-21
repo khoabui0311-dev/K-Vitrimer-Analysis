@@ -297,6 +297,9 @@ def _kinetics(ax, runs: list[dict], style: dict, model: str,
         grouped[r["sample_id"]].append((r, float(tau)))
     if not grouped:
         raise ValueError("No points within the selected sample temperature windows")
+    for sample_points in grouped.values():
+        if len({float(r["temperature_c"]) for r, _ in sample_points}) < 2:
+            raise ValueError("Kinetic comparison requires at least two distinct measured temperatures per sample")
     for i, group in enumerate(grouped.values()):
         temps = np.array([r["temperature_c"] for r, _ in group], dtype=float)
         taus = np.array([tau for _, tau in group], dtype=float)
