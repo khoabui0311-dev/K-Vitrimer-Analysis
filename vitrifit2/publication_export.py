@@ -396,7 +396,7 @@ def export_publication_figure(store: VitriFitStore, run_ids: list[str],
     fmt = str(fmt).lower()
     if fmt not in MIME_TYPES:
         raise ValueError("Unsupported publication export format")
-    if dpi not in (300, 600, 1200):
+    if type(dpi) is not int or dpi not in (300, 600, 1200):
         raise ValueError("Select 300, 600 or 1200 DPI")
     if kind not in ("relaxation", "kinetics", "fixed_temperature", "eyring", "van_t_hoff"):
         raise ValueError("Unsupported persisted comparison figure type")
