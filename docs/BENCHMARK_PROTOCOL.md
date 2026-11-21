@@ -148,3 +148,19 @@ coverage study requires substantially more independent datasets, noise
 models and confidence-level diagnostics. This is conditional on the
 correct synthetic model and does not establish performance on real
 instrument data.
+
+
+## Characteristic-time observability
+
+`relaxation_observability` computes the fitted model's predicted 1/e
+crossing and classifies it relative to the first and last measured times.
+Maxwell and KWW have analytic crossing times; two-Maxwell uses numerical
+root finding. For two-Maxwell, the overall 1/e crossing generally differs
+from either individual mode time constant.
+
+A crossing **inside** the acquisition window is not necessarily an
+empirically observed crossing: the diagnostic only checks the model
+prediction and time span. Real measurements should additionally verify
+that the measured normalized curve brackets the threshold, and that
+noise and uncertainty permit a reliable crossing estimate.
+Crossings outside the window are extrapolations and must be labelled.
