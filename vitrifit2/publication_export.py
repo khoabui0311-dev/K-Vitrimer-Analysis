@@ -393,7 +393,10 @@ def _fixed_temperature(ax, runs: list[dict], style: dict, temp: float | None) ->
         raise ValueError("At least two measured relaxation times at that temperature are required")
     if len({r["sample_id"] for r in matched}) < 2:
         raise ValueError("Fixed-temperature comparison requires at least two distinct samples")
-    taus = [float(r["analysis"]["results"].get("tau_s", 0)) for r in matched]
+    try:
+        taus = [float(r["analysis"]["results"].get("tau_s", 0)) for r in matched]
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise ValueError("All selected comparisons must have positive tau values") from exc
     if any(not math.isfinite(t) or t <= 0 for t in taus):
         raise ValueError("All selected comparisons must have positive tau values")
     xx = np.arange(len(matched))
