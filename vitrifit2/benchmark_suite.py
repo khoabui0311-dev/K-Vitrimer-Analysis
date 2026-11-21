@@ -83,9 +83,15 @@ def arrhenius_tau(temperatures_c: tuple[float, ...], *,
             or not math.isfinite(tau_reference_s) or tau_reference_s <= 0):
         raise ValueError("Invalid Arrhenius temperatures or parameters")
     tref = reference_c + 273.15
-    return tuple(tau_reference_s * math.exp(
-        activation_kj_mol * 1000 / R * (1 / (t + 273.15) - 1 / tref))
-        for t in temperatures_c)
+    try:
+        values = tuple(tau_reference_s * math.exp(
+            activation_kj_mol * 1000 / R * (1 / (t + 273.15) - 1 / tref))
+            for t in temperatures_c)
+    except OverflowError as exc:
+        raise ValueError("Arrhenius relaxation times overflow the numeric range") from exc
+    if not all(math.isfinite(value) and value > 0 for value in values):
+        raise ValueError("Arrhenius relaxation times exceed the numeric range")
+    return values
 
 
 def vft_tau(temperatures_c: tuple[float, ...], *, a: float = -4.0,
