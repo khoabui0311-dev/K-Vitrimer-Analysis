@@ -303,7 +303,10 @@ def _kinetics(ax, runs: list[dict], style: dict, model: str,
         raise ValueError("Do not mix different definitions of relaxation time")
     grouped = defaultdict(list)
     for r in runs:
-        temperature_c = float(r["temperature_c"])
+        try:
+            temperature_c = float(r["temperature_c"])
+        except (TypeError, ValueError, OverflowError) as exc:
+            raise ValueError("Kinetics requires finite temperatures above absolute zero") from exc
         if not math.isfinite(temperature_c) or temperature_c <= -273.15:
             raise ValueError("Kinetics requires finite temperatures above absolute zero")
         window = (windows or {}).get(r["sample_id"])
