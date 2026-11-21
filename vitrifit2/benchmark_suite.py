@@ -102,8 +102,14 @@ def vft_tau(temperatures_c: tuple[float, ...], *, a: float = -4.0,
             or not all(math.isfinite(x) for x in (a, b_kelvin, t0_c))
             or b_kelvin <= 0):
         raise ValueError("Invalid VFT parameters or temperatures")
-    return tuple(math.exp(a + b_kelvin / (t - t0_c))
-                 for t in temperatures_c)
+    try:
+        values = tuple(math.exp(a + b_kelvin / (t - t0_c))
+                       for t in temperatures_c)
+    except OverflowError as exc:
+        raise ValueError("VFT relaxation times overflow the numeric range") from exc
+    if not all(math.isfinite(value) and value > 0 for value in values):
+        raise ValueError("VFT relaxation times exceed the numeric range")
+    return values
 
 
 # Published 1/e relaxation times; these are reported values, not raw curves.
