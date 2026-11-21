@@ -62,3 +62,38 @@ def evaluate_relaxation_models(time_s, normalized_modulus,
         except (ValueError, RuntimeError, FloatingPointError, OverflowError) as exc:
             results[name] = {"status": "failed", "error": str(exc)}
     return results
+
+
+def rank_relaxation_models(results: dict, ambiguity_threshold: float = 2.0):
+    """Rank converged fits without equating statistical preference to mechanism.
+
+    Delta AICc < 2 denotes models without strong statistical separation.
+    A missing/failed fit is not assigned an artificial penalty score.
+    """
+    if not math.isfinite(ambiguity_threshold) or ambiguity_threshold <= 0:
+        raise ValueError("Ambiguity threshold must be positive and finite")
+    eligible = [
+        (name, float(result["aicc"]))
+        for name, result in results.items()
+        if result.get("status") == "ok" and result.get("aicc") is not None
+        and math.isfinite(float(result["aicc"]))
+    ]
+    if not eligible:
+        return {"preferred": None, "plausible": [], "ranking": [],
+                "warning": "No valid AICc comparisons available"}
+    eligible.sort(key=lambda item: item[1])
+    minimum = eligible[0][1]
+    ranking = [{"model": name, "delta_aicc": value - minimum}
+               for name, value in eligible]
+    plausible = [item["model"] for item in ranking
+                 if item["delta_aicc"] < ambiguity_threshold]
+    return {
+        "preferred": ranking[0]["model"],
+        "plausible": plausible,
+        "ranking": ranking,
+        "warning": (
+            "Multiple models statistically plausible; no microscopic mechanism inferred"
+            if len(plausible) > 1 else
+            "Statistical model preference does not establish microscopic mechanism"
+        ),
+    }
