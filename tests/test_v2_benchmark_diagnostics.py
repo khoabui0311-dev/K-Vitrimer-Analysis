@@ -52,3 +52,40 @@ def test_unknown_model_rejected():
     with pytest.raises(ValueError):
         evaluate_relaxation_models(case.time_s, case.normalized_modulus,
                                    models=("unknown",))
+
+
+def test_ambiguous_models_are_reported_without_mechanism_claim():
+    from vitrifit2.benchmark_diagnostics import rank_relaxation_models
+    results = {
+        "maxwell": {"status": "ok", "aicc": 100.},
+        "kww": {"status": "ok", "aicc": 101.5},
+        "dual_maxwell": {"status": "ok", "aicc": 110.},
+    }
+    ranking = rank_relaxation_models(results)
+    assert ranking["preferred"] == "maxwell"
+    assert ranking["plausible"] == ["maxwell", "kww"]
+    assert "no microscopic mechanism" in ranking["warning"]
+
+
+def test_failed_models_do_not_enter_statistical_ranking():
+    from vitrifit2.benchmark_diagnostics import rank_relaxation_models
+    result = rank_relaxation_models({
+        "maxwell": {"status": "failed", "error": "nonconvergence"},
+        "kww": {"status": "ok", "aicc": 10.},
+    })
+    assert result["preferred"] == "kww"
+    assert len(result["ranking"]) == 1
+
+
+def test_ranking_without_successful_fit_is_explicitly_unavailable():
+    from vitrifit2.benchmark_diagnostics import rank_relaxation_models
+    result = rank_relaxation_models({"maxwell": {"status": "failed"}})
+    assert result["preferred"] is None
+    assert result["ranking"] == []
+    assert result["warning"]
+
+
+def test_invalid_ambiguity_threshold_rejected():
+    from vitrifit2.benchmark_diagnostics import rank_relaxation_models
+    with pytest.raises(ValueError):
+        rank_relaxation_models({}, ambiguity_threshold=float("nan"))
