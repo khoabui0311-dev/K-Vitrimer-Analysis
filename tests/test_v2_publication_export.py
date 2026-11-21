@@ -187,3 +187,43 @@ def test_kinetic_publication_rejects_invalid_temperatures_before_window_filter(
             _kinetics(ax, runs, {}, model, {runs[0]["sample_id"]: [100, 120]})
     finally:
         plt.close(fig)
+
+
+@pytest.mark.parametrize("invalid", [float("nan"), float("inf"), -273.15, -300.0])
+def test_fixed_temperature_rejects_invalid_saved_metadata(populated, invalid):
+    from vitrifit2.publication_export import _fixed_temperature, _get_pinned_runs
+    import matplotlib.pyplot as plt
+    store, ids = populated
+    selected = [rid for group in ids.values() for _, rid in group]
+    runs = _get_pinned_runs(store, selected)
+    runs[0] = dict(runs[0], temperature_c=invalid)
+    fig, ax = plt.subplots()
+    try:
+        with pytest.raises(ValueError, match="finite and above absolute zero"):
+            _fixed_temperature(ax, runs, {}, 100)
+    finally:
+        plt.close(fig)
+
+
+def test_fixed_temperature_rejects_alternative_fits_as_replicates(populated):
+    store, ids = populated
+    curve, _ = ids["LCE2"][1]
+    duplicate = store.save_analysis(
+        curve, "Maxwell", "fit:Single_KWW:characteristic",
+        {}, {"tau_s": 200.0, "r2": .95})
+    runs = [ids["LCE2"][1][1], ids["VUGT"][1][1], duplicate]
+    with pytest.raises(ValueError, match="one analysis run per measured curve"):
+        export_publication_figure(
+            store, runs, "fixed_temperature",
+            {"pub_relfont_family": "DejaVu Sans"}, fmt="png", dpi=300,
+            temperature_c=100)
+
+
+def test_fixed_temperature_rejects_nonphysical_requested_temperature(populated):
+    store, ids = populated
+    runs = [ids["LCE2"][1][1], ids["VUGT"][1][1]]
+    with pytest.raises(ValueError, match="above absolute zero"):
+        export_publication_figure(
+            store, runs, "fixed_temperature",
+            {"pub_relfont_family": "DejaVu Sans"}, fmt="png", dpi=300,
+            temperature_c=-273.15)
