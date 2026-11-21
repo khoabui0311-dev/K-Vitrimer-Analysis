@@ -250,16 +250,26 @@ def _kinetics(ax, runs: list[dict], style: dict, model: str,
               windows: dict[str, list[float]] | None) -> None:
     if model not in ("Arrhenius", "VFT"):
         raise ValueError("Kinetic publication plots support Arrhenius or VFT")
+    # Distinct fit runs of the same measured curve are alternative models,
+    # never independent kinetic observations. Validate before window filtering.
+    curve_ids = [r["curve_id"] for r in runs]
+    if len(curve_ids) != len(set(curve_ids)):
+        raise ValueError("Kinetics: select only one analysis run per measured curve")
     defs = {r["tau_definition"] for r in runs}
     if len(defs) != 1:
         raise ValueError("Do not mix different definitions of relaxation time")
     grouped = defaultdict(list)
     for r in runs:
+        temperature_c = float(r["temperature_c"])
+        if not math.isfinite(temperature_c) or temperature_c <= -273.15:
+            raise ValueError("Kinetics requires finite temperatures above absolute zero")
         window = (windows or {}).get(r["sample_id"])
         if window is not None:
-            if len(window) != 2 or window[0] > window[1]:
+            if (len(window) != 2 or
+                    not all(math.isfinite(float(v)) for v in window) or
+                    float(window[0]) > float(window[1])):
                 raise ValueError("Invalid independent sample temperature window")
-            if not window[0] <= r["temperature_c"] <= window[1]:
+            if not float(window[0]) <= temperature_c <= float(window[1]):
                 continue
         tau = r["analysis"]["results"].get("tau_s")
         if tau is None or not math.isfinite(float(tau)) or float(tau) <= 0:
