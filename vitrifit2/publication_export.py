@@ -216,7 +216,8 @@ def _relaxation(ax, runs: list[dict], style: dict) -> None:
             fit_t = np.asarray(predicted.get("fit_time_s", []), dtype=float)
             fit_g = np.asarray(predicted.get("fit_normalized_prediction", []), dtype=float)
             if fit_t.size or fit_g.size:
-                if fit_t.size != fit_g.size or not np.all(np.isfinite(fit_t)) or not np.all(np.isfinite(fit_g)):
+                if (fit_t.ndim != 1 or fit_g.ndim != 1 or fit_t.size != fit_g.size
+                        or not np.all(np.isfinite(fit_t)) or not np.all(np.isfinite(fit_g))):
                     raise ValueError("Saved fit overlay must have equal-length finite time and prediction arrays")
                 if np.any(np.diff(fit_t) <= 0):
                     raise ValueError("Saved fit overlay times must be strictly increasing")
