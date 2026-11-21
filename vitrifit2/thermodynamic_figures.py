@@ -127,6 +127,11 @@ def draw_eyring(ax, runs: list[dict], style: dict, windows: dict | None):
     The inverse-rate interpretation of tau is an assumption. These parameters
     do not independently establish a specific covalent exchange mechanism.
     """
+    # Multiple fits of one measured curve are alternative analyses, not replicates.
+    # Reject them before kinetics to avoid pseudoreplication and biased weights.
+    curve_ids = [r["curve_id"] for r in runs]
+    if len(set(curve_ids)) != len(curve_ids):
+        raise ValueError("Eyring: select only one analysis run per measured curve")
     definitions = {r["analysis"]["tau_definition"] for r in runs}
     if len(definitions) != 1:
         raise ValueError("Eyring comparison requires one consistent relaxation-time definition")
