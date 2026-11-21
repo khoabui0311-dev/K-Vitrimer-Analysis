@@ -458,3 +458,17 @@ def test_publication_rejects_multidimensional_fit_overlay(populated):
             _relaxation(ax, [run], {"pub_showfit": True, "pub_taustar": False})
     finally:
         plt.close(fig)
+
+
+@pytest.mark.parametrize("temperature", ["not-a-number", {}, [], True, float("nan")])
+def test_fixed_temperature_rejects_malformed_temperature(populated, temperature):
+    from vitrifit2.publication_export import _fixed_temperature, _get_pinned_runs
+    import matplotlib.pyplot as plt
+    store, ids = populated
+    runs = _get_pinned_runs(store, [ids["LCE2"][1][1], ids["VUGT"][1][1]])
+    fig, ax = plt.subplots()
+    try:
+        with pytest.raises(ValueError, match="Select a measured comparison temperature"):
+            _fixed_temperature(ax, runs, {}, temperature)
+    finally:
+        plt.close(fig)
