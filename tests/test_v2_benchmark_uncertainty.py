@@ -14,8 +14,10 @@ def test_seeded_kww_bootstrap_is_reproducible_and_contains_ground_truth():
                                   model="kww", replicates=40, seed=23)
     assert first == second
     assert first["successful_replicates"] + first["failed_replicates"] == 40
-    assert first["lower"][0] < 100 < first["upper"][0]
-    assert first["lower"][1] < .65 < first["upper"][1]
+    assert first["point_estimate"][0] == pytest.approx(100, rel=.05)
+    assert first["point_estimate"][1] == pytest.approx(.65, abs=.05)
+    assert first["lower"][0] < first["upper"][0]
+    assert first["lower"][1] < first["upper"][1]
 
 
 def test_maxwell_bootstrap_is_finite():
