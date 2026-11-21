@@ -357,8 +357,16 @@ def _fixed_temperature(ax, runs: list[dict], style: dict, temp: float | None) ->
         raise ValueError("All selected comparisons must have positive tau values")
     xx = np.arange(len(matched))
     names = [r["sample_name"] for r in matched]
+    # Independent measured replicates retain separate bars, with unambiguous
+    # labels; do not silently average or treat alternative fits as replicates.
+    counts = defaultdict(int)
+    totals = {name: names.count(name) for name in set(names)}
+    labels = []
+    for name in names:
+        counts[name] += 1
+        labels.append(f"{name} (rep {counts[name]})" if totals[name] > 1 else name)
     ax.bar(xx, taus, color=[V1_PALETTE[i%len(V1_PALETTE)] for i in range(len(matched))])
-    ax.set_xticks(xx, labels=names)
+    ax.set_xticks(xx, labels=labels)
     ax.set_yscale("log")
     ax.set_ylabel(r"Relaxation time, $\tau$ (s)")
     ax.set_title(f"Measured at {temp:g} °C", fontsize=10)
