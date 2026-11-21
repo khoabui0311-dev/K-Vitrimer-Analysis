@@ -318,9 +318,13 @@ def _kinetics(ax, runs: list[dict], style: dict, model: str,
             if not float(window[0]) <= temperature_c <= float(window[1]):
                 continue
         tau = r["analysis"]["results"].get("tau_s")
-        if tau is None or not math.isfinite(float(tau)) or float(tau) <= 0:
+        try:
+            tau = float(tau)
+        except (TypeError, ValueError, OverflowError) as exc:
+            raise ValueError("Selected analysis does not contain a positive relaxation time") from exc
+        if not math.isfinite(tau) or tau <= 0:
             raise ValueError("Selected analysis does not contain a positive relaxation time")
-        grouped[r["sample_id"]].append((r, float(tau)))
+        grouped[r["sample_id"]].append((r, tau))
     if not grouped:
         raise ValueError("No points within the selected sample temperature windows")
     for sample_points in grouped.values():
