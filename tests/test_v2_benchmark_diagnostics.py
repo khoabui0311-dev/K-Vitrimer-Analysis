@@ -89,3 +89,29 @@ def test_invalid_ambiguity_threshold_rejected():
     from vitrifit2.benchmark_diagnostics import rank_relaxation_models
     with pytest.raises(ValueError):
         rank_relaxation_models({}, ambiguity_threshold=float("nan"))
+
+
+def test_maxwell_parameter_is_locally_identifiable():
+    from vitrifit2.benchmark_diagnostics import assess_parameter_identifiability
+    case = relaxation_case("maxwell", tau_s=100.)
+    result = assess_parameter_identifiability(
+        case.time_s, case.normalized_modulus, model="maxwell")
+    assert result["locally_identifiable"] is True
+    assert result["jacobian_condition_number"] == pytest.approx(1.)
+    assert result["parameters"][0] == pytest.approx(100., rel=.01)
+
+
+def test_kww_parameters_are_locally_identifiable_on_wide_time_window():
+    from vitrifit2.benchmark_diagnostics import assess_parameter_identifiability
+    case = relaxation_case("kww", tau_s=100., beta=.65)
+    result = assess_parameter_identifiability(
+        case.time_s, case.normalized_modulus, model="kww")
+    assert result["locally_identifiable"] is True
+    assert result["parameters"][0] == pytest.approx(100., rel=.01)
+    assert result["parameters"][1] == pytest.approx(.65, abs=.01)
+
+
+def test_identifiability_rejects_invalid_input():
+    from vitrifit2.benchmark_diagnostics import assess_parameter_identifiability
+    with pytest.raises(ValueError):
+        assess_parameter_identifiability([0, 1], [1, .5])
