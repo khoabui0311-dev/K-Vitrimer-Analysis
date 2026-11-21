@@ -362,3 +362,11 @@ def test_publication_rejects_excessive_pinned_run_selection(populated):
     unique_runs = [f"run-{index}" for index in range(101)]
     with pytest.raises(ValueError, match="at most 100"):
         _get_pinned_runs(store, unique_runs)
+
+
+@pytest.mark.parametrize("bad_id", ["", "   ", None, 42])
+def test_publication_rejects_invalid_run_identifiers(populated, bad_id):
+    from vitrifit2.publication_export import _get_pinned_runs
+    store, _ = populated
+    with pytest.raises(ValueError, match="nonempty strings"):
+        _get_pinned_runs(store, [bad_id])
