@@ -129,3 +129,52 @@ def test_vft_benchmark_rejects_exponential_overflow():
 def test_arrhenius_benchmark_rejects_exponential_overflow():
     with pytest.raises(ValueError, match="overflow"):
         arrhenius_tau((-273.149, 160.), activation_kj_mol=85.)
+
+
+@pytest.mark.parametrize(
+    "case_name, model, parameters",
+    [
+        ("single Maxwell", "maxwell", (100.,)),
+        ("stretched KWW", "kww", (100., .65)),
+        ("two Maxwell modes", "dual_maxwell", (.3, 10., 100.)),
+    ],
+)
+def test_production_relaxation_models_match_independent_analytical_curves(
+        case_name, model, parameters):
+    import numpy as np
+    from can_relax.core.models import Maxwell, SingleKWW, TwoMaxwell
+    case = relaxation_case(model, tau_s=100., beta=.65,
+                           fast_fraction=.3, fast_tau_s=10.)
+    implementation = {"maxwell": Maxwell, "kww": SingleKWW,
+                      "dual_maxwell": TwoMaxwell}[model]()
+    prediction = implementation.func(np.asarray(case.time_s), *parameters)
+    np.testing.assert_allclose(
+        prediction, case.normalized_modulus, rtol=1e-12, atol=1e-14,
+        err_msg=case_name)
+
+
+def test_production_single_maxwell_least_squares_recovers_known_tau():
+    import numpy as np
+    from scipy.optimize import curve_fit
+    from can_relax.core.models import Maxwell
+    case = relaxation_case("maxwell", tau_s=75.)
+    t = np.asarray(case.time_s)
+    y = np.asarray(case.normalized_modulus)
+    model = Maxwell()
+    fit, _ = curve_fit(model.func, t, y, p0=model.get_initial_guess(t, y),
+                       bounds=model.get_bounds())
+    assert fit[0] == pytest.approx(75., rel=.01)
+
+
+def test_production_kww_least_squares_recovers_known_tau_and_beta():
+    import numpy as np
+    from scipy.optimize import curve_fit
+    from can_relax.core.models import SingleKWW
+    case = relaxation_case("kww", tau_s=120., beta=.6)
+    t = np.asarray(case.time_s)
+    y = np.asarray(case.normalized_modulus)
+    model = SingleKWW()
+    fit, _ = curve_fit(model.func, t, y, p0=model.get_initial_guess(t, y),
+                       bounds=model.get_bounds())
+    assert fit[0] == pytest.approx(120., rel=.01)
+    assert fit[1] == pytest.approx(.6, abs=.01)
