@@ -472,3 +472,18 @@ def test_fixed_temperature_rejects_malformed_temperature(populated, temperature)
             _fixed_temperature(ax, runs, {}, temperature)
     finally:
         plt.close(fig)
+
+
+@pytest.mark.parametrize("bad_temperature", ["invalid", None, [], float("inf")])
+def test_fixed_temperature_rejects_invalid_saved_metadata(populated, bad_temperature):
+    from vitrifit2.publication_export import _fixed_temperature, _get_pinned_runs
+    import matplotlib.pyplot as plt
+    store, ids = populated
+    runs = _get_pinned_runs(store, [ids["LCE2"][1][1], ids["VUGT"][1][1]])
+    runs[0] = dict(runs[0], temperature_c=bad_temperature)
+    fig, ax = plt.subplots()
+    try:
+        with pytest.raises(ValueError, match="Saved temperatures must be finite"):
+            _fixed_temperature(ax, runs, {}, 100)
+    finally:
+        plt.close(fig)
