@@ -193,3 +193,19 @@ def test_api_exports_saved_eyring_and_van_t_hoff_figures(saved):
                 assert exported_pdf.content.startswith(b"%PDF")
     finally:
         app.dependency_overrides.clear()
+
+
+def test_eyring_rejects_duplicate_fits_of_one_measured_curve(saved):
+    """Alternative model fits are not independent temperature replicates."""
+    store, runs = saved
+    chosen = [run_id for _, run_id in runs["LCE2"]]
+    duplicate = store.save_analysis(
+        runs["LCE2"][0][0], "Maxwell", "fit:Single_KWW:characteristic",
+        {}, {"tau_s": 100., "reference_modulus_mpa": 2.})
+    points = _get_pinned_runs(store, chosen + [duplicate])
+    fig, ax = plt.subplots()
+    try:
+        with pytest.raises(ValueError, match="one analysis run per measured curve"):
+            draw_eyring(ax, points, {}, None)
+    finally:
+        plt.close(fig)
