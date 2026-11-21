@@ -209,3 +209,21 @@ def test_eyring_rejects_duplicate_fits_of_one_measured_curve(saved):
             draw_eyring(ax, points, {}, None)
     finally:
         plt.close(fig)
+
+
+@pytest.mark.parametrize("invalid_temperature", [float("nan"), float("inf"), -273.15, -300.0])
+@pytest.mark.parametrize("renderer", [draw_eyring, draw_van_t_hoff])
+def test_thermodynamic_figures_reject_nonphysical_temperature_even_outside_window(
+        saved, invalid_temperature, renderer):
+    """Corrupt metadata must not be silently filtered out by a fitting window."""
+    store, runs = saved
+    points = _get_pinned_runs(store, [rid for _, rid in runs["LCE2"]])
+    points[0] = dict(points[0], temperature_c=invalid_temperature)
+    sample_id = points[0]["sample_id"]
+    fig, ax = plt.subplots()
+    try:
+        with pytest.raises(ValueError, match="finite and above absolute zero"):
+            renderer(ax, points, {"eyr_ff": "DejaVu Sans",
+                                  "vh_ff": "DejaVu Sans"}, {sample_id: [90, 150]})
+    finally:
+        plt.close(fig)
