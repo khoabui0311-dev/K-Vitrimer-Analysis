@@ -227,3 +227,21 @@ def test_thermodynamic_figures_reject_nonphysical_temperature_even_outside_windo
                                   "vh_ff": "DejaVu Sans"}, {sample_id: [90, 150]})
     finally:
         plt.close(fig)
+
+
+@pytest.mark.parametrize("missing_modulus", [None, []])
+def test_van_t_hoff_legacy_reference_requires_measured_modulus(saved, missing_modulus):
+    """Missing legacy G0 must not be replaced with a fitted plateau."""
+    store, runs = saved
+    points = _get_pinned_runs(store, [rid for _, rid in runs["LCE2"]])
+    points[0] = dict(points[0])
+    points[0]["analysis"] = dict(points[0]["analysis"])
+    points[0]["analysis"]["results"] = dict(points[0]["analysis"]["results"])
+    points[0]["analysis"]["results"].pop("reference_modulus_mpa")
+    points[0]["modulus_mpa"] = missing_modulus
+    fig, ax = plt.subplots()
+    try:
+        with pytest.raises(ValueError, match="Missing observed reference modulus"):
+            draw_van_t_hoff(ax, points, {"vh_ff": "DejaVu Sans"}, None)
+    finally:
+        plt.close(fig)
