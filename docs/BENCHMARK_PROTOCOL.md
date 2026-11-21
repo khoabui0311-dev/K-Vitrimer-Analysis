@@ -118,3 +118,19 @@ and poor identifiability can also compromise percentile intervals.
 Do not interpret 95% confidence as guaranteed coverage for a single
 synthetic realization. Assess empirical coverage over repeated independently
 seeded datasets before claiming calibrated intervals.
+
+
+## Measurement-window sensitivity
+
+`vitrifit2.benchmark_windows.window_sensitivity` refits Maxwell or KWW
+using progressively shorter prefixes of a trace. The default fractions
+(100%, 75%, 50%, 25%) refer to the **number of observations** and must
+not be described as the fraction of elapsed time. Each result records
+the actual final time, point count, fitted parameters and relative
+deviation from the full-window fit.
+
+A stable estimate under truncation is useful evidence of numerical
+robustness but is not proof of model validity. A short window that never
+reaches a meaningful relaxation fraction can give weakly identified tau
+even when the optimizer converges. Use this alongside Jacobian
+conditioning, residual checks and independent replicates.
