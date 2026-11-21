@@ -98,6 +98,12 @@ def _groups(runs: list[dict], windows: dict | None, property_name: str):
     groups = defaultdict(list)
     for run in runs:
         sample_id = run["sample_id"]
+        # 1000/T and Eyring logarithms require physical absolute temperatures.
+        # Reject invalid metadata before applying a sample window so malformed
+        # measurements cannot be silently hidden by filtering.
+        temperature_c = float(run["temperature_c"])
+        if not math.isfinite(temperature_c) or temperature_c <= -273.15:
+            raise ValueError("Saved analysis temperature must be finite and above absolute zero")
         bounds = (windows or {}).get(sample_id)
         if bounds is not None:
             if (len(bounds) != 2 or not all(math.isfinite(float(v)) for v in bounds)
