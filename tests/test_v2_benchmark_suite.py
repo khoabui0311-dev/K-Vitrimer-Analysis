@@ -119,3 +119,13 @@ def test_production_arrhenius_engine_on_published_summary_values(key):
     expected = apparent_arrhenius_ea(ref["temperature_c"], ref[key])
     assert fit["Ea"] == pytest.approx(expected, abs=.01)
     assert fit["R2"] > .9
+
+
+def test_vft_benchmark_rejects_exponential_overflow():
+    with pytest.raises(ValueError, match="overflow"):
+        vft_tau((20.00001, 100.), t0_c=20.)
+
+
+def test_arrhenius_benchmark_rejects_exponential_overflow():
+    with pytest.raises(ValueError, match="overflow"):
+        arrhenius_tau((-273.149, 160.), activation_kj_mol=85.)
