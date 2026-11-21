@@ -380,8 +380,13 @@ def _fixed_temperature(ax, runs: list[dict], style: dict, temp: float | None) ->
         raise ValueError("Do not mix different definitions of relaxation time")
     # Validate all metadata before filtering; invalid values must not be hidden
     # simply because they do not match the requested comparison temperature.
-    if any(not math.isfinite(float(r["temperature_c"])) or
-           float(r["temperature_c"]) <= -273.15 for r in runs):
+    try:
+        invalid_temperature = any(
+            not math.isfinite(float(r["temperature_c"])) or
+            float(r["temperature_c"]) <= -273.15 for r in runs)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise ValueError("Saved temperatures must be finite and above absolute zero") from exc
+    if invalid_temperature:
         raise ValueError("Saved temperatures must be finite and above absolute zero")
     matched = [r for r in runs if abs(float(r["temperature_c"])-float(temp)) < 1e-6]
     if len(matched) < 2:
