@@ -245,3 +245,14 @@ def test_van_t_hoff_legacy_reference_requires_measured_modulus(saved, missing_mo
             draw_van_t_hoff(ax, points, {"vh_ff": "DejaVu Sans"}, None)
     finally:
         plt.close(fig)
+
+
+def test_thermodynamic_manual_limits_reject_nonpositive_log_x():
+    fig, ax = plt.subplots()
+    try:
+        ax.set_xscale("log")
+        with pytest.raises(ValueError, match="logarithmic X bounds must be positive"):
+            _limits(ax, {"eyr_clim": True, "eyr_xmin": 0, "eyr_xmax": 5,
+                         "eyr_ymin": -5, "eyr_ymax": 5}, "eyr")
+    finally:
+        plt.close(fig)
