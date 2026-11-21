@@ -251,11 +251,17 @@ def _relaxation(ax, runs: list[dict], style: dict) -> None:
         min_x = np.min(xx[xx > 0]) if xscale == "Log" else float(np.min(xx))
         ax.set_xlim(min_x*.8 if min_x != 0 else 0, float(np.max(xx))*1.2)
         if norm:
-            ax.set_ylim(1e-3 if yscale == "Log" else 0, 1.05)
+            # Preserve observed overshoots above G/G0 = 1 and measured
+            # relaxation tails below 1e-3 rather than silently clipping them.
+            upper = max(1.05, float(np.max(yy))*1.05)
+            if yscale == "Log":
+                ax.set_ylim(float(np.min(yy[yy > 0]))*.8, upper)
+            else:
+                ax.set_ylim(min(0.0, float(np.min(yy))), upper)
         elif yscale == "Linear":
-            ax.set_ylim(0, max(yy)*1.05)
+            ax.set_ylim(min(0.0, float(np.min(yy))), float(np.max(yy))*1.05)
         else:
-            ax.set_ylim(min(yy[yy > 0])*.8, max(yy)*1.2)
+            ax.set_ylim(float(np.min(yy[yy > 0]))*.8, float(np.max(yy))*1.2)
     _legend(ax, style, "pub_rel")
     _panel(ax, style, 1)
 
