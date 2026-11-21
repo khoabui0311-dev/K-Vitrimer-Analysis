@@ -346,3 +346,19 @@ def test_kinetic_publication_rejects_one_temperature_per_sample(populated):
         export_publication_figure(store, runs, "kinetics",
                                   {"pub_kinfont_family": "DejaVu Sans"},
                                   fmt="png", dpi=300)
+
+
+@pytest.mark.parametrize("dpi", [True, "300", 300.0, None])
+def test_publication_rejects_noninteger_dpi(populated, dpi):
+    store, ids = populated
+    with pytest.raises(ValueError, match="300, 600 or 1200 DPI"):
+        export_publication_figure(store, [ids["LCE2"][1][1]],
+                                  "relaxation", {}, fmt="png", dpi=dpi)
+
+
+def test_publication_rejects_excessive_pinned_run_selection(populated):
+    from vitrifit2.publication_export import _get_pinned_runs
+    store, ids = populated
+    unique_runs = [f"run-{index}" for index in range(101)]
+    with pytest.raises(ValueError, match="at most 100"):
+        _get_pinned_runs(store, unique_runs)
