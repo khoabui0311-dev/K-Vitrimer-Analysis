@@ -227,3 +227,20 @@ def test_fixed_temperature_rejects_nonphysical_requested_temperature(populated):
             store, runs, "fixed_temperature",
             {"pub_relfont_family": "DejaVu Sans"}, fmt="png", dpi=300,
             temperature_c=-273.15)
+
+
+@pytest.mark.parametrize("axis", ["x", "y"])
+def test_logarithmic_publication_rejects_nonpositive_manual_limits(populated, axis):
+    store, ids = populated
+    runs = [ids["LCE2"][1][1], ids["VUGT"][1][1]]
+    settings = {
+        "pub_relfont_family": "DejaVu Sans",
+        "pub_xscale": "Log", "pub_yscale": "Log",
+        "pub_rel_cust_lims": True,
+        "pub_rel_xmin": 0.01, "pub_rel_xmax": 200,
+        "pub_rel_ymin": 0.001, "pub_rel_ymax": 2,
+    }
+    settings[f"pub_rel_{axis}min"] = 0
+    with pytest.raises(ValueError, match=f"Logarithmic {axis.upper()}-axis limits must be positive"):
+        export_publication_figure(
+            store, runs, "relaxation", settings, fmt="png", dpi=300)
