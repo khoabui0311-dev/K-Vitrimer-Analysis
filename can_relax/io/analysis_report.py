@@ -38,7 +38,7 @@ def plain(value):
 
 
 def make_snapshot(results, metadata, source_bytes, source_name, kinetics=None, master=None,
-                  spectrum=None, comparison=None, skipped=None, options=None):
+                  spectrum=None, comparison=None, skipped=None, options=None, reliability=None):
     model = metadata['model']
     curves = []
     for record in results:
@@ -52,12 +52,17 @@ def make_snapshot(results, metadata, source_bytes, source_name, kinetics=None, m
             'parameters': dict(zip(PARAMETERS[model], fit['popt'])),
             'local_standard_errors': dict(zip(PARAMETERS[model], errors)),
             'mode_moduli_MPa': fit.get('mode_moduli_MPa'),
+            'optimization': fit.get('optimization'),
+            'residual_diagnostics': fit.get('residual_diagnostics'),
             'plateau_MPa': fit['G_inf'], 'plateau_local_SE_MPa': fit['G_inf_std'],
             'R2': fit['r2'], 'AICc': fit['aic'], 'BIC': fit['bic'],
             'preprocessing': record['Preprocessing'],
             'warnings': list(dict.fromkeys(record['Warnings'] + fit['flags'])),
         })
     selected_ids = {r['Curve_ID'] for r in results}
+    checks = []
+    if reliability and reliability.get('analysis_id') == metadata['analysis_id']:
+        checks = [item for cid, item in reliability.get('curves', {}).items() if cid in selected_ids]
     metadata = dict(metadata)
     if 'curves' in metadata:
         metadata['curves'] = [c for c in metadata['curves'] if c['curve_id'] in selected_ids]
@@ -66,7 +71,8 @@ def make_snapshot(results, metadata, source_bytes, source_name, kinetics=None, m
                   'source': {'filename': source_name, 'sha256': hashlib.sha256(source_bytes).hexdigest()},
                   'analysis': metadata, 'selected_curve_ids': [r['Curve_ID'] for r in results],
                   'curves': curves, 'kinetics': kinetics, 'mastercurve': master,
-                  'spectrum': spectrum, 'comparison': comparison, 'skipped_curves': skipped or [],
+                  'spectrum': spectrum, 'comparison': comparison, 'fit_reliability': checks,
+                  'skipped_curves': skipped or [],
                   'options': options or {}})
 
 
@@ -157,6 +163,26 @@ def render_report(snapshot, title='Relaxation analysis', notes=''):
                                  'Loading-time G slow (MPa)': curve['mode_moduli_MPa'][1]}]))
         parts.append('<h3>Review notes</h3><ul>' + ''.join(f'<li>{_escape(w)}</li>' for w in curve['warnings']) + '</ul>')
         parts.append(f'<details><summary>Preprocessing and point selection</summary><pre>{_escape(curve["preprocessing"])}</pre></details></section>')
+    parts.append('<section><h2>Fit reliability</h2>')
+    parts.append(_table([{'Curve': c['curve_id'],
+        'RMSE (normalized)': (c.get('residual_diagnostics') or {}).get('rmse_normalized'),
+        'Adjacent residual correlation': (c.get('residual_diagnostics') or {}).get('lag1_correlation'),
+        'Starts converged': (c.get('optimization') or {}).get('converged_starts'),
+        'Starts attempted': (c.get('optimization') or {}).get('attempted_starts'),
+        'Near-best starts': (c.get('optimization') or {}).get('near_best_starts')} for c in curves]))
+    parts.append('<p>Two-Maxwell fits select the lowest RSS across deterministic starting guesses. Near-best RSS tolerance is max(0.1% of best RSS, 10⁻¹²). Time spread above 25% flags numerical ambiguity. Adjacent residual correlation |r| ≥ 0.5 flags structure; it is descriptive, not a significance test. Neither convergence nor high R² establishes identifiable physical modes.</p>')
+    checked_ids = set()
+    for check in saved.get('fit_reliability', []):
+        checked_ids.add(check['curve_id'])
+        parts.append(f'<h3>{_escape(check["curve_id"])}</h3><p>{_escape(check["method"])}</p>')
+        parts.append(_table([{key: row.get(key) for key in ('Scenario', 'Status', 'Points',
+            'Tau fast (s)', 'Tau slow (s)', 'Fast change (%)', 'Slow change (%)')} for row in check['rows']]))
+        parts.append(_table([{key: row.get(key) for key in ('Scenario', 'G fast (MPa)', 'G slow (MPa)',
+            'Plateau (MPa)', 'Last observed time (s)', 'Review notes')} for row in check['rows']]))
+    unchecked = [c['curve_id'] for c in curves if c['curve_id'] not in checked_ids]
+    if unchecked:
+        parts.append(f'<p>Window/sampling stability not checked for: {_escape(", ".join(unchecked))}.</p>')
+    parts.append('</section>')
     kinetics = saved.get('kinetics')
     parts.append('<section><h2>Kinetics</h2>')
     if kinetics:

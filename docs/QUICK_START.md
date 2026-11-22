@@ -3,6 +3,10 @@
 Release candidate **2.0.0-rc.2** for Windows 10/11 x64. No separate Python
 installation is needed. Analysis works offline in your web browser.
 
+The newer source development preview adds a **Fit reliability** tab. Its workflow
+and interpretation are described in [Fit reliability](FIT_RELIABILITY.md); that
+feature is not included in the rc.2 installer described below.
+
 ## Install and open
 
 1. Open [GitHub Releases](https://github.com/khoabui0311-dev/K-Vitrimer-Analysis/releases)

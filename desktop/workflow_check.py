@@ -52,6 +52,11 @@ def verify_workflow(app_path, source_bytes, filename='workflow.csv'):
         expected = {r['Curve_ID']: np.array(r['Fits'][PRONY]['popt']) for r in app.session_state['results'] if r['Valid']}
         if not expected:
             raise RuntimeError('Imported workflow produced no valid fits.')
+        app.button(key='run_fit_stability').click().run()
+        check(app)
+        original_checks = app.session_state['fit_reliability']['curves']
+        if set(original_checks) != set(expected):
+            raise RuntimeError('Stability checks did not cover every fitted curve.')
         app.text_input(key='publication_format_name').set_value('Workflow format').run()
         app.checkbox(key='pub_kin_showfit').uncheck().run()
         saved = downloads['Save project']
@@ -76,6 +81,13 @@ def verify_workflow(app_path, source_bytes, filename='workflow.csv'):
                 raise RuntimeError('Reopening changed fitted parameter values.')
         if reopened.checkbox(key='pub_kin_showfit').value:
             raise RuntimeError('Reopening lost fit visibility.')
+        if 'fit_reliability' in reopened.session_state:
+            raise RuntimeError('Project incorrectly restored old stability results instead of a recipe.')
+        reopened.button(key='run_fit_stability').click().run()
+        check(reopened)
+        for cid, evidence in reopened.session_state['fit_reliability']['curves'].items():
+            if evidence['rows'] != original_checks[cid]['rows']:
+                raise RuntimeError('Repeated stability checks changed after reopening.')
         style = load_style(downloads['save_figure_style'])
         if style['settings']['pub_kin_showfit'] is not False:
             raise RuntimeError('Standalone format export lost fit visibility.')
@@ -85,6 +97,10 @@ def verify_workflow(app_path, source_bytes, filename='workflow.csv'):
         snapshot = json.loads(prepared['json'])
         if len(snapshot['curves']) != len(expected) or b'<svg' not in prepared['html']:
             raise RuntimeError('Report did not contain curves and embedded vector figures.')
+        if len(snapshot['fit_reliability']) != len(expected):
+            raise RuntimeError('Report did not include the completed stability checks.')
+        if 'First 80%' not in downloads['reliability_csv']:
+            raise RuntimeError('Stability CSV did not contain the window checks.')
         if 'Tau 1 fast (s)' not in downloads['dl_fit_params']:
             raise RuntimeError('Fit CSV is missing two-Maxwell times.')
         next(x for x in reopened.button if x.label == 'Prepare SVG / PDF downloads').click().run()
@@ -95,4 +111,5 @@ def verify_workflow(app_path, source_bytes, filename='workflow.csv'):
         return reopened, {'import': filename.rsplit('.', 1)[-1], 'reviewed_points': 3,
                           'curves': len(expected), 'fresh_session_reopen': 'identical fitted parameters',
                           'project_source_and_exclusions': 'preserved',
-                          'exports': ['fit CSV', 'project VFIT', 'format VSTYLE', 'report HTML', 'snapshot JSON', 'publication SVG', 'publication PDF']}
+                          'stability_reopen': 'recomputed with identical scenario results',
+                          'exports': ['fit CSV', 'diagnostics CSV', 'stability CSV', 'reliability JSON', 'project VFIT', 'format VSTYLE', 'report HTML', 'snapshot JSON', 'publication SVG', 'publication PDF']}

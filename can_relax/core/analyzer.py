@@ -5,6 +5,7 @@ from typing import Dict, Any, Tuple, Optional
 from can_relax.core.models import Maxwell, SingleKWW, DualKWW, TwoMaxwell, PRONY, TAU_INDICES, prony_log_decay
 from can_relax.core.processing import DataProcessor
 from can_relax.core.auto_engine import AutoEngine
+from can_relax.core.optimization import fit_prony_multistart, residual_diagnostics
 
 class CurveAnalyzer:
     def __init__(self) -> None:
@@ -64,10 +65,35 @@ class CurveAnalyzer:
         if plateau_mode == 'Fixed' and fixed_plateau >= G0:
             return {'Temp': temp, 'Valid': False, 'Reason': 'Fixed plateau must be below the retained reference modulus'}
 
+        result = self.fit_retained(temp, t, g, G0, fit_model, plateau_mode, fixed_plateau, Tg)
+        result['Raw'].update(full_t=t_full, full_g=g_full)
+        result['Preprocessing'].update(input_points=len(df_raw),
+            retained_points_before_downsampling=len(t_full), automatic_preprocessing=True)
+        return result
+
+    def fit_retained(self, temp, t, g, G0, fit_model, plateau_mode='Zero', fixed_plateau=0., Tg=None):
+        """Fit already reviewed, normalized observations without trimming or resampling.
+
+        The first observation must be the original retained reference. This path is
+        used for controlled sampling/window sensitivity, preserving loading time.
+        """
+        t, g = np.asarray(t, dtype=float), np.asarray(g, dtype=float)
+        if (t.ndim != 1 or t.shape != g.shape or len(t) < 8 or
+                not np.all(np.isfinite(t)) or not np.all(np.isfinite(g)) or
+                np.any(np.diff(t) <= 0) or t[0] < 0 or np.any(g <= 0) or
+                not np.isclose(g[0], 1., atol=1e-12, rtol=0) or
+                not np.isfinite(G0) or G0 <= 0):
+            raise ValueError('Retained fitting requires at least eight ordered positive observations and the original normalized reference.')
+        if plateau_mode not in ('Zero', 'Fit', 'Fixed'):
+            raise ValueError('Unknown plateau mode')
+        if plateau_mode != 'Zero' and fit_model not in ('Maxwell', 'Single_KWW', PRONY):
+            raise ValueError('This model does not support a plateau')
+        if plateau_mode == 'Fixed' and (not np.isfinite(fixed_plateau) or not 0 <= fixed_plateau < G0):
+            raise ValueError('Fixed plateau must be nonnegative and below the retained reference modulus')
         result = {
             'Temp': temp,
             'Valid': True,
-            'Raw': {'t': t, 'g': g, 'G0': G0, 'full_t': t_full, 'full_g': g_full},
+            'Raw': {'t': t, 'g': g, 'G0': G0, 'full_t': t, 'full_g': g},
             'Fits': {}
         }
         
@@ -82,8 +108,8 @@ class CurveAnalyzer:
             raise ValueError("Unknown relaxation model")
         result['Preprocessing'] = {
             'time_origin': 'elapsed_since_loading', 'reference_time': float(t[0]),
-            'reference_modulus': G0, 'input_points': len(df_raw), 'retained_points': len(t),
-            'retained_points_before_downsampling': len(t_full),
+            'reference_modulus': G0, 'input_points': len(t), 'retained_points': len(t),
+            'retained_points_before_downsampling': len(t), 'automatic_preprocessing': False,
             'plateau_mode': plateau_mode, 'fixed_plateau_MPa': fixed_plateau if plateau_mode == 'Fixed' else None,
         }
         result['Warnings'] = []
@@ -105,8 +131,12 @@ class CurveAnalyzer:
                 if plateau_mode == 'Fit':
                     guess = np.r_[guess, np.clip(g[-1] * .8, .001, .95)]
                     bounds = (list(bounds[0]) + [0.0], list(bounds[1]) + [1.0 - 1e-9])
-                popt, covariance = curve_fit(prediction, t, g, p0=guess,
-                    bounds=bounds, maxfev=15000, x_scale='jac')
+                optimization = None
+                if name == PRONY:
+                    popt, covariance, optimization = fit_prony_multistart(prediction, t, g, guess, bounds)
+                else:
+                    popt, covariance = curve_fit(prediction, t, g, p0=guess,
+                        bounds=bounds, maxfev=15000, x_scale='jac')
                 if name == PRONY and popt[1] > popt[2]:
                     # Keep any plateau parameter last. Permute/sign-flip covariance
                     # directly (a matrix product with infinite entries can create NaNs).
@@ -129,6 +159,11 @@ class CurveAnalyzer:
                 r2, aicc, bic = self._calculate_metrics(g, pred, n_params)
                 q = float(popt[-1]) if plateau_mode == 'Fit' else (fixed_plateau/G0 if plateau_mode == 'Fixed' else 0.0)
                 flags = []
+                residual_check = residual_diagnostics(g-pred)
+                if residual_check['structured_residuals']:
+                    flags.append('Residuals show adjacent-point correlation (|r| ≥ 0.5); review systematic model mismatch or correlated measurement error.')
+                if optimization and max(optimization['near_best_tau_spread_percent']) > 25:
+                    flags.append('Near-equivalent starting guesses give relaxation times differing by more than 25%; modes may be unresolved.')
                 tau_indices = TAU_INDICES[name]
                 taus = [popt[i] for i in tau_indices]
                 if any(tau < t[0] or tau > t[-1] for tau in taus):
@@ -158,7 +193,7 @@ class CurveAnalyzer:
                     'full_covariance': covariance, 'n_params': n_params, 'residuals': g-pred,
                     'plateau_mode': plateau_mode, 'G_inf': q*G0,
                     'G_inf_std': float(errors[-1]*G0) if plateau_mode == 'Fit' else None,
-                    'flags': flags}
+                    'flags': flags, 'optimization': optimization, 'residual_diagnostics': residual_check}
                 if name == PRONY:
                     result['Fits'][name]['mode_moduli_MPa'] = np.where(np.isfinite(moduli), moduli, np.nan)
             except (RuntimeError, ValueError, FloatingPointError) as exc:

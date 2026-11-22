@@ -14,7 +14,7 @@ def analysis_identity(data, settings):
 
 
 def clear_analysis(state):
-    for key in ('results', 'analysis_id', 'analysis_skipped', *DERIVED_KEYS):
+    for key in ('results', 'analysis_id', 'analysis_skipped', 'fit_reliability', *DERIVED_KEYS):
         state.pop(key, None)
 
 

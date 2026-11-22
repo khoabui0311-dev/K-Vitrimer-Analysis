@@ -1,14 +1,20 @@
 # VitriFit 2.0
 
 Stress relaxation fitting and kinetics analysis for materials research.
-Version **2.0.0-rc.2** brings saved projects, bulk point review, analysis reports
-and reusable publication formats to the Windows release candidate.
+The source tree is **2.0.0-rc.3.dev.1**, a fit-reliability development preview.
+It adds multi-start two-Maxwell fitting, residual diagnostics and interactive
+sampling/window sensitivity checks. See [preview details](docs/FIT_RELIABILITY.md).
+The latest downloadable installer remains **2.0.0-rc.2**, with saved projects,
+bulk point review, analysis reports and reusable publication formats.
 Previously named K Vitrimer Analysis. This is a prerelease for research evaluation.
 See the [quick-start guide](docs/QUICK_START.md) and
 [candidate release notes](docs/RELEASE_NOTES_2.0.md).
 
 ## New in the 2.0 workspace
 
+- In the source preview, inspect **Fit reliability** to compare optimizer starts,
+  residual patterns and fast/slow parameter changes. Download diagnostic and stability
+  tables; include completed checks in the offline HTML report and JSON snapshot.
 - Import data and choose the model in the main workspace, with dataset and fit-review summaries.
 - Exclude or restore groups of measurements using a graph box/lasso, point-number
   ranges, or elapsed-time intervals. Undo edits and restore all manual exclusions.
