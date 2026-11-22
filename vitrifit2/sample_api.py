@@ -19,6 +19,7 @@ from .rheology_history import (
     compare_rheology_analyses, check_frequency_sweep_lvr,
 )
 from .rheology_manifest import export_rheology_manifest_json
+from .tensile_workflow import import_tensile_csv, get_tensile_analysis, list_tensile_analyses
 
 router = APIRouter(prefix="/api/v2", tags=["Sample profiles and rheology"])
 MAX_UPLOAD = 50 * 1024 * 1024
@@ -169,3 +170,47 @@ def manifest(req: ManifestInput, store: VitriFitStore = Depends(store_dependency
     return Response(content, media_type="application/json",
                     headers={"Content-Disposition":
                              'attachment; filename="vitrifit-rheology-manifest.json"'})
+
+
+@router.post("/measurements/{measurement_id}/tensile/import", status_code=201)
+async def import_tensile(
+    measurement_id: str,
+    file: UploadFile = File(...),
+    columns_json: str = Form(...),
+    gauge_length_mm: float = Form(...),
+    width_mm: float = Form(...),
+    thickness_mm: float = Form(...),
+    modulus_fit_strain_min: float = Form(.0005),
+    modulus_fit_strain_max: float = Form(.005),
+    calculate_true: bool = Form(True),
+    store: VitriFitStore = Depends(store_dependency),
+):
+    content = await file.read(MAX_UPLOAD + 1)
+    if len(content) > MAX_UPLOAD:
+        raise HTTPException(413, "Upload exceeds 50 MiB")
+    try:
+        columns = json.loads(columns_json)
+    except json.JSONDecodeError as exc:
+        raise ValueError("Column mapping must be valid JSON") from exc
+    if not isinstance(columns, dict):
+        raise ValueError("Column mapping must be an object")
+    aid = import_tensile_csv(
+        store, measurement_id, Path(file.filename or "tensile.csv").name,
+        content, columns=columns, gauge_length_mm=gauge_length_mm,
+        width_mm=width_mm, thickness_mm=thickness_mm,
+        modulus_fit_strain_min=modulus_fit_strain_min,
+        modulus_fit_strain_max=modulus_fit_strain_max,
+        calculate_true=calculate_true)
+    return get_tensile_analysis(store, aid)
+
+
+@router.get("/measurements/{measurement_id}/tensile/analyses")
+def tensile_history(measurement_id: str,
+                    store: VitriFitStore = Depends(store_dependency)):
+    return list_tensile_analyses(store, measurement_id)
+
+
+@router.get("/tensile/analyses/{analysis_id}")
+def tensile_analysis(analysis_id: str,
+                     store: VitriFitStore = Depends(store_dependency)):
+    return get_tensile_analysis(store, analysis_id)
