@@ -75,3 +75,14 @@ def test_verify_rejects_non_object_manifest_with_clear_error(manifest):
         archive.writestr("vitrifit.sqlite3", b"placeholder")
     with pytest.raises(ValueError, match="manifest must be a JSON object"):
         verify_backup_bytes(payload.getvalue())
+
+
+@pytest.mark.parametrize("hashes", [[[]], [{"sha": "bad"}], [None], [123]])
+def test_verify_rejects_unhashable_or_non_string_hash_entries(hashes):
+    payload = io.BytesIO()
+    with zipfile.ZipFile(payload, "w") as archive:
+        archive.writestr("manifest.json", json.dumps({
+            "format": "vitrifit2-backup-v2", "original_file_hashes": hashes}))
+        archive.writestr("vitrifit.sqlite3", b"placeholder")
+    with pytest.raises(ValueError, match="Invalid SHA256 identifier"):
+        verify_backup_bytes(payload.getvalue())
