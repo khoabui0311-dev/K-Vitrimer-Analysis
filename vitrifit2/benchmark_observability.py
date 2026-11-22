@@ -75,20 +75,19 @@ def relaxation_observability(time_s, *, model, parameters,
         # Linear interpolation is descriptive, not an independent fitted tau.
         # Exact equality at the first recorded point is an observed crossing,
         # even though no preceding acquisition interval exists.
+        # Count distinct transitions from above to at/below the threshold.
+        # A plateau at the threshold is one event, not one event per interval.
+        crossings = []
         if y[0] == threshold:
-            empirical_crossing = float(t[0])
-            empirical_bracket = [float(t[0]), float(t[0])]
-            measured_downward_crossing_count = 1
-        else:
-            brackets = np.flatnonzero(
-                (y[:-1] >= threshold) & (y[1:] <= threshold))
-            measured_downward_crossing_count = int(len(brackets))
-            if len(brackets):
-                i = int(brackets[0])
-                empirical_bracket = [float(t[i]), float(t[i+1])]
-                empirical_crossing = (float(t[i]) if y[i] == threshold else
-                    float(t[i] + (threshold-y[i]) * (t[i+1]-t[i])
-                          / (y[i+1]-y[i])) if y[i+1] != y[i] else float(t[i]))
+            crossings.append((float(t[0]), [float(t[0]), float(t[0])]))
+        for i in range(len(y) - 1):
+            if y[i] > threshold and y[i+1] <= threshold:
+                crossing = float(t[i] + (threshold-y[i]) * (t[i+1]-t[i])
+                                 / (y[i+1]-y[i]))
+                crossings.append((crossing, [float(t[i]), float(t[i+1])]))
+        measured_downward_crossing_count = len(crossings)
+        if crossings:
+            empirical_crossing, empirical_bracket = crossings[0]
     first, last = float(t[0]), float(t[-1])
     # An empirical crossing can disagree with a model prediction; keep both.
     empirical_location = (None if empirical_crossing is None else
