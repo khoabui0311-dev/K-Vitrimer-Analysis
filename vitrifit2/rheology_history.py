@@ -59,12 +59,16 @@ def reanalyze_rheology_file(store, analysis_id, *, plateau_points=None,
         plateau_points=config["plateau_points"],
         departure_fraction=config["departure_fraction"],
         max_plateau_cv=config["max_plateau_cv"])
+    results["observations"] = {
+        "strain_percent": data["strain_percent"],
+        "storage_modulus_pa": [v * scales[config["modulus_unit"]]
+                               for v in data["storage_modulus"]]}
     key = uuid4().hex
     with store._db() as db:
         db.execute(
             "INSERT INTO v2_measurement_analyses VALUES (?,?,?,?,?,?,?,?)",
             (key, previous["measurement_id"], previous["file_id"],
-             previous["method"], "rheology_csv_v1", _json(config),
+             previous["method"], "rheology_csv_v2", _json(config),
              _json(results), _now()))
     return key
 
