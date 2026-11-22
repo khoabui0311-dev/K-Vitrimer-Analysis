@@ -56,6 +56,10 @@ def fit_saved_curve(store: VitriFitStore, curve_id: str, model: str = "Single_KW
     # mask indices always refer to immutable instrument row positions.
     if np.any(np.diff(t) <= 0):
         raise ValueError("Selected raw time is not strictly increasing; inspect and exclude duplicates")
+    if not np.all(np.isfinite(t)) or not np.all(np.isfinite(g)):
+        raise ValueError("Selected data includes non-finite time or modulus values")
+    if np.any(t < 0):
+        raise ValueError("Selected data includes negative elapsed time")
     raw_crossing = relaxation_crossing(t, g)
     fitter = CurveAnalyzer()
     fitter.processor = SelectionProcessor()
