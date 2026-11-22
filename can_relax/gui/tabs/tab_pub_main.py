@@ -13,7 +13,7 @@ import matplotlib.mathtext as mathtext
 from can_relax.core.kinetics import KineticsEngine, predict_van_t_hoff
 from can_relax.gui.labels import curve_labels
 from can_relax.gui.exporting import figure_bytes
-from vitrifit2.publication_presets import render_preset_controls
+
 from can_relax.core.extrapolation import maxwell_equivalent_tv
 
 def save_and_download(fig, title_prefix, pub_colorspace, key_suffix):
@@ -572,7 +572,13 @@ def _render_figure4(pan_settings, pan_preview, active_res, kinetics_df, glob, au
 def render_publication(tab_pub, PLOTLY_STYLE: dict, Tg_input: float, G_prime_input: float):
     with tab_pub:
         st.header("📝 Publication Figures")
-        render_preset_controls(st)
+        # Optional v2 presets must never prevent the legacy publication tab loading.
+        try:
+            from vitrifit2.publication_presets import render_preset_controls
+        except ImportError:
+            render_preset_controls = None
+        if render_preset_controls is not None:
+            render_preset_controls(st)
         if 'active_results' in st.session_state and st.session_state.active_results:
             active_res = st.session_state.active_results
             kinetics_df = st.session_state.get('kinetics_df', pd.DataFrame())
