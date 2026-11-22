@@ -22,7 +22,7 @@ def list_rheology_analyses(store, measurement_id):
     _ensure_analysis_schema(store)
     with store._db() as db:
         row = store._require(db, "v2_measurements", measurement_id)
-        if row["technique"] != "Rheology":
+        if row["technique"] != "Rheology" or row["method"] not in ("amplitude_sweep", "frequency_sweep"):
             raise ValueError("Measurement is not rheology")
         analyses = db.execute(
             "SELECT id FROM v2_measurement_analyses WHERE measurement_id=? "
