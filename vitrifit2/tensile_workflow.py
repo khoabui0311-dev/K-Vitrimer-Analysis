@@ -14,7 +14,7 @@ def import_tensile_csv(store, measurement_id, filename, raw_bytes, *,
                        columns, gauge_length_mm, width_mm, thickness_mm,
                        modulus_fit_strain_min=.0005,
                        modulus_fit_strain_max=.005, calculate_true=True):
-    if set(columns) != {"displacement_mm", "force_n"}:
+    if not isinstance(columns, dict) or set(columns) != {"displacement_mm", "force_n"}:
         raise ValueError("Explicit displacement_mm and force_n mappings required")
     _ensure_analysis_schema(store)
     with store._db() as db:
