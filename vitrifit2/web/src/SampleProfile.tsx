@@ -191,6 +191,13 @@ export default function SampleProfile({sampleId}:{sampleId:string}){
           value={columns} onChange={e=>setColumns(e.target.value)}/></label>
         <button className="primary" disabled={!file||busy} onClick={importCsv}>Import, analyze and save</button>
         </>}
+      <h2 style={{marginTop:22}}>Original measurement files ({selected.files.length})</h2>
+      {selected.files.length===0&&<p className="muted">No original files attached yet.</p>}
+      {selected.files.map(original=><div className="profile-raw-file" key={original.file_id}>
+        <span><strong>{original.filename}</strong><small>SHA-256: {original.sha256}</small></span>
+        <a href={"/api/v2/files/"+encodeURIComponent(original.file_id)+"/raw"}
+          download="vitrifit-original.bin">Download original bytes</a>
+      </div>)}
       <h2 style={{marginTop:22}}>Analysis history ({analyses.length})</h2>
       {analyses.length===0&&<p className="muted">No saved analyses for this measurement.</p>}
       <div className="run-list">{analyses.map(a=><div key={a.analysis_id} className="profile-analysis-row">
