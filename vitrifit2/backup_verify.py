@@ -44,10 +44,12 @@ def verify_backup_bytes(payload: bytes) -> dict:
                     "vitrifit2-backup-v1", "vitrifit2-backup-v2"):
                 raise ValueError("Unsupported backup format")
             declared = manifest.get("original_file_hashes")
-            if not isinstance(declared, list) or len(declared) != len(set(declared)):
+            if not isinstance(declared, list):
                 raise ValueError("Invalid backup hash manifest")
             if any(not isinstance(d, str) or not _SHA.fullmatch(d) for d in declared):
                 raise ValueError("Invalid SHA256 identifier")
+            if len(declared) != len(set(declared)):
+                raise ValueError("Invalid backup hash manifest")
             expected_entries = {"manifest.json", "vitrifit.sqlite3"}
             expected_entries.update("raw_blobs/" + d for d in declared)
             if set(names) != expected_entries:
