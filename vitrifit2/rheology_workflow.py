@@ -6,7 +6,6 @@ Original bytes are stored first; derived results are versioned by source file.
 from __future__ import annotations
 
 import csv
-import hashlib
 from io import StringIO
 import json
 from uuid import uuid4
@@ -29,9 +28,16 @@ def _parse_columns(raw_bytes, columns):
     except UnicodeDecodeError as exc:
         raise ValueError("CSV must be UTF-8 encoded") from exc
     reader = csv.DictReader(StringIO(text), strict=True)
-    if not reader.fieldnames or any(c not in reader.fieldnames for c in columns.values()):
+    if not reader.fieldnames or len(set(reader.fieldnames)) != len(reader.fieldnames):
+        raise ValueError("Missing or duplicate CSV headers")
+    if any(c not in reader.fieldnames for c in columns.values()):
         raise ValueError("Mapped CSV columns missing")
-    rows = list(reader)
+    try:
+        rows = list(reader)
+    except csv.Error as exc:
+        raise ValueError("Malformed CSV rows") from exc
+    if any(None in row for row in rows):
+        raise ValueError("CSV row contains more fields than the header")
     if not rows:
         raise ValueError("CSV contains no observations")
     try:
