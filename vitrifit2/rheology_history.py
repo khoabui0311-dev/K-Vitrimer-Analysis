@@ -6,7 +6,6 @@ Comparison requires explicitly compatible measurement conditions and units.
 from __future__ import annotations
 
 import json
-import math
 from uuid import uuid4
 
 from .persistence import _json, _now
@@ -14,7 +13,6 @@ from .rheology_workflow import (
     _ensure_analysis_schema, _parse_columns, get_rheology_analysis,
 )
 from .sample_profile import get_measurement_file
-from .frequency_sweep import analyze_frequency_sweep
 from .lvr_screening import assess_oscillatory_lvr
 from .lvr_compatibility import assess_lvr_compatibility
 
@@ -143,7 +141,7 @@ def check_frequency_sweep_lvr(store, frequency_analysis_id, lvr_analysis_id,
                 "reason": "Missing required measurement metadata",
                 "step_strain_verified": False,
                 "supporting_oscillatory_evidence": False}
-    return assess_lvr_compatibility(
+    evidence = assess_lvr_compatibility(
         lvr["analysis"]["results"],
         applied_strain_percent=fcond["strain_percent"],
         experiment_mode="oscillatory_shear",
@@ -159,3 +157,9 @@ def check_frequency_sweep_lvr(store, frequency_analysis_id, lvr_analysis_id,
         lvr_material_state_id=lcond["material_state_id"],
         temperature_tolerance_c=temperature_tolerance_c,
         frequency_relative_tolerance=frequency_relative_tolerance)
+    evidence["scope"] = "single_frequency_point_only"
+    evidence["whole_frequency_sweep_verified"] = False
+    evidence["warning"] = (
+        "Only the explicitly specified frequency_hz is screened; an LVR "
+        "amplitude sweep at one frequency cannot certify the full sweep.")
+    return evidence
