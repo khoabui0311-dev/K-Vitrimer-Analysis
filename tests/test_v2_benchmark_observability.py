@@ -264,3 +264,13 @@ def test_unobserved_crossing_has_no_log_disagreement_metric():
         (1., 10., 100.), model="maxwell", parameters=(10.,),
         normalized_modulus=(.9, .8, .7))
     assert result["model_measured_log_crossing_ratio"] is None
+
+
+def test_crossing_ratio_unrepresentable_but_log_disagreement_retained():
+    result = relaxation_observability(
+        (1e-300, 1e-200, 1e-100), model="maxwell", parameters=(1e200,),
+        normalized_modulus=(.9, .2, .1))
+    assert result["model_measured_crossing_ratio"] is None
+    assert math.isfinite(result["model_measured_log_crossing_ratio"])
+    assert result["model_measured_log_crossing_ratio"] > math.log(1e308)
+    assert "factor of two" in result["warning"]
