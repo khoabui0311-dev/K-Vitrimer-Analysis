@@ -101,6 +101,16 @@ def relaxation_observability(time_s, *, model, parameters,
     if measured_downward_crossing_count > 1:
         warnings.append("Multiple measured downward threshold crossings; "
                         "empirical crossing time is ambiguous and may be noise-sensitive")
+    # Model and measured crossings are independent. A large disagreement
+    # warrants review even if each time lies inside the acquisition window.
+    crossing_ratio = None
+    if empirical_crossing is not None and empirical_crossing > 0 and tau > 0:
+        crossing_ratio = max(tau, empirical_crossing) / min(tau, empirical_crossing)
+        if not math.isfinite(crossing_ratio):
+            crossing_ratio = None
+        elif crossing_ratio >= 2:
+            warnings.append("Model-predicted and measured threshold crossings "
+                            "differ by at least a factor of two")
     return {
         "model": model,
         "crossing_time_s": tau,
@@ -109,6 +119,7 @@ def relaxation_observability(time_s, *, model, parameters,
         "location": location,
         "predicted_crossing_within_window": location == "inside_window",
         "measured_crossing_time_s": empirical_crossing,
+        "model_measured_crossing_ratio": crossing_ratio,
         "measured_crossing_bracket_s": empirical_bracket,
         "measured_downward_crossing_count": measured_downward_crossing_count,
         "measured_multiple_crossings": measured_downward_crossing_count > 1,
