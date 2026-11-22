@@ -92,3 +92,18 @@ def test_kww_crossing_depends_on_threshold_but_tau_is_one_over_e():
         (.01, 1., 100., 1000.), model="kww",
         parameters=(100., .5), threshold=math.exp(-2))
     assert result["crossing_time_s"] == pytest.approx(400.)
+
+
+@pytest.mark.parametrize("threshold", ["0.5", None, True, float("nan"), 0, 1])
+def test_invalid_threshold_types_and_bounds_rejected(threshold):
+    with pytest.raises(ValueError, match="threshold"):
+        relaxation_observability((1., 10., 100.), model="maxwell",
+                                 parameters=(10.,), threshold=threshold)
+
+
+def test_upward_measured_crossing_not_misclassified_as_relaxation():
+    result = relaxation_observability(
+        (1., 10., 100.), model="maxwell", parameters=(10.,),
+        normalized_modulus=(.1, .2, .9))
+    assert result["measured_crossing_observed"] is False
+    assert result["measured_crossing_time_s"] is None
