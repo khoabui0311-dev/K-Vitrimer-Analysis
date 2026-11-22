@@ -215,3 +215,27 @@ def test_noisy_crossing_and_extrapolation_both_reported():
         normalized_modulus=(.9, .2, .6, .1, .05))
     assert "Multiple measured downward threshold crossings" in result["warning"]
     assert "extrapolated" in result["warning"]
+
+
+def test_predicted_vs_measured_tau_disagreement_warns():
+    result = relaxation_observability(
+        (1., 10., 100., 1000.), model="maxwell", parameters=(100.,),
+        normalized_modulus=(1., .2, .1, .05))
+    assert result["model_measured_crossing_ratio"] > 2
+    assert "factor of two" in result["warning"]
+
+
+def test_predicted_vs_measured_tau_agreement_has_no_disagreement_warning():
+    threshold = math.exp(-1)
+    result = relaxation_observability(
+        (1., 10., 100.), model="maxwell", parameters=(10.,),
+        normalized_modulus=(.9, threshold, .1))
+    assert result["model_measured_crossing_ratio"] == pytest.approx(1.)
+    assert result["warning"] is None
+
+
+def test_unobserved_crossing_has_no_model_measured_ratio():
+    result = relaxation_observability(
+        (1., 10., 100.), model="maxwell", parameters=(10.,),
+        normalized_modulus=(.9, .8, .7))
+    assert result["model_measured_crossing_ratio"] is None
