@@ -1,5 +1,8 @@
 # VitriFit 2.0 — Release candidate 2
 
+The newer source-only **2.0.0-rc.3.dev.1** reliability preview is described in
+[Fit reliability](FIT_RELIABILITY.md). The notes below describe the published rc.2.
+
 Version **2.0.0-rc.2** is a prerelease for research evaluation, not the stable
 release. It replaces rc.1 as the candidate containing the new workspace.
 No DOI has been assigned.

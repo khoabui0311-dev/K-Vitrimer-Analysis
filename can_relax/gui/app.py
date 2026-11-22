@@ -33,6 +33,7 @@ from can_relax.core.spectrum import SpectrumAnalyzer
 from can_relax.gui.workspace import (render_project_open, render_project_save,
                                      render_data_summary, render_result_summary)
 from can_relax.gui.model_comparison import render_comparison
+from can_relax.gui.reliability import render_reliability
 from can_relax.io.project_options import DEFAULT_OPTIONS
 from can_relax.io.analysis_report import make_snapshot
 from can_relax.gui.reporting import render_report_export
@@ -365,6 +366,8 @@ with tab_analysis:
             'curves': [{'curve_id': r['Curve_ID'], 'temperature_C': r['Temp'],
                         'preprocessing': r['Preprocessing'], 'warnings': r['Warnings'],
                         'fit_flags': r['Fits'][fit_model]['flags'],
+                        'optimization': r['Fits'][fit_model].get('optimization'),
+                        'residual_diagnostics': r['Fits'][fit_model].get('residual_diagnostics'),
                         'parameters': r['Fits'][fit_model]['popt'].tolist(),
                         'G_inf_MPa': r['Fits'][fit_model]['G_inf']}
                        for r in all_results]}
@@ -394,10 +397,12 @@ with tab_analysis:
             st.session_state.selection_id = selection_id
         st.session_state.active_results = active_results 
 
-        t1, t_compare, t2, t3, t4, t_report = st.tabs(["Curves", "Compare models", "Kinetics", "Mastercurve", "\U0001f308 Spectrum", "Report"], key='analysis_results_tabs')
+        t1, t_compare, t_reliability, t2, t3, t4, t_report = st.tabs(["Curves", "Compare models", "Fit reliability", "Kinetics", "Mastercurve", "\U0001f308 Spectrum", "Report"], key='analysis_results_tabs')
         with t_compare:
             render_comparison(curves, review_settings, exclusions, Tg_input,
                               plateau_mode, fixed_plateau, current_id)
+        with t_reliability:
+            render_reliability(active_results, fit_model, current_id)
         
         # 1. CURVES
         with t1:
@@ -868,6 +873,7 @@ with tab_analysis:
                 uploaded_file.name if uploaded_file else 'toy_data.csv',
                 kinetics=st.session_state.get('kinetics_snapshot'), master=st.session_state.get('master_data'),
                 spectrum=spec_outputs, comparison=comparison_summary,
+                reliability=st.session_state.get('fit_reliability'),
                 skipped=st.session_state.get('analysis_skipped', []),
                 options={key: st.session_state.get(key, value) for key, value in DEFAULT_OPTIONS.items()})
             render_report_export(report_snapshot)

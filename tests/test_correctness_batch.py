@@ -23,7 +23,8 @@ def test_late_start_kww_recovery(start):
 
 def test_failed_fit_not_valid():
     t = np.geomspace(.01, 100, 100)
-    with patch('can_relax.core.analyzer.curve_fit', side_effect=RuntimeError('test failure')):
+    with patch('can_relax.core.analyzer.curve_fit', side_effect=RuntimeError('test failure')), \
+            patch('can_relax.core.optimization.curve_fit', side_effect=RuntimeError('test failure')):
         result = CurveAnalyzer().fit_one_temp(150, pd.DataFrame({'Time':t, 'Modulus':np.exp(-t/10)}))
     assert not result['Valid']
     assert result['Best_Model'] is None
