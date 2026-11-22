@@ -234,12 +234,13 @@ def _render_figure2(pan_settings, pan_preview, active_res, kinetics_df, glob, au
                     pl_y_2 = st.number_input("Y pos ", -1.0, 2.0, 1.02, 0.01, key="ply_2")
 
                 tau_kin_model = st.selectbox("Tau Kinetics Model", ["Arrhenius", "VFT"], key="f2_model")
+                show_kin_fit = st.checkbox("Show fitted line", value=True, key="pub_kin_showfit")
                 chk4, chk5 = st.columns(2)
                 with chk4: show_tv = st.checkbox("Show T_v", value=True, key="pub_showtv", disabled=(tau_kin_model != "Arrhenius"))
                 with chk5: show_ea_std = st.checkbox("Ea ± std", value=True, key="pub_eastd", disabled=(tau_kin_model != "Arrhenius"))
 
                 kc1, kc2 = st.columns(2)
-                with kc1: kin_line_width = st.slider("Fit Line Width", 0.5, 6.0, 1.5, 0.5, key="pub_kin_lw")
+                with kc1: kin_line_width = st.slider("Fit Line Width", 0.5, 6.0, 1.5, 0.5, key="pub_kin_lw", disabled=not show_kin_fit)
                 with kc2: kin_marker_size = st.slider("Data Marker Size", 1, 15, 6, 1, key="pub_kin_ms")
 
                 kin_font_family = st.selectbox("Font Family ", ["Arial", "Times New Roman", "Courier New", "DejaVu Sans"], key="pub_kinfont_family")
@@ -294,11 +295,11 @@ def _render_figure2(pan_settings, pan_preview, active_res, kinetics_df, glob, au
                         tau_target_pub = 1e12 / G_Pa_pub
                         ln_tau_t_pub = np.log(tau_target_pub)
                         Tv_pub = maxwell_equivalent_tv(slope_pub, intercept_pub, G_prime_input)
-                        st.caption('Tv is a Maxwell-equivalent extrapolation using the supplied modulus and selected characteristic time. It is not a KWW integral-viscosity estimate or evidence of a topology transition.')
+                        st.caption('Tv is extrapolated using the supplied modulus and selected characteristic time. It is not a KWW integral-viscosity estimate or evidence of a topology transition.')
                         
                         c1, c2, c3 = st.columns(3)
                         c1.metric("Ea", f"{Ea_pub:.1f} ± {Ea_std_pub:.1f} kJ/mol" if show_ea_std else f"{Ea_pub:.1f} kJ/mol")
-                        if show_tv: c2.metric("Maxwell-equivalent Tv", f"{Tv_pub:.1f} °C" if np.isfinite(Tv_pub) else "Unavailable")
+                        if show_tv: c2.metric("Tv", f"{Tv_pub:.1f} °C" if np.isfinite(Tv_pub) else "Unavailable")
                         c3.metric("R²", f"{r_sq_pub:.4f}")
                     else:
                         B_pub, T0_pub = fit_res_pub['Params']['B'], fit_res_pub['Params']['T0'] - 273.15
@@ -329,11 +330,12 @@ def _render_figure2(pan_settings, pan_preview, active_res, kinetics_df, glob, au
                             y_fit = (slope_pub / 1000.0) * x_range + intercept_pub
                             label_fit = r"$E_\mathrm{a} = %.1f \pm %.1f\ \mathrm{kJ\ mol}^{-1}$" % (Ea_pub, Ea_std_pub) if show_ea_std else r"$E_\mathrm{a} = %.1f\ \mathrm{kJ\ mol}^{-1}$" % Ea_pub
                             label_fit += "\n" + r"$R^2 = %.4f$" % r_sq_pub
-                            ax2.plot(x_range, y_fit, '--', color='red', linewidth=kin_line_width, label=label_fit, zorder=2)
+                            if show_kin_fit:
+                                ax2.plot(x_range, y_fit, '--', color='red', linewidth=kin_line_width, label=label_fit, zorder=2)
                             
                             if show_tv and np.isfinite(Tv_pub):
                                 Tv_x_1000 = ((ln_tau_t_pub - intercept_pub) / slope_pub) * 1000.0
-                                ax2.plot([Tv_x_1000], [ln_tau_t_pub], marker='*', markersize=kin_marker_size * 2, color='gold', markeredgecolor='black', markeredgewidth=0.8, label="Maxwell-equivalent\n" + r"$T_\mathrm{v} = %.1f^\circ\mathrm{C}$" % Tv_pub, zorder=4)
+                                ax2.plot([Tv_x_1000], [ln_tau_t_pub], marker='*', markersize=kin_marker_size * 2, color='gold', markeredgecolor='black', markeredgewidth=0.8, label=r"$T_\mathrm{v} = %.1f^\circ\mathrm{C}$" % Tv_pub, zorder=4)
                         else:
                             inv_T = 1.0 / T_K_all
                             ln_tau = np.log(np.array(taus_list))
@@ -342,7 +344,8 @@ def _render_figure2(pan_settings, pan_preview, active_res, kinetics_df, glob, au
                             y_fit = fit_res_pub['Params']['A'] + fit_res_pub['Params']['B'] / (T_K_grid - fit_res_pub['Params']['T0'])
                             label_fit = r"VFT: $B = %.0f\ \mathrm{K},\ T_0 = %.1f^\circ\mathrm{C}$" % (B_pub, T0_pub)
                             label_fit += "\n" + r"$R^2 = %.4f$" % r_sq_pub
-                            ax2.plot(1000 / T_K_grid, y_fit, '--', color='red', linewidth=kin_line_width, label=label_fit, zorder=2)
+                            if show_kin_fit:
+                                ax2.plot(1000 / T_K_grid, y_fit, '--', color='red', linewidth=kin_line_width, label=label_fit, zorder=2)
 
                         ax2.set_xlabel(r"$1000/T\ (\mathrm{K}^{-1})$", fontdict=font_label_kin, labelpad=8)
                         ax2.set_ylabel(r"$\ln(\tau)$", fontdict=font_label_kin, labelpad=8)
@@ -351,7 +354,8 @@ def _render_figure2(pan_settings, pan_preview, active_res, kinetics_df, glob, au
                             ax2.set_xlim(kin_xmin, kin_xmax)
                             ax2.set_ylim(kin_ymin, kin_ymax)
                         
-                        if show_kin_leg: apply_legend(ax2, kin_leg_pos, kin_leg_box, fontsize=kin_leg_font_size, ncol=kin_leg_ncol)
+                        if show_kin_leg and ax2.get_legend_handles_labels()[0]:
+                            apply_legend(ax2, kin_leg_pos, kin_leg_box, fontsize=kin_leg_font_size, ncol=kin_leg_ncol)
 
                         if panel_l_2:
                             ax2.text(pl_x_2, pl_y_2, f"({panel_l_2})", transform=ax2.transAxes,
