@@ -65,6 +65,7 @@ def relaxation_observability(time_s, *, model, parameters,
         raise ValueError("Predicted crossing time is nonfinite; check parameters")
     empirical_crossing = None
     empirical_bracket = None
+    measured_downward_crossing_count = 0
     if normalized_modulus is not None:
         y = np.asarray(normalized_modulus, dtype=float)
         if (y.ndim != 1 or y.shape != t.shape
@@ -77,9 +78,11 @@ def relaxation_observability(time_s, *, model, parameters,
         if y[0] == threshold:
             empirical_crossing = float(t[0])
             empirical_bracket = [float(t[0]), float(t[0])]
+            measured_downward_crossing_count = 1
         else:
             brackets = np.flatnonzero(
                 (y[:-1] >= threshold) & (y[1:] <= threshold))
+            measured_downward_crossing_count = int(len(brackets))
             if len(brackets):
                 i = int(brackets[0])
                 empirical_bracket = [float(t[i]), float(t[i+1])]
@@ -101,6 +104,8 @@ def relaxation_observability(time_s, *, model, parameters,
         "predicted_crossing_within_window": location == "inside_window",
         "measured_crossing_time_s": empirical_crossing,
         "measured_crossing_bracket_s": empirical_bracket,
+        "measured_downward_crossing_count": measured_downward_crossing_count,
+        "measured_multiple_crossings": measured_downward_crossing_count > 1,
         "measured_crossing_observed": empirical_crossing is not None,
         "measured_crossing_location": empirical_location,
         "warning": (None if location == "inside_window" else
