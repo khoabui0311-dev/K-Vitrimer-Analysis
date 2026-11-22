@@ -245,7 +245,7 @@ def test_extreme_finite_crossing_disagreement_still_warns():
     result = relaxation_observability(
         (1e-300, 1e-200, 1e-100), model="maxwell", parameters=(1e100,),
         normalized_modulus=(.9, .2, .1))
-    assert result["model_measured_crossing_ratio"] is None
+    assert result["model_measured_crossing_ratio"] > 1e299
     assert "factor of two" in result["warning"]
     assert result["location"] == "after_window"
 
@@ -254,7 +254,7 @@ def test_extreme_crossing_ratio_preserves_finite_log_metric():
     result = relaxation_observability(
         (1e-300, 1e-200, 1e-100), model="maxwell", parameters=(1e100,),
         normalized_modulus=(.9, .2, .1))
-    assert result["model_measured_crossing_ratio"] is None
+    assert result["model_measured_crossing_ratio"] > 1e299
     assert math.isfinite(result["model_measured_log_crossing_ratio"])
     assert result["model_measured_log_crossing_ratio"] > math.log(2)
 
