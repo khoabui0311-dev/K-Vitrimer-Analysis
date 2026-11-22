@@ -43,6 +43,7 @@ def test_profile_rheology_import_reanalysis_and_manifest(client):
     assert response.status_code == 201, response.text
     original = response.json()
     assert original["results"]["status"] == "departure_detected"
+    assert original["results"]["observations"]["storage_modulus_pa"][-1] == 900
     profile = client.get(f"/api/v2/samples/{sample}/profile").json()
     assert len(profile["techniques"]["Rheology"]) == 1
     assert profile["techniques"]["DSC"] == []
@@ -52,6 +53,7 @@ def test_profile_rheology_import_reanalysis_and_manifest(client):
         json={"departure_fraction": .15})
     assert new_response.status_code == 201, new_response.text
     assert new_response.json()["results"]["status"] == "no_departure_in_measured_range"
+    assert new_response.json()["results"]["observations"]["strain_percent"][-1] == .2
     history = client.get(
         f"/api/v2/measurements/{mid}/rheology/analyses").json()
     assert len(history) == 2
