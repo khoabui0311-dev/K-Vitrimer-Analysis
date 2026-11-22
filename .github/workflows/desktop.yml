@@ -1,6 +1,13 @@
 name: Verify rc.2 legacy upgrades
 on:
   workflow_dispatch:
+    inputs:
+      legacy_1_0:
+        required: true
+        type: string
+      legacy_1_1:
+        required: true
+        type: string
 permissions:
   contents: read
   actions: read
@@ -25,10 +32,8 @@ jobs:
           path: candidate
       - name: Verify candidate and retrieve checksum-pinned old installers
         shell: python
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
-          import hashlib, os
+          import hashlib, json, os
           from pathlib import Path
           from urllib.parse import urlparse
           import requests
@@ -38,26 +43,20 @@ jobs:
               with path.open('rb') as stream:
                   return hashlib.file_digest(stream, 'sha256').hexdigest()
           assert digest(candidate) == '6aacbb2d09bb9c6dae6651afb2d7848a935fae5cdafb48eda13a89c6ea07d688'
-          api = 'https://api.github.com/repos/khoabui0311-dev/K-Vitrimer-Analysis'
-          headers = {'Authorization': 'Bearer ' + os.environ['GH_TOKEN'], 'Accept': 'application/vnd.github+json'}
-          response = requests.get(api + '/releases?per_page=100', headers=headers, timeout=30)
-          response.raise_for_status()
-          fixture = next(r for r in response.json() if r['tag_name'] == 'internal-rc2-upgrade-fixtures')
-          assert fixture['draft']
+          inputs = json.loads(Path(os.environ['GITHUB_EVENT_PATH']).read_text())['inputs']
+          urls = [inputs['legacy_1_0'], inputs['legacy_1_1']]
+          for url in urls:
+              print('::add-mask::' + url, flush=True)
           expected = {
               'K_Vitrimer_Analysis_Setup_1.0.0_x64.exe': 'cebc65d2ddde63705e5fc493581c3691aec6cdf9b20c2f735c5e984fd4f7393b',
               'K_Vitrimer_Analysis_Setup_1.1.0_x64.exe': '3aa762ed02277e23d3b9c17b5ede6927e60c9b7b29514e5408c8a907471f20d2',
           }
-          for name, sha in expected.items():
-              asset = next(a for a in fixture['assets'] if a['name'] == name)
-              response = requests.get(api + '/releases/assets/' + str(asset['id']),
-                  headers={**headers, 'Accept': 'application/octet-stream'}, allow_redirects=False, stream=True, timeout=60)
-              if response.status_code == 302:
-                  target = urlparse(response.headers['Location'])
-                  assert target.scheme == 'https' and target.hostname.endswith(('.githubusercontent.com', '.blob.core.windows.net'))
-                  # Do not forward the repository credential to storage.
-                  response = requests.get(response.headers['Location'], stream=True, timeout=(30,300), allow_redirects=False)
-              response.raise_for_status()
+          for (name, sha), url in zip(expected.items(), urls):
+              target = urlparse(url)
+              assert target.scheme == 'https' and target.hostname.endswith(('.githubusercontent.com', '.blob.core.windows.net'))
+              response = requests.get(url, stream=True, timeout=(30,300), allow_redirects=False)
+              if response.status_code != 200:
+                  raise RuntimeError('Legacy test-input download failed: ' + str(response.status_code))
               path = root / name
               with path.open('wb') as stream:
                   for block in response.iter_content(1024*1024):
