@@ -50,7 +50,10 @@ def analyze_frequency_sweep(frequency, storage_modulus, loss_modulus, *,
             # Linear interpolation of modulus difference on log-frequency
             # coordinates remains finite even when G'' is zero.
             # Stable normalized interpolation avoids overflow for large values.
-            fraction = abs(difference[i]) / (abs(difference[i]) + abs(difference[i+1]))
+            magnitude = max(abs(difference[i]), abs(difference[i+1]))
+            left = abs(difference[i]) / magnitude
+            right = abs(difference[i+1]) / magnitude
+            fraction = left / (left + right)
             crossovers.append(float(np.exp(
                 log_omega[i] + fraction*(log_omega[i+1]-log_omega[i]))))
     if difference[-1] == 0:
