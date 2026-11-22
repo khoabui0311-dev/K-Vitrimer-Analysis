@@ -104,12 +104,13 @@ def relaxation_observability(time_s, *, model, parameters,
     # Model and measured crossings are independent. A large disagreement
     # warrants review even if each time lies inside the acquisition window.
     crossing_ratio = None
+    log_crossing_ratio = None
     if empirical_crossing is not None and empirical_crossing > 0 and tau > 0:
         # Compare in log space to avoid overflow when times differ greatly.
-        log_ratio = abs(math.log(tau) - math.log(empirical_crossing))
-        crossing_ratio = (math.exp(log_ratio) if log_ratio <= math.log(
+        log_crossing_ratio = abs(math.log(tau) - math.log(empirical_crossing))
+        crossing_ratio = (math.exp(log_crossing_ratio) if log_crossing_ratio <= math.log(
             np.finfo(float).max) else None)
-        if log_ratio >= math.log(2):
+        if log_crossing_ratio >= math.log(2):
             warnings.append("Model-predicted and measured threshold crossings "
                             "differ by at least a factor of two")
     return {
@@ -121,6 +122,7 @@ def relaxation_observability(time_s, *, model, parameters,
         "predicted_crossing_within_window": location == "inside_window",
         "measured_crossing_time_s": empirical_crossing,
         "model_measured_crossing_ratio": crossing_ratio,
+        "model_measured_log_crossing_ratio": log_crossing_ratio,
         "measured_crossing_bracket_s": empirical_bracket,
         "measured_downward_crossing_count": measured_downward_crossing_count,
         "measured_multiple_crossings": measured_downward_crossing_count > 1,
