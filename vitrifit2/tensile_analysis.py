@@ -22,7 +22,10 @@ def analyze_tensile(displacement_mm, force_n, *, gauge_length_mm,
     if any(not isinstance(v, (int, float)) or isinstance(v, bool)
            or not math.isfinite(v) or v <= 0 for v in geometry):
         raise ValueError("Positive initial gauge length, width and thickness required")
-    if (not 0 <= modulus_fit_strain_min < modulus_fit_strain_max):
+    fit_limits = (modulus_fit_strain_min, modulus_fit_strain_max)
+    if (any(not isinstance(v, (int, float)) or isinstance(v, bool)
+            or not math.isfinite(v) for v in fit_limits)
+            or not 0 <= modulus_fit_strain_min < modulus_fit_strain_max):
         raise ValueError("Invalid modulus fit window")
     # Displacement zero must be selected by the operator before import.
     strain = x / gauge_length_mm
@@ -39,6 +42,8 @@ def analyze_tensile(displacement_mm, force_n, *, gauge_length_mm,
         ss_tot = float(np.sum((stress_mpa[mask] - np.mean(stress_mpa[mask])) ** 2))
         if ss_tot > 0:
             modulus_r2 = float(1 - np.sum((stress_mpa[mask] - predicted) ** 2) / ss_tot)
+    if not isinstance(calculate_true, bool):
+        raise ValueError("calculate_true must be a boolean")
     true_strain = np.log1p(strain) if calculate_true else None
     true_stress = stress_mpa * (1 + strain) if calculate_true else None
     return {
