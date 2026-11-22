@@ -34,3 +34,24 @@ def test_invalid_replicate_counts_rejected(replicates):
     with pytest.raises(ValueError):
         bootstrap_relaxation(case.time_s, case.normalized_modulus,
                              model="maxwell", replicates=replicates)
+
+
+def test_dual_maxwell_bootstrap_canonicalizes_point_and_intervals(monkeypatch):
+    """Regression: point estimate and CI use the same Maxwell-arm ordering."""
+    import numpy as np
+    import vitrifit2.benchmark_uncertainty as module
+    from can_relax.core.models import TwoMaxwell
+
+    t = np.geomspace(0.1, 1000.0, 60)
+    y = np.asarray(TwoMaxwell().func(t, 0.7, 100.0, 10.0), dtype=float)
+
+    def swapped_fit(*args, **kwargs):
+        # Simulate a legitimate optimizer choosing the opposite arm labeling.
+        return np.array([0.7, 100.0, 10.0]), np.eye(3)
+
+    monkeypatch.setattr(module, "curve_fit", swapped_fit)
+    result = module.bootstrap_relaxation(t, y, model="dual_maxwell",
+                                         replicates=20, seed=11)
+    assert result["point_estimate"] == pytest.approx([0.3, 10.0, 100.0])
+    assert result["lower"] == pytest.approx([0.3, 10.0, 100.0])
+    assert result["upper"] == pytest.approx([0.3, 10.0, 100.0])
