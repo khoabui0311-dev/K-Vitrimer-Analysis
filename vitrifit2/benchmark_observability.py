@@ -72,14 +72,20 @@ def relaxation_observability(time_s, *, model, parameters,
             raise ValueError("Measured response must match finite measurement times")
         # Only an actual measured bracket establishes empirical observability.
         # Linear interpolation is descriptive, not an independent fitted tau.
-        brackets = np.flatnonzero(
-            (y[:-1] >= threshold) & (y[1:] <= threshold))
-        if len(brackets):
-            i = int(brackets[0])
-            empirical_bracket = [float(t[i]), float(t[i+1])]
-            empirical_crossing = (float(t[i]) if y[i] == threshold else
-                float(t[i] + (threshold-y[i]) * (t[i+1]-t[i])
-                      / (y[i+1]-y[i])) if y[i+1] != y[i] else float(t[i]))
+        # Exact equality at the first recorded point is an observed crossing,
+        # even though no preceding acquisition interval exists.
+        if y[0] == threshold:
+            empirical_crossing = float(t[0])
+            empirical_bracket = [float(t[0]), float(t[0])]
+        else:
+            brackets = np.flatnonzero(
+                (y[:-1] >= threshold) & (y[1:] <= threshold))
+            if len(brackets):
+                i = int(brackets[0])
+                empirical_bracket = [float(t[i]), float(t[i+1])]
+                empirical_crossing = (float(t[i]) if y[i] == threshold else
+                    float(t[i] + (threshold-y[i]) * (t[i+1]-t[i])
+                          / (y[i+1]-y[i])) if y[i+1] != y[i] else float(t[i]))
     first, last = float(t[0]), float(t[-1])
     # An empirical crossing can disagree with a model prediction; keep both.
     empirical_location = (None if empirical_crossing is None else
