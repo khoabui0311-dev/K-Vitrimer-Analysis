@@ -129,14 +129,14 @@ export default function SampleProfile({sampleId}:{sampleId:string}){
     });
   }
   async function manifest(){
-    if(!active||active.method==="tensile_test")return;
+    if(!active)return;
     await execute(async()=>{
-      const response=await fetch("/api/v2/rheology/manifest",{
+      const response=await fetch("/api/v2/analyses/manifest",{
         method:"POST",headers:{"Content-Type":"application/json"},
         body:JSON.stringify({analysis_ids:[active.analysis_id]})});
       if(!response.ok)throw Error("Manifest export failed");
       const url=URL.createObjectURL(await response.blob());
-      const link=document.createElement("a");link.href=url;link.download="vitrifit-rheology-manifest.json";
+      const link=document.createElement("a");link.href=url;link.download="vitrifit-sample-analysis-manifest.json";
       link.click();URL.revokeObjectURL(url);
     });
   }
@@ -257,7 +257,7 @@ export default function SampleProfile({sampleId}:{sampleId:string}){
         <details><summary>Comparison provenance</summary><pre className="profile-json">{JSON.stringify(comparison,null,2)}</pre></details>
       </div>}
       {active&&<div className="profile-analysis">
-        <div className="controls"><button className="subtle" disabled={busy||active.method==="tensile_test"||active.method==="temperature_ramp"||active.method==="calorimetry"} onClick={manifest}>
+        <div className="controls"><button className="subtle" disabled={busy} onClick={manifest}>
           Export provenance JSON</button>
           {active.method==="amplitude_sweep"&&<>
             <label className="field">LVR departure fraction<input type="number" min=".001" max=".99"
