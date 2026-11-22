@@ -1,7 +1,7 @@
 # VitriFit 2.0
 
 Stress relaxation fitting and kinetics analysis for materials research.
-This development branch contains **2.0.0-dev.3**, the point-review and reports preview.
+This development branch contains **2.0.0-dev.3**, the publication, point-review and reports preview.
 The published Windows candidate remains **2.0.0-rc.1** and does not contain
 these new workspace features. Previously named K Vitrimer Analysis.
 See the [quick-start guide](docs/QUICK_START.md) and
@@ -25,6 +25,8 @@ See the [quick-start guide](docs/QUICK_START.md) and
   kinetics, available mastercurves/comparisons, spectrum estimates and provenance.
   Downloads are invalidated when their inputs change. Reports open offline and can
   be printed to PDF using the browser.
+- Show or hide fitted curves in each publication figure. Export RGB SVG/PDF for
+  scalable figures, or TIFF/JPEG using the selected resolution and color space.
 
 Run the preview from this branch using the source instructions below.
 See [the workspace guide](docs/WORKSPACE_PREVIEW.md) for a complete walkthrough.

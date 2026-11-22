@@ -1,6 +1,6 @@
 # VitriFit workspace preview
 
-Version **2.0.0-dev.3** adds bulk point review, an offline analysis report and expanded project
+Version **2.0.0-dev.3** adds publication export controls, bulk point review, an offline analysis report and expanded project
 restoration to the workspace and model comparison. These features are in the
 development source, not in the published `2.0.0-rc.1` installer.
 
@@ -96,3 +96,21 @@ saving a report/snapshot preserves a fixed record of the calculation now shown.
 
 Reports contain selected measurements and research notes. Review these before
 sharing. They are analysis records, not independent scientific validation.
+
+## Prepare publication figures
+
+In **Publish**, each figure has a fit-visibility switch: **Show fitted curves**
+for relaxation curves, or **Show fitted line** for Arrhenius/VFT, Eyring and
+Van 't Hoff plots. Hiding a fit also removes its legend entry; measured points
+remain visible. The fitted parameters above the figure are still available.
+The Arrhenius **Show T_v** control independently shows or hides the Tv marker.
+
+Use **Prepare SVG / PDF downloads** below any figure for scalable RGB exports.
+These exports retain vector lines and text and follow the visible fit/legend
+choices. They use RGB even when the global raster color setting is CMYK.
+Use **Prepare TIFF / JPEG downloads** for raster files in the selected color
+space; TIFF offers 300, 600 or 1200 DPI and JPEG uses 600 DPI.
+
+Changing a figure setting removes previously prepared download controls.
+Prepare the files again after editing so they reflect the current figure.
+Publication styling is not yet included in saved `.vfit` projects.
