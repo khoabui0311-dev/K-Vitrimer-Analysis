@@ -103,8 +103,9 @@ def attach_measurement_file(store, measurement_id, filename, raw_bytes,
     A failed foreign-key lookup leaves no database record or blob behind.
     """
     ensure_sample_profile_schema(store)
-    if not isinstance(filename, str) or not filename.strip():
-        raise ValueError("Original filename required")
+    if (not isinstance(filename, str) or not filename.strip()
+            or len(filename) > 255 or "\\x00" in filename):
+        raise ValueError("Valid original filename required")
     if not isinstance(raw_bytes, bytes) or not raw_bytes:
         raise ValueError("Nonempty raw bytes required")
     metadata = {} if metadata is None else metadata
