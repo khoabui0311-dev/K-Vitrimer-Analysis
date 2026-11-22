@@ -107,11 +107,14 @@ def test_cross_sample_kinetics_and_measured_temperature_exports(populated):
     arrhenius, _ = export_publication_figure(
         store, runs, "kinetics", settings, fmt="png", dpi=300,
         kinetic_model="Arrhenius")
-    vft, _ = export_publication_figure(
-        store, runs, "kinetics", settings, fmt="png", dpi=300,
-        kinetic_model="VFT",
-        windows={store.list_analysis_runs()[0]["sample_id"]: [100, 120]})
-    assert len(arrhenius) > 1000 and len(vft) > 1000
+    # The fixture is exactly Arrhenius; VFT is not independently identifiable.
+    # Do not force a spurious VFT curve merely to satisfy an export test.
+    with pytest.raises(ValueError, match="VFT fit could not be determined"):
+        export_publication_figure(
+            store, runs, "kinetics", settings, fmt="png", dpi=300,
+            kinetic_model="VFT",
+            windows={store.list_analysis_runs()[0]["sample_id"]: [100, 120]})
+    assert len(arrhenius) > 1000
     fixed, _ = export_publication_figure(
         store, runs, "fixed_temperature", settings, fmt="png", dpi=300,
         temperature_c=100)
