@@ -32,6 +32,8 @@ export default function SampleProfile({sampleId}:{sampleId:string}){
   const [columns,setColumns]=useState('{"strain_percent":"strain","storage_modulus":"Gp"}');
   const [frequencyUnit,setFrequencyUnit]=useState("Hz");
   const [modulusUnit,setModulusUnit]=useState("Pa");
+  const [heatFlowUnit,setHeatFlowUnit]=useState("mW");
+  const [heatingRate,setHeatingRate]=useState(5);
   const [gaugeLength,setGaugeLength]=useState(10);
   const [width,setWidth]=useState(2);
   const [thickness,setThickness]=useState(1);
@@ -57,13 +59,15 @@ export default function SampleProfile({sampleId}:{sampleId:string}){
   useEffect(()=>{
     setAnalyses([]);setActive(null);setComparisonIds([]);setComparison(null);
     if(measurementId){
-      const isTensile=profile?.specimens.flatMap(s=>s.measurements).find(m=>m.measurement_id===measurementId)?.technique==="Tensile";
-      request<Analysis[]>("/measurements/"+measurementId+(isTensile?"/tensile/analyses":"/rheology/analyses"))
+      const technique=profile?.specimens.flatMap(s=>s.measurements).find(m=>m.measurement_id===measurementId)?.technique;
+      const adapter=technique==="Tensile"?"tensile":technique==="DMA"||technique==="DSC"?"thermal":"rheology";
+      request<Analysis[]>("/measurements/"+measurementId+"/"+adapter+"/analyses")
         .then(setAnalyses).catch(e=>setError(err(e)));
     }
   },[measurementId]);
   useEffect(()=>{
-    setColumns(method==="tensile_test"?'{"displacement_mm":"extension","force_n":"load"}':method==="amplitude_sweep"
+    setColumns(method==="temperature_ramp"?'{"temperature_c":"T","storage_modulus":"Ep","loss_modulus":"Epp"}':
+      method==="calorimetry"?'{"temperature_c":"T","heat_flow":"heat"}':method==="tensile_test"?'{"displacement_mm":"extension","force_n":"load"}':method==="amplitude_sweep"
       ?'{"strain_percent":"strain","storage_modulus":"Gp"}'
       :'{"frequency":"freq","storage_modulus":"Gp","loss_modulus":"Gpp"}');
   },[method]);
@@ -99,15 +103,19 @@ export default function SampleProfile({sampleId}:{sampleId:string}){
       form.append("columns_json",JSON.stringify(mapping));
       form.append("frequency_unit",frequencyUnit);form.append("modulus_unit",modulusUnit);
       form.append("departure_fraction",String(departure));
+      if(selected?.method==="calorimetry"){
+        form.append("heat_flow_unit",heatFlowUnit);
+        form.append("heating_rate_c_min",String(heatingRate));
+      }
       if(selected?.method==="tensile_test"){
         form.append("gauge_length_mm",String(gaugeLength));
         form.append("width_mm",String(width));
         form.append("thickness_mm",String(thickness));
       }
-      const result=await request<Analysis>("/measurements/"+measurementId+
-        (selected?.method==="tensile_test"?"/tensile/import":"/rheology/import"),"POST",form);
-      setAnalyses(await request<Analysis[]>("/measurements/"+measurementId+
-        (selected?.method==="tensile_test"?"/tensile/analyses":"/rheology/analyses")));
+      const adapter=selected?.technique==="Tensile"?"tensile":
+        selected?.technique==="DMA"||selected?.technique==="DSC"?"thermal":"rheology";
+      const result=await request<Analysis>("/measurements/"+measurementId+"/"+adapter+"/import","POST",form);
+      setAnalyses(await request<Analysis[]>("/measurements/"+measurementId+"/"+adapter+"/analyses"));
       setActive(result);await refresh();setNotice("Raw CSV and analysis saved with provenance.");
     });
   }
@@ -188,10 +196,18 @@ export default function SampleProfile({sampleId}:{sampleId:string}){
     {selected&&<section className="card">
       <h2>{selected.method} · Import and analyses</h2>
       {!((selected.technique==="Rheology"&&["amplitude_sweep","frequency_sweep"].includes(selected.method))||
-         (selected.technique==="Tensile"&&selected.method==="tensile_test"))
+         (selected.technique==="Tensile"&&selected.method==="tensile_test")||
+         (selected.technique==="DMA"&&selected.method==="temperature_ramp")||
+         (selected.technique==="DSC"&&selected.method==="calorimetry"))
         ?<p className="warning">Metadata only. This method has no CSV analysis adapter yet.</p>
         :<>
         <p className="muted">CSV with header row, numeric values and explicit mapping. No automatic instrument parsing or hidden unit assumptions.</p>
+        {selected.method==="calorimetry"&&<div className="controls">
+          <label className="field">Heat-flow unit<select value={heatFlowUnit} onChange={e=>setHeatFlowUnit(e.target.value)}>
+            {["mW","W","W/g","mW/mg"].map(u=><option key={u}>{u}</option>)}</select></label>
+          <label className="field">Heating rate (°C/min)<input type="number" min=".001" step=".5"
+            value={heatingRate} onChange={e=>setHeatingRate(Number(e.target.value))}/></label>
+        </div>}
         {selected.method==="tensile_test"&&<div className="controls">
           <label className="field">Gauge length (mm)<input type="number" min=".001" step=".1" value={gaugeLength} onChange={e=>setGaugeLength(Number(e.target.value))}/></label>
           <label className="field">Width (mm)<input type="number" min=".001" step=".1" value={width} onChange={e=>setWidth(Number(e.target.value))}/></label>
@@ -200,8 +216,8 @@ export default function SampleProfile({sampleId}:{sampleId:string}){
         <div className="controls">
           <label className="field">CSV file<input type="file" accept=".csv,text/csv"
             onChange={e=>setFile(e.target.files?.[0]||null)}/></label>
-          {selected.method!=="tensile_test"&&<label className="field">Modulus unit<select value={modulusUnit} onChange={e=>setModulusUnit(e.target.value)}>
-            {["Pa","kPa","MPa"].map(u=><option key={u}>{u}</option>)}</select></label>}
+          {selected.method!=="tensile_test"&&selected.method!=="calorimetry"&&<label className="field">Modulus unit<select value={modulusUnit} onChange={e=>setModulusUnit(e.target.value)}>
+            {(selected.method==="temperature_ramp"?["Pa","kPa","MPa","GPa"]:["Pa","kPa","MPa"]).map(u=><option key={u}>{u}</option>)}</select></label>}
           {selected.method==="frequency_sweep"&&<label className="field">Frequency unit
             <select value={frequencyUnit} onChange={e=>setFrequencyUnit(e.target.value)}>
               {["Hz","rad/s"].map(u=><option key={u}>{u}</option>)}</select></label>}
@@ -241,13 +257,31 @@ export default function SampleProfile({sampleId}:{sampleId:string}){
         <details><summary>Comparison provenance</summary><pre className="profile-json">{JSON.stringify(comparison,null,2)}</pre></details>
       </div>}
       {active&&<div className="profile-analysis">
-        <div className="controls"><button className="subtle" disabled={busy||active.method==="tensile_test"} onClick={manifest}>
+        <div className="controls"><button className="subtle" disabled={busy||active.method==="tensile_test"||active.method==="temperature_ramp"||active.method==="calorimetry"} onClick={manifest}>
           Export provenance JSON</button>
           {active.method==="amplitude_sweep"&&<>
             <label className="field">LVR departure fraction<input type="number" min=".001" max=".99"
               step=".01" value={departure} onChange={e=>setDeparture(Number(e.target.value))}/></label>
             <button className="primary" disabled={busy} onClick={reanalyze}>Reanalyze (new revision)</button>
           </>}</div>
+        {active.method==="temperature_ramp"&&<>
+          <p className="muted">Observed tan δ peak: {active.results.tan_delta_peak_temperature_c??"not captured"} °C (not DSC Tg onset).</p>
+          <Plot data={[{x:active.results.temperature_c,y:active.results.storage_modulus_pa,name:"E′",type:"scatter",mode:"lines"},
+            {x:active.results.temperature_c,y:active.results.loss_modulus_pa,name:"E″",type:"scatter",mode:"lines"}] as any}
+            layout={{autosize:true,margin:{l:75,r:20,t:20,b:65},
+              xaxis:{title:{text:"Temperature (°C)"}},yaxis:{title:{text:"Modulus (Pa)"},type:"log"}}}
+            useResizeHandler style={{width:"100%",height:360}} config={{responsive:true,displaylogo:false}}/>
+          <p className="warning">{String(active.results.warning)}</p>
+        </>}
+        {active.method==="calorimetry"&&<>
+          <Plot data={[{x:active.results.temperature_c,y:active.results.heat_flow,
+            name:"Heat flow",type:"scatter",mode:"lines"}] as any}
+            layout={{autosize:true,margin:{l:75,r:20,t:20,b:65},
+              xaxis:{title:{text:"Temperature (°C)"}},
+              yaxis:{title:{text:"Heat flow ("+active.results.heat_flow_unit+")"}}}}
+            useResizeHandler style={{width:"100%",height:360}} config={{responsive:true,displaylogo:false}}/>
+          <p className="warning">{String(active.results.warning)}</p>
+        </>}
         {active.method==="tensile_test"&&<>
           <p className="muted">Young’s modulus: {active.results.youngs_modulus_mpa===null?"not determined":
             Number(active.results.youngs_modulus_mpa).toFixed(2)+" MPa"} · Max engineering stress:{" "}
