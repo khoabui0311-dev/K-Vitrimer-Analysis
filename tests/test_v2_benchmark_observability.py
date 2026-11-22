@@ -107,3 +107,15 @@ def test_upward_measured_crossing_not_misclassified_as_relaxation():
         normalized_modulus=(.1, .2, .9))
     assert result["measured_crossing_observed"] is False
     assert result["measured_crossing_time_s"] is None
+
+
+@pytest.mark.parametrize("model, parameters, threshold", [
+    ("maxwell", (1e308,), math.exp(-2)),
+    ("kww", (1e308, .5), math.exp(-2)),
+    ("dual_maxwell", (.5, 1e308, 1e308), math.exp(-1)),
+    ("dual_maxwell", (.5, 1., 2.), 1e-300),
+])
+def test_unrepresentable_or_unbracketed_crossing_rejected(model, parameters, threshold):
+    with pytest.raises(ValueError, match="crossing|bracket"):
+        relaxation_observability((.01, 1., 10.), model=model,
+                                 parameters=parameters, threshold=threshold)
