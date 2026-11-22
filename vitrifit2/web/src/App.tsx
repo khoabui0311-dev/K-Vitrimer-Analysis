@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import Plot from "react-plotly.js";
+import SampleProfile from "./SampleProfile";
 
 type Item = { id: string; name: string };
 type Experiment = { id: string; original_filename: string; metadata?: {
@@ -22,8 +23,8 @@ type Run = { id: string; curve_id: string; project_name: string; sample_name: st
   temperature_c: number; model: string; tau_definition: string; is_current: boolean;
   results: { tau_s?: number; r2?: number; beta?: number; flags?: string[] } };
 type Preset = { id: string; name: string; settings: Record<string, unknown> };
-type Tab = "Library" | "Preparation" | "Analysis" | "Comparison" | "Figure Studio";
-const tabs: Tab[] = ["Library", "Preparation", "Analysis", "Comparison", "Figure Studio"];
+type Tab = "Library" | "Sample Profile" | "Preparation" | "Analysis" | "Comparison" | "Figure Studio";
+const tabs: Tab[] = ["Library", "Sample Profile", "Preparation", "Analysis", "Comparison", "Figure Studio"];
 const initialStyle: Record<string, unknown> = {
   pub_preset: "ACS/RSC Single-Column (85 x 75 mm)", pub_w: 8.5, pub_h: 7.5,
   pub_relfont_family: "Arial", pub_rel_lbl_sz: 12, pub_rel_num_sz: 10,
@@ -420,12 +421,14 @@ export default function App() {
       <main className="main">
         <p className="eyebrow">SCIENTIFIC DATA WORKSPACE</p><h1>{tab}</h1>
         <p className="lead">{tab==="Library"?"Manage persistent scientific records":
+          tab==="Sample Profile"?"Specimen-centred DMA, DSC, rheology and tensile records with traceable raw data":
           tab==="Preparation"?"Edit individual relaxation curves without deleting raw measurements":
           tab==="Analysis"?"Fit selected curves and preserve each analysis revision":
           tab==="Comparison"?"Compare samples at matching temperatures and across kinetic windows":
           "Save publication styles without changing the original v1 rendering standards"}</p>
         {error&&<div className="error"><strong>Action failed:</strong> {error}<button onClick={()=>setError("")}>×</button></div>}
         {busy&&<p className="loading">Processing…</p>}
+        {tab==="Sample Profile"&&<SampleProfile sampleId={sampleId}/>}
         {tab==="Library"&&<section className="card"><h2>Import relaxation experiment</h2>
           <p className="muted">Inspect CSV, TXT, Excel 97–2003 XLS, or XLSX first. The existing unit-validated relaxation parser reads one or more temperature curves, including replicates. No automatic trimming occurs during import.</p>
           <div className="row">
