@@ -50,6 +50,7 @@ def compare_runs(store: VitriFitStore, run_ids: list[str], mode: str,
             "model": r["model"], "tau_definition": r["tau_definition"],
             "tau_s": float(tau),
             "r2": result.get("r2"),
+            "fit_flags": list(result.get("flags") or []),
         })
     if mode == "fixed_temperature":
         if temperature_c is None or not math.isfinite(float(temperature_c)):
@@ -78,7 +79,12 @@ def compare_runs(store: VitriFitStore, run_ids: list[str], mode: str,
     if kinetic_model not in ("Arrhenius", "VFT"):
         raise ValueError("Unknown kinetic model")
     grouped = defaultdict(list)
+    excluded_unresolved = []
     for row in rows:
+        if any("Tau outside measurement window" in str(flag)
+               for flag in row["fit_flags"]):
+            excluded_unresolved.append(row["run_id"])
+            continue
         bounds = (windows or {}).get(row["sample_id"])
         if bounds is not None:
             if len(bounds) != 2 or bounds[0] > bounds[1]:
@@ -131,4 +137,6 @@ def compare_runs(store: VitriFitStore, run_ids: list[str], mode: str,
     return {"mode": mode, "kinetic_model": kinetic_model, "samples": samples,
             "tau_definition": rows[0]["tau_definition"],
             "windows_c": windows or {},
+            "excluded_unresolved_run_ids": excluded_unresolved,
+            "exclusion_policy": "Exclude fitted tau outside measured time window from kinetics",
             "fit_input": "measured fitted relaxation times; independent windows per sample"}
