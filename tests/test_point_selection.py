@@ -1,3 +1,4 @@
+from tests import APP_PATH
 import numpy as np
 import pandas as pd
 import pytest
@@ -33,17 +34,29 @@ def test_invalid_selection_rejected(settings):
 
 
 def test_review_workflow_invalidation_and_provenance(monkeypatch):
+    import streamlit as st
     from streamlit.testing.v1 import AppTest
     from can_relax.gui.tabs import tab_pub_main
     monkeypatch.setattr(tab_pub_main, 'save_and_download', lambda *args: None)
-    app = AppTest.from_file('can_relax/gui/app.py', default_timeout=60).run()
+    real_editor = st.data_editor
+    editor_keys = {}
+
+    def capture_editor(*args, **kwargs):
+        key = kwargs.get('key', '')
+        for prefix in ('points', 'timing'):
+            if key.startswith(prefix + '_'):
+                editor_keys[prefix] = key
+        return real_editor(*args, **kwargs)
+
+    monkeypatch.setattr(st, 'data_editor', capture_editor)
+    app = AppTest.from_file(APP_PATH, default_timeout=60).run()
     app.checkbox(key='use_example_data').check().run()
     def run_analysis():
         next(b for b in app.button if 'Run Analysis' in b.label).click().run()
         assert not app.exception
     run_analysis()
     old_id = app.session_state['analysis_id']
-    point_key = next(k for k in app.session_state.filtered_state if k.startswith('points_'))
+    point_key = editor_keys['points']
     app.session_state[point_key] = {'edited_rows': {1: {'Keep': False}}, 'added_rows': [], 'deleted_rows': []}
     app.run()
     assert not app.exception
@@ -52,7 +65,7 @@ def test_review_workflow_invalidation_and_provenance(monkeypatch):
     assert app.session_state['analysis_id'] != old_id
     first = app.session_state['results'][0]
     assert first['Preprocessing']['manual_selection']['excluded_point_numbers'] == [2]
-    timing_key = next(k for k in app.session_state.filtered_state if k.startswith('timing_'))
+    timing_key = editor_keys['timing']
     app.session_state[timing_key] = {'edited_rows': {0: {'Loading origin (s)': .01, 'Cutoff (s)': 1.}}, 'added_rows': [], 'deleted_rows': []}
     app.run()
     assert not app.exception

@@ -1,3 +1,4 @@
+from tests import APP_PATH
 """Independent absolute-modulus recovery and mode-selection checks."""
 import numpy as np
 import pandas as pd
@@ -64,7 +65,7 @@ def test_analysis_ui_exports_modes_and_selects_kinetic_time(monkeypatch):
         return real_download(label, data, *args, **kwargs)
 
     monkeypatch.setattr(st, 'download_button', capture)
-    app = AppTest.from_file('can_relax/gui/app.py', default_timeout=60).run()
+    app = AppTest.from_file(APP_PATH, default_timeout=60).run()
     app.checkbox(key='use_example_data').check()
     app.selectbox(key='analysis_fit_model').select(PRONY).run()
     next(b for b in app.button if 'Run Analysis' in b.label).click().run()

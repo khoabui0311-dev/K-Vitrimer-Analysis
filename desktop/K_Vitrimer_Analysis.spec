@@ -51,6 +51,6 @@ a = Analysis(
     noarchive=False,
 )
 pyz = PYZ(a.pure)
-exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name='K_Vitrimer_Analysis',
+exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name='VitriFit',
           debug=False, bootloader_ignore_signals=False, strip=False, upx=False, console=False)
-coll = COLLECT(exe, a.binaries, a.datas, strip=False, upx=False, name='K_Vitrimer_Analysis')
+coll = COLLECT(exe, a.binaries, a.datas, strip=False, upx=False, name='VitriFit')

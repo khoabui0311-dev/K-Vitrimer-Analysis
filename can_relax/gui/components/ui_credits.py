@@ -1,15 +1,14 @@
 import streamlit as st
+from can_relax.version import APP_NAME, VERSION, RELEASE_CHANNEL
 
 def render_credits_tab(tab_credits):
     with tab_credits:
             st.header("©️ Credits & Copyright")
 
+            st.markdown(f"### 🔬 {APP_NAME}\n{VERSION} | {RELEASE_CHANNEL}")
             st.markdown("""
             ---
-            ### 🔬 K Vitrimer Analysis
             **Kinetic Analysis of Vitrimer Relaxation & Kinetics**
-
-            v1.0 | Professional Edition
 
             ---
 
@@ -39,7 +38,7 @@ def render_credits_tab(tab_credits):
             - **OpenAI ChatGPT**
             - **Google Gemini**
 
-            *(All AI-generated code supervised and validated by Vo Khoa Bui)*
+            *AI assistance does not replace software testing or independent scientific validation.*
 
             ---
 
@@ -48,6 +47,7 @@ def render_credits_tab(tab_credits):
             This software implements established models for stress relaxation analysis:
 
             - **Maxwell Model**: Single exponential relaxation
+            - **Two-Maxwell (Prony)**: Two exponential modes fitted independently at each temperature, with optional equilibrium plateau
             - **Kohlrausch-Williams-Watts (KWW)**: Stretched exponential for complex systems
             - **Arrhenius & Eyring Kinetics**: Temperature-dependent relaxation time and activation enthalpy/entropy analysis
             - **Temperature–modulus fit**: Empirical occupancy-form fit to observed reference moduli (in **MPa**); thermodynamic interpretation requires independent equilibrium evidence
