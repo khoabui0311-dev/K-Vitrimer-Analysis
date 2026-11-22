@@ -1,13 +1,13 @@
 # VitriFit 2.0
 
 Stress relaxation fitting and kinetics analysis for materials research.
-This development branch contains **2.0.0-dev.3**, the publication, point-review and reports preview.
-The published Windows candidate remains **2.0.0-rc.1** and does not contain
-these new workspace features. Previously named K Vitrimer Analysis.
+Version **2.0.0-rc.2** brings saved projects, bulk point review, analysis reports
+and reusable publication formats to the Windows release candidate.
+Previously named K Vitrimer Analysis. This is a prerelease for research evaluation.
 See the [quick-start guide](docs/QUICK_START.md) and
 [candidate release notes](docs/RELEASE_NOTES_2.0.md).
 
-## New workspace preview
+## New in the 2.0 workspace
 
 - Import data and choose the model in the main workspace, with dataset and fit-review summaries.
 - Exclude or restore groups of measurements using a graph box/lasso, point-number
@@ -32,15 +32,16 @@ See the [quick-start guide](docs/QUICK_START.md) and
 - Save reusable `.vstyle` figure formats from **Publish** and apply them to other
   datasets. Format files contain display settings only, with no measurements.
 
-Run the preview from this branch using the source instructions below.
 See [the workspace guide](docs/WORKSPACE_PREVIEW.md) for a complete walkthrough.
+See [candidate validation](docs/VALIDATION_2.0_RC2.md) for experimental stability
+findings and the limits of the checks.
 
 ## Installable offline application (Windows)
 
 Download the installer from the repository's
 [Releases](https://github.com/khoabui0311-dev/K-Vitrimer-Analysis/releases) when published,
 or use a supplied candidate build. Source ZIP downloads do not include installers.
-Run `VitriFit_Setup_2.0.0-rc.1_x64.exe` to install the desktop edition.
+Run `VitriFit_Setup_2.0.0-rc.2_x64.exe` to install the desktop edition.
 Launch **VitriFit** from the desktop or Start menu.
 The installer includes Python and the analysis libraries; no Python installation
 or internet connection is needed to use it. Windows 10/11 x64 and a web browser

@@ -73,6 +73,9 @@ def serve(port, parent_pid):
     with (log_dir / f'server-{os.getpid()}.log').open('w', encoding='utf-8', buffering=1) as log:
         sys.stdout = sys.stderr = log
         try:
+            if os.environ.get('VITRIFIT_OFFLINE_SELF_TEST') == '1':
+                from desktop.offline import block_external_connections
+                block_external_connections()
             threading.Thread(target=watch_parent, args=(parent_pid,), daemon=True).start()
             os.environ['MPLBACKEND'] = 'Agg'
             from streamlit.web import bootstrap
@@ -85,7 +88,8 @@ def serve(port, parent_pid):
 
 
 class LocalServer:
-    def __init__(self):
+    def __init__(self, offline_test=False):
+        self.offline_test = offline_test
         self.port = free_port()
         self.url = f'http://127.0.0.1:{self.port}'
         self.process = None
@@ -99,6 +103,8 @@ class LocalServer:
         command += ['--serve', '--port', str(self.port), '--parent-pid', str(os.getpid())]
         env = os.environ.copy()
         env['PYTHONUTF8'] = '1'
+        if self.offline_test:
+            env['VITRIFIT_OFFLINE_SELF_TEST'] = '1'
         self.process = subprocess.Popen(
             command, cwd=resource_root(), env=env,
             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,

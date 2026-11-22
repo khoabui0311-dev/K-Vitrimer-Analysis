@@ -1,45 +1,59 @@
-# VitriFit 2.0 release candidate
+# VitriFit 2.0 — Release candidate 2
 
-Version: **2.0.0-rc.1**. Intended release status: **prerelease**, not a stable
-or latest release. No DOI has been assigned.
+Version **2.0.0-rc.2** is a prerelease for research evaluation, not the stable
+release. It replaces rc.1 as the candidate containing the new workspace.
+No DOI has been assigned.
 
-VitriFit is the new product name for K Vitrimer Analysis. It supports independent
-Maxwell, KWW and two-Maxwell Prony fitting; optional plateaus; kinetics
-regressions; mastercurve exploration; spectrum estimates; and figure/CSV exports.
-The Windows installer bundles Python and works offline in a local browser.
+## Changes since rc.1
 
-## Changes for this candidate
+- Import, review and model selection in the main workspace, with dataset and
+  result summaries and residual inspection.
+- Group point exclusion/restoration by box/lasso, original point-number ranges
+  or elapsed-time intervals, plus per-curve undo.
+- Portable `.vfit` projects preserving source data, exclusions, timing, analysis,
+  downstream selections and publication formatting. Reopening recalculates fits.
+- Maxwell/KWW/two-Maxwell comparison on the same observations and plateau policy.
+- Offline HTML reports and strict JSON numerical snapshots with provenance.
+- Fit visibility switches and concise Tv labels; vector SVG/PDF and raster
+  TIFF/JPEG exports with stale-download invalidation.
+- Reusable `.vstyle` figure formats, custom colors, import size previews,
+  optional automatic axes and one-step format undo.
+- Stronger packaged tests covering fresh-session reopening, actual figure/report
+  exports, offline analysis/server network guards and installer upgrades.
 
-- Consistent product name and shared version in the interface, launcher and exports.
-- Versioned analysis provenance and fit/Arrhenius CSVs.
-- Explicit distinction between independent curve fitting and subsequent kinetics.
-- Arrhenius 95% regression intervals and notices for nonpositive slopes or
-  intervals crossing zero. Negative estimates are preserved.
-- Updated shortcuts, citation metadata, quick-start guide and artifact manifest.
+## Scientific validation
 
-## Limits to state with the release
+Seven VUGT relaxation curves from 100–180 °C were checked against an independent
+log-time solver with 12 initial guesses. Fast/slow times agreed within 0.007%.
+Sampling and measurement-window sensitivity were also assessed. Residuals remain
+structured; at 150 °C the slow time extends beyond the measurement window.
+See `VALIDATION_2.0_RC2.md` for the results, assumptions and reproducible procedure.
+This is a numerical consistency/stability audit, not independent experimental
+validation of a physical two-mode interpretation.
 
-- Windows build is unsigned. macOS/Linux installers are not provided.
-- Two exponential terms do not by themselves identify two physical mechanisms.
-- Per-curve fitting uses automatic preprocessing, logarithmic downsampling,
-  retained-reference normalization and one optimization starting point.
-- Local covariance and regression intervals do not establish parameter
-  identifiability. Arrhenius intervals assume independent equal-variance errors
-  in log times and do not propagate each fitted time's uncertainty.
-- A slow mode outside the measured window is an extrapolation. TTS overlap,
-  spectrum regularization and Maxwell-equivalent Tv require scientific review.
-- Sessions are not persistent. Export results before quitting.
-- The Academic and Research License applies; commercial use requires permission.
+## Known limits
 
-## Candidate publication checklist
+- Windows x64 installer only; unsigned. No macOS/Linux installer is provided.
+- Each temperature is fitted independently. Arrhenius is a separate regression;
+  two exponential terms do not by themselves identify two physical mechanisms.
+- Production fitting still uses one starting point, automatic peak/drift
+  preprocessing, logarithmic downsampling and retained-reference normalization.
+  The independent multi-start solver is a validation tool, not a new app option.
+- Covariance errors are local estimates. Slow modes beyond the measured window
+  and small/overlapping modes can be poorly constrained. Residual structure and
+  sensitivity to data selection must be reviewed even when R² is high.
+- Arrhenius regression intervals do not propagate fitted-time uncertainty.
+  TTS, regularized spectra and extrapolated Tv require scientific judgement.
+- Project saving is explicit; no autosave or crash recovery. Projects recompute
+  results with the running version; keep reports/CSV/JSON as fixed records.
+- Upgrade tests preserve sentinel user files and exercise selected installers;
+  they cannot cover every existing Windows configuration.
+- Academic and Research License; commercial use requires permission.
 
-- [ ] Full regression/static checks pass at the candidate commit.
-- [ ] Frozen executable passes the offline smoke test.
-- [ ] Installer installation/uninstallation passes on a clean Windows account.
-- [ ] Upgrade from the old product is tested without loss of exported user files.
-- [ ] Independent reviewer checks representative experimental data and model assumptions.
-- [ ] Installer, SHA-256, build manifest and notes are attached to a draft GitHub release.
-- [ ] Release is explicitly published as a prerelease after review.
+## Candidate publication gates
 
-Test results should be recorded separately with their commit and environment;
-do not treat an unchecked item as completed.
+Publish only the exact clean build whose project checks, frozen offline workflow,
+clean installation/uninstallation and rc.1 upgrade checks pass. Attach installer,
+SHA-256, source/build manifest, test reports, quick-start guide and validation
+notes. The release remains a prerelease. Publisher signing and independent
+scientific review remain work for a stable release.

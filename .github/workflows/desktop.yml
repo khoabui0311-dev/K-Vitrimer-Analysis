@@ -33,16 +33,25 @@ jobs:
       - run: .\.venv\Scripts\python.exe -m pytest -q --tb=short
       - run: .\.github\scripts\install_inno.ps1
       - run: .\desktop\build_windows.ps1
+      - id: candidate
+        run: |
+          $version = & .\.venv\Scripts\python.exe -c "from can_relax.version import VERSION; print(VERSION)"
+          "version=$version" >> $env:GITHUB_OUTPUT
       - run: .\desktop\test_installer.ps1
+      - run: .\desktop\download_previous_candidate.ps1
+      - run: .\desktop\test_installer.ps1 -PreviousInstaller (Resolve-Path 'dist\VitriFit_Setup_2.0.0-rc.1_x64.exe') -TestName upgrade-rc1
       - uses: actions/upload-artifact@v4
         with:
           name: VitriFit-Windows-x64-candidate
           path: |
-            dist/VitriFit_Setup_*.exe
-            dist/VitriFit_Setup_*.sha256
+            dist/VitriFit_Setup_${{ steps.candidate.outputs.version }}_x64.exe
+            dist/VitriFit_Setup_${{ steps.candidate.outputs.version }}_x64.exe.sha256
             dist/desktop-self-test.json
             dist/installed-self-test.json
+            dist/upgrade-rc1.json
+            dist/upgrade-rc1-self-test.json
             dist/release-manifest.json
             docs/QUICK_START.md
             docs/RELEASE_NOTES_2.0.md
+            docs/VALIDATION_2.0_RC2.md
           if-no-files-found: error

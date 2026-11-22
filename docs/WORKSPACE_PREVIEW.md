@@ -1,8 +1,8 @@
-# VitriFit workspace preview
+# VitriFit 2.0 workspace guide
 
-Version **2.0.0-dev.3** adds publication export controls, bulk point review, an offline analysis report and expanded project
-restoration to the workspace and model comparison. These features are in the
-development source, not in the published `2.0.0-rc.1` installer.
+Version **2.0.0-rc.2** includes publication export controls, bulk point review,
+an offline analysis report and expanded project restoration alongside model
+comparison. The earlier `2.0.0-rc.1` installer does not include these additions.
 
 ## Try the workflow
 
