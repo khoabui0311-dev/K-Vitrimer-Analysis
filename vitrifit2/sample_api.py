@@ -20,6 +20,7 @@ from .rheology_history import (
 )
 from .rheology_manifest import export_rheology_manifest_json
 from .tensile_workflow import import_tensile_csv, get_tensile_analysis, list_tensile_analyses
+from .thermal_workflow import import_thermal_csv, get_thermal_analysis, list_thermal_analyses
 
 router = APIRouter(prefix="/api/v2", tags=["Sample profiles and rheology"])
 MAX_UPLOAD = 50 * 1024 * 1024
@@ -214,3 +215,43 @@ def tensile_history(measurement_id: str,
 def tensile_analysis(analysis_id: str,
                      store: VitriFitStore = Depends(store_dependency)):
     return get_tensile_analysis(store, analysis_id)
+
+
+@router.post("/measurements/{measurement_id}/thermal/import", status_code=201)
+async def import_thermal(
+    measurement_id: str,
+    file: UploadFile = File(...),
+    method: str = Form(...),
+    columns_json: str = Form(...),
+    modulus_unit: str = Form("Pa"),
+    heat_flow_unit: str = Form("mW"),
+    heating_rate_c_min: float | None = Form(None),
+    store: VitriFitStore = Depends(store_dependency),
+):
+    content = await file.read(MAX_UPLOAD + 1)
+    if len(content) > MAX_UPLOAD:
+        raise HTTPException(413, "Upload exceeds 50 MiB")
+    try:
+        columns = json.loads(columns_json)
+    except json.JSONDecodeError as exc:
+        raise ValueError("Column mapping must be valid JSON") from exc
+    if not isinstance(columns, dict):
+        raise ValueError("Column mapping must be a JSON object")
+    aid = import_thermal_csv(
+        store, measurement_id, Path(file.filename or "thermal.csv").name,
+        content, method=method, columns=columns,
+        modulus_unit=modulus_unit, heat_flow_unit=heat_flow_unit,
+        heating_rate_c_min=heating_rate_c_min)
+    return get_thermal_analysis(store, aid)
+
+
+@router.get("/measurements/{measurement_id}/thermal/analyses")
+def thermal_history(measurement_id: str,
+                    store: VitriFitStore = Depends(store_dependency)):
+    return list_thermal_analyses(store, measurement_id)
+
+
+@router.get("/thermal/analyses/{analysis_id}")
+def thermal_analysis(analysis_id: str,
+                     store: VitriFitStore = Depends(store_dependency)):
+    return get_thermal_analysis(store, analysis_id)
