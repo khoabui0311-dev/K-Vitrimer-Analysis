@@ -59,9 +59,13 @@ def analyze_dsc_trace(temperature_c, heat_flow, *,
         raise ValueError("Explicit supported heat-flow unit required")
     t, q = _arrays(temperature_c, heat_flow)
     if heating_rate_c_min is not None and (
-            not np.isfinite(heating_rate_c_min) or heating_rate_c_min <= 0):
+            not isinstance(heating_rate_c_min, (int, float))
+            or isinstance(heating_rate_c_min, bool)
+            or not np.isfinite(heating_rate_c_min) or heating_rate_c_min <= 0):
         raise ValueError("Heating rate must be positive")
     slope = np.gradient(q, t)
+    if not np.all(np.isfinite(slope)):
+        raise ValueError("DSC heat-flow slope overflow; check units and temperature spacing")
     return {"temperature_c": t.tolist(), "heat_flow": q.tolist(),
             "heat_flow_unit": heat_flow_unit,
             "heating_rate_c_min": heating_rate_c_min,
