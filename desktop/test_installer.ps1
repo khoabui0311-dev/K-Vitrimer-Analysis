@@ -1,7 +1,12 @@
 param([string]$Installer = '')
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
-if (-not $Installer) { $Installer = Join-Path $projectRoot 'dist\K_Vitrimer_Analysis_Setup_1.1.0_x64.exe' }
+Push-Location $projectRoot
+try {
+    $releaseVersion = & .\.venv\Scripts\python.exe -c "from can_relax.version import VERSION; print(VERSION)"
+    if ($LASTEXITCODE -ne 0 -or $releaseVersion -notmatch '^\d+\.\d+\.\d+(-[a-z0-9.]+)?$') { throw 'Invalid release version.' }
+} finally { Pop-Location }
+if (-not $Installer) { $Installer = Join-Path $projectRoot "dist\VitriFit_Setup_${releaseVersion}_x64.exe" }
 $registryPath = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{FE35CE06-96C6-4B7F-A692-6785A084BAF0}_is1'
 if (Test-Path -LiteralPath $registryPath) { throw 'An installed copy already exists. Run this integration test on a clean account.' }
 $testDir = [IO.Path]::GetFullPath((Join-Path $projectRoot 'dist\installer-test'))
@@ -19,11 +24,11 @@ try {
     if ([IO.Path]::GetFullPath($registered.InstallLocation).TrimEnd('\') -ne $testDir) { throw 'Installer registration points to an unexpected folder.' }
     $env:PATH = "$env:SystemRoot\System32;$env:SystemRoot"
     $env:PYTHONPATH = ''
-    $installedExe = Join-Path $testDir 'K_Vitrimer_Analysis.exe'
+    $installedExe = Join-Path $testDir 'VitriFit.exe'
     $check = Start-Process -FilePath $installedExe -ArgumentList @('--self-test', ('"' + $report + '"')) -WorkingDirectory $env:TEMP -WindowStyle Hidden -Wait -PassThru
     if ($check.ExitCode -ne 0) { throw "Installed application test failed; inspect $report." }
     $result = Get-Content -LiteralPath $report -Raw | ConvertFrom-Json
-    if (-not $result.ok -or -not $result.frozen) { throw 'Installed application did not pass its bundled test.' }
+    if (-not $result.ok -or -not $result.frozen -or $result.version -ne $releaseVersion -or $result.app_name -ne 'VitriFit') { throw 'Installed application identity or self-test failed.' }
 } finally {
     $env:PATH = $previousPath
     $env:PYTHONPATH = $previousPythonPath
@@ -32,6 +37,6 @@ try {
         if ($uninstall.ExitCode -ne 0) { throw "Test uninstallation failed: $($uninstall.ExitCode)" }
     }
 }
-if (Test-Path -LiteralPath (Join-Path $testDir 'K_Vitrimer_Analysis.exe')) { throw 'Uninstaller left the application executable behind.' }
+if (Test-Path -LiteralPath (Join-Path $testDir 'VitriFit.exe')) { throw 'Uninstaller left the application executable behind.' }
 if (Test-Path -LiteralPath $registryPath) { throw 'Uninstaller left its registration behind.' }
 Write-Output 'Installation, installed application verification, and uninstallation passed.'

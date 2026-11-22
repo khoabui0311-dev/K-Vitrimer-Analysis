@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.stats import linregress
+from scipy.stats import linregress, t as student_t
 from scipy.optimize import curve_fit
 
 R_GAS = 8.314462  # J/mol*K
@@ -60,10 +60,22 @@ class KineticsEngine:
         Ea_J = slope_std * R_GAS
         Ea_kJ = Ea_J / 1000.0
         Ea_std_kJ = (stderr_std * R_GAS) / 1000.0 if len(taus) > 2 else np.nan
+        warnings = []
+        interval = None
+        if len(taus) == 2:
+            warnings.append('Two observations: uncertainty cannot be estimated.')
+        else:
+            half_width = float(student_t.ppf(.975, len(taus)-2) * Ea_std_kJ)
+            interval = [float(Ea_kJ-half_width), float(Ea_kJ+half_width)]
+            if interval[0] <= 0 <= interval[1]:
+                warnings.append('The 95% regression interval includes zero; a nonzero Arrhenius slope is not resolved by this regression.')
+        if Ea_kJ <= 0:
+            warnings.append('Nonpositive apparent Ea: the extracted times do not show the positive slope expected for relaxation slowing on cooling. Review data, mode assignment and model suitability.')
         
         return {
             "Type": "Arrhenius",
-            "Warning": "Two observations: uncertainty cannot be estimated." if len(taus) == 2 else None,
+            "Warning": ' '.join(warnings) or None,
+            "Ea_CI95": interval,
             "Ea": Ea_kJ,
             "Ea_std": Ea_std_kJ,
             "R2": r_std**2,

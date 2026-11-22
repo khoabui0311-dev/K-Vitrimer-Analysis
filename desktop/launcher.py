@@ -16,8 +16,9 @@ import urllib.error
 import urllib.request
 import webbrowser
 
-APP_NAME = 'K Vitrimer Analysis'
-VERSION = '1.1.0'
+if not getattr(sys, 'frozen', False):
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from can_relax.version import APP_NAME, VERSION
 
 
 def resource_root():
@@ -133,7 +134,7 @@ def run_desktop():
     frame = ttk.Frame(root, padding=24)
     frame.pack(fill='both', expand=True)
     ttk.Label(frame, text=APP_NAME, font=('Segoe UI', 18, 'bold')).pack(anchor='w')
-    ttk.Label(frame, text='Offline desktop edition', font=('Segoe UI', 11)).pack(anchor='w', pady=(4, 18))
+    ttk.Label(frame, text=f'{VERSION} · Offline desktop edition', font=('Segoe UI', 11)).pack(anchor='w', pady=(4, 18))
     status = tk.StringVar(value='Starting the analysis application…')
     ttk.Label(frame, textvariable=status, wraplength=420).pack(anchor='w')
     ttk.Label(frame, text='Keep this window open while you work in your browser.\nClosing it stops the application.',
@@ -195,7 +196,7 @@ def main():
     if args.serve:
         serve(args.port, args.parent_pid)
     elif args.self_test:
-        report = {'version': VERSION, 'frozen': bool(getattr(sys, 'frozen', False)), 'ok': False}
+        report = {'app_name': APP_NAME, 'version': VERSION, 'frozen': bool(getattr(sys, 'frozen', False)), 'ok': False}
         try:
             from desktop.verify_bundle import verify
             report.update(verify())

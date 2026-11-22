@@ -1,0 +1,11 @@
+cff-version: 1.2.0
+message: "Please cite the exact VitriFit version used in your analysis."
+type: software
+title: "VitriFit: stress relaxation and kinetics analysis"
+version: "2.0.0-rc.1"
+authors:
+  - family-names: Bui
+    given-names: Vo Khoa
+repository-code: "https://github.com/khoabui0311-dev/K-Vitrimer-Analysis"
+license-url: "https://github.com/khoabui0311-dev/K-Vitrimer-Analysis/blob/main/LICENSE"
+abstract: "Offline-capable stress relaxation fitting, kinetics regression, plotting, and scientific result export. Release candidate; numerical verification does not establish physical mechanisms."

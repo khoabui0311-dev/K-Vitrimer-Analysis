@@ -1,11 +1,17 @@
-# K Vitrimer Analysis
+# VitriFit 2.0
 
-**Kinetic Analysis of Vitrimer Relaxation & Kinetics** - Professional stress relaxation analysis software for materials research.
+Stress relaxation fitting and kinetics analysis for materials research.
+Current candidate: **2.0.0-rc.1**. Previously named K Vitrimer Analysis.
+See the [quick-start guide](docs/QUICK_START.md) and
+[candidate release notes](docs/RELEASE_NOTES_2.0.md).
 
 ## Installable offline application (Windows)
 
-Run `K_Vitrimer_Analysis_Setup_1.1.0_x64.exe` from the `dist` folder to install
-the desktop edition. Launch **K Vitrimer Analysis** from the desktop or Start menu.
+Download the installer from the repository's
+[Releases](https://github.com/khoabui0311-dev/K-Vitrimer-Analysis/releases) when published,
+or use a supplied candidate build. Source ZIP downloads do not include installers.
+Run `VitriFit_Setup_2.0.0-rc.1_x64.exe` to install the desktop edition.
+Launch **VitriFit** from the desktop or Start menu.
 The installer includes Python and the analysis libraries; no Python installation
 or internet connection is needed to use it. Windows 10/11 x64 and a web browser
 are required.
@@ -130,24 +136,25 @@ desktop installer for computers that need to remain offline.
 
 If this software supports your research, please cite the version you used:
 
-**Recommended citation (v1.0):**
+**Recommended citation (current candidate):**
 ```
-Bui, V.K. (2025). K Vitrimer Analysis v1.0: Stress relaxation and kinetics software. CY Cergy Paris University. https://github.com/khoabui0311-dev/K-Vitrimer-Analysis
+Bui, V.K. (2026). VitriFit 2.0.0-rc.1: Stress relaxation and kinetics analysis [Computer software]. https://github.com/khoabui0311-dev/K-Vitrimer-Analysis
 ```
 
 **BibTeX:**
 ```
-@software{bui_k_vitrimer_analysis_v1_0,
+@software{bui_vitrifit_2_rc1,
 	author  = {Bui, Vo Khoa},
-	title   = {K Vitrimer Analysis v1.0: Stress relaxation and kinetics software},
-	year    = {2025},
+	title   = {VitriFit: Stress relaxation and kinetics analysis},
+	year    = {2026},
 	url     = {https://github.com/khoabui0311-dev/K-Vitrimer-Analysis},
-	version = {v1.0},
+	version = {2.0.0-rc.1},
 	note    = {Academic and research use license}
 }
 ```
 
 For commercial licensing, please contact khoabui0311@gmail.com.
+Machine-readable citation metadata is in [CITATION.cff](CITATION.cff).
 
 ### Optional long-time plateau and apparent activation energy
 

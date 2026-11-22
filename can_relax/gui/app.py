@@ -28,6 +28,7 @@ from can_relax.core.kinetics import KineticsEngine, predict_van_t_hoff, predict_
 from can_relax.core.tts import TTSEngine
 from can_relax.core.analyzer import CurveAnalyzer
 from can_relax.core.models import PRONY, TAU_INDICES
+from can_relax.version import APP_NAME, VERSION, RELEASE_CHANNEL
 from can_relax.core.spectrum import SpectrumAnalyzer
 
 # Shared Plotly layout for visual consistency across all tabs
@@ -125,10 +126,10 @@ def parse_uploaded_file(uploaded_file):
 # ==========================================
 # 2. APP UI
 # ==========================================
-st.set_page_config(layout="wide", page_title="K Vitrimer Analysis", page_icon="🧪")
+st.set_page_config(layout="wide", page_title=APP_NAME, page_icon="🧪")
 inject_custom_css()
-st.sidebar.title("🧪 K Vitrimer Analysis")
-st.sidebar.caption("v1.1 | Professional Edition")
+st.sidebar.title(f"🧪 {APP_NAME}")
+st.sidebar.caption(f"{VERSION} | {RELEASE_CHANNEL}")
 
 # Init Modules
 sim = MaterialSimulator()
@@ -188,6 +189,10 @@ with tab_analysis:
         if fit_model == PRONY:
             st.latex(r"G(t)=G_\infty+G_1 e^{-t/\tau_1}+G_2 e^{-t/\tau_2}")
             st.caption('Mode 1 is fast and mode 2 is slow. Both are exponential. Mode moduli refer to loading time (t = 0).')
+        with st.expander('How this fit works'):
+            st.markdown('Each temperature is fitted independently. The curve fits do not impose an Arrhenius temperature dependence.')
+            st.caption('The fit uses least squares on modulus normalized by the first retained observation. Automatic trimming and logarithmic downsampling can change which observations enter the fit. Download provenance to retain those settings and point counts.')
+            st.caption('A close curve fit does not establish distinct physical processes. Review residuals, measurement-window coverage and uncertainty before using fitted times in kinetics.')
         plateau_mode = st.selectbox('Long-time plateau', ['Zero', 'Fit', 'Fixed'],
                                     key='plateau_mode', disabled=fit_model == 'Dual_KWW')
         if fit_model == 'Dual_KWW':
@@ -321,7 +326,10 @@ with tab_analysis:
     # DISPLAY
     if 'results' in st.session_state and st.session_state.results:
         all_results = st.session_state.results
-        metadata = {'analysis_id': current_id, 'model': fit_model, 'Tg_C': Tg_input,
+        metadata = {'software': {'name': APP_NAME, 'version': VERSION},
+            'fit_method': 'Independent per-temperature least squares on retained-reference-normalized modulus',
+            'temperature_law_imposed_on_curve_fits': False,
+            'analysis_id': current_id, 'model': fit_model, 'Tg_C': Tg_input,
             'plateau_mode': plateau_mode, 'fixed_plateau_MPa': fixed_plateau if plateau_mode == 'Fixed' else None,
             'cutoff_s': time_cutoff, 'loading_origin_s': time_origin,
             'curve_timing': review_settings, 'excluded_point_numbers': exclusions,
@@ -430,6 +438,7 @@ with tab_analysis:
                     for row, r in zip(fit_details, active_results):
                         fit = r['Fits'][fit_model]
                         row.update({'Plateau mode': fit['plateau_mode'], 'G_inf (MPa)': fit['G_inf'],
+                                    'Software': APP_NAME, 'Software version': VERSION,
                                     'G_inf local SE (MPa)': fit['G_inf_std'],
                                     'Fit flags': '; '.join(fit['flags']) or 'None',
                                     'First fitted time (s)': float(r['Raw']['t'][0]),
@@ -472,6 +481,7 @@ with tab_analysis:
         # 2. KINETICS
         with t2:
             kinetic_component = st.radio('Fitted component', ['Slow (tau2)', 'Fast (tau1)'], horizontal=True) if len(TAU_INDICES[fit_model]) == 2 else None
+            st.caption('Kinetics is a separate regression of extracted relaxation times. A fitted activation energy alone does not validate an Arrhenius law or identify a molecular mechanism.')
             st.caption("G0 denotes the first retained reference modulus, not an inferred zero-time plateau. Raw 1/e requires one observed crossing.")
             k_data = []
             st.session_state.kinetics_df = pd.DataFrame()
@@ -546,7 +556,14 @@ with tab_analysis:
                                 mc2.metric("Regression SE", f"{Ea_std:.1f} kJ/mol" if np.isfinite(Ea_std) else 'Unavailable')
                                 mc3.metric("R\u00b2", f"{r_sq:.4f}")
                                 st.caption(f"{len(active)} curves; {active['Temp'].min():g}–{active['Temp'].max():g} °C. Uncertainty is the regression standard error; it does not propagate uncertainty in each fitted tau.")
+                                ci = fit_res['Ea_CI95']
+                                if ci is not None:
+                                    st.caption(f"95% regression interval for apparent Ea: {ci[0]:.2f} to {ci[1]:.2f} kJ/mol. Assumes independent, equal-variance errors in ln(tau); includes neither uncertainty from fitting each curve nor model inadequacy.")
                                 st.download_button('Download Arrhenius result CSV', pd.DataFrame([{
+                                    'Software': APP_NAME, 'Software version': VERSION,
+                                    'Ea 95% lower (kJ/mol)': ci[0] if ci is not None else None,
+                                    'Ea 95% upper (kJ/mol)': ci[1] if ci is not None else None,
+                                    'Regression warning': fit_res['Warning'],
                                     'Apparent Ea (kJ/mol)': Ea, 'Regression SE (kJ/mol)': Ea_std,
                                     'R2': r_sq, 'Minimum temperature (C)': active['Temp'].min(),
                                     'Maximum temperature (C)': active['Temp'].max(), 'Curves': len(active),

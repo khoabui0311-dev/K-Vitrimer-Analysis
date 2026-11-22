@@ -1,1 +1,1 @@
-__version__ = "1.0.0"
+from can_relax.version import VERSION as __version__
