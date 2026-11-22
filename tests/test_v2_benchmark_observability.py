@@ -136,3 +136,24 @@ def test_unobserved_empirical_crossing_has_no_acquisition_bracket():
         normalized_modulus=(1., .9, .8))
     assert result["measured_crossing_time_s"] is None
     assert result["measured_crossing_bracket_s"] is None
+
+
+def test_exact_threshold_at_first_acquired_point_is_observed():
+    threshold = math.exp(-1)
+    result = relaxation_observability(
+        (10., 20., 30.), model="maxwell", parameters=(100.,),
+        normalized_modulus=(threshold, .3, .2))
+    assert result["measured_crossing_observed"] is True
+    assert result["measured_crossing_time_s"] == pytest.approx(10.)
+    assert result["measured_crossing_bracket_s"] == [10., 10.]
+    assert result["location"] == "after_window"
+
+
+def test_exact_threshold_at_last_acquired_point_is_observed():
+    threshold = math.exp(-1)
+    result = relaxation_observability(
+        (1., 10., 100.), model="maxwell", parameters=(100.,),
+        normalized_modulus=(1., .7, threshold))
+    assert result["measured_crossing_observed"] is True
+    assert result["measured_crossing_time_s"] == pytest.approx(100.)
+    assert result["measured_crossing_bracket_s"] == [10., 100.]
