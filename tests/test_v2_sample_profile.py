@@ -3,7 +3,8 @@ import pytest
 
 from vitrifit2.persistence import VitriFitStore
 from vitrifit2.sample_profile import (
-    attach_measurement_file, create_measurement, create_specimen,\n    get_measurement_file, get_sample_profile, list_measurement_files,
+    attach_measurement_file, create_measurement, create_specimen,
+    get_measurement_file, get_sample_profile, list_measurement_files,
 )
 
 
@@ -61,7 +62,7 @@ def test_raw_file_attachment_survives_restart_and_preserves_bytes(tmp_path):
     measurement = create_measurement(
         store, specimen, "Rheology", "frequency_sweep",
         {"temperature_c": 40, "frequency_hz": 1})
-    raw = b"frequency,Gprime,Gdoubleprime\\n1,1000,100\\n"
+    raw = b"frequency,Gprime,Gdoubleprime\n1,1000,100\n"
     first = attach_measurement_file(
         store, measurement, "sweep.csv", raw, {"instrument": "rheometer"})
     second = attach_measurement_file(store, measurement, "repeat.csv", raw)
