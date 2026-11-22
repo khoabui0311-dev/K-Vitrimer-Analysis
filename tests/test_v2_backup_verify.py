@@ -55,3 +55,13 @@ def test_verify_rejects_unknown_entries(tmp_path):
 def test_verify_rejects_bad_archive():
     with pytest.raises(ValueError):
         verify_backup_bytes(b"not a ZIP")
+
+
+def test_verify_rejects_invalid_sqlite_snapshot():
+    payload = io.BytesIO()
+    with zipfile.ZipFile(payload, "w") as archive:
+        archive.writestr("manifest.json", json.dumps({
+            "format": "vitrifit2-backup-v2", "original_file_hashes": []}))
+        archive.writestr("vitrifit.sqlite3", b"not a sqlite database")
+    with pytest.raises(ValueError, match="Invalid or incomplete"):
+        verify_backup_bytes(payload.getvalue())
