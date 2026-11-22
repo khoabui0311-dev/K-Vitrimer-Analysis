@@ -21,6 +21,17 @@ def verify_backup_bytes(payload: bytes) -> dict:
         raise ValueError("Nonempty ZIP backup bytes required")
     try:
         with ZipFile(io.BytesIO(payload)) as archive:
+            # Reject oversized or suspiciously compressed ZIP entries before reading.
+            entries = archive.infolist()
+            if len(entries) > 100_000:
+                raise ValueError("Too many backup entries")
+            if sum(item.file_size for item in entries) > 2 * 1024**3:
+                raise ValueError("Backup exceeds 2 GiB uncompressed verification limit")
+            if any(item.file_size > 1024**3 for item in entries):
+                raise ValueError("Oversized backup entry")
+            if any(item.file_size > 100 * max(1, item.compress_size)
+                   and item.file_size > 1024**2 for item in entries):
+                raise ValueError("Suspicious archive compression ratio")
             names = archive.namelist()
             if len(names) != len(set(names)):
                 raise ValueError("Duplicate ZIP entry names are unsafe")
