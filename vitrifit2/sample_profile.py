@@ -16,6 +16,16 @@ TECHNIQUES = frozenset(("DMA", "DSC", "Rheology", "Tensile"))
 METHODS = frozenset(("stress_relaxation", "amplitude_sweep",
                      "frequency_sweep", "temperature_ramp",
                      "tensile_test", "calorimetry", "other"))
+# Reject scientifically misleading combinations at the metadata boundary.
+# "other" remains available for explicitly unsupported instrument modes.
+TECHNIQUE_METHODS = {
+    "DMA": frozenset(("temperature_ramp", "frequency_sweep",
+                      "stress_relaxation", "other")),
+    "DSC": frozenset(("calorimetry", "other")),
+    "Rheology": frozenset(("amplitude_sweep", "frequency_sweep",
+                           "stress_relaxation", "other")),
+    "Tensile": frozenset(("tensile_test", "other")),
+}
 
 
 def ensure_sample_profile_schema(store):
@@ -73,6 +83,8 @@ def create_measurement(store, specimen_id, technique, method, conditions=None):
     ensure_sample_profile_schema(store)
     if technique not in TECHNIQUES or method not in METHODS:
         raise ValueError("Unsupported technique or method")
+    if method not in TECHNIQUE_METHODS[technique]:
+        raise ValueError("Technique/method mismatch")
     conditions = {} if conditions is None else conditions
     if not isinstance(conditions, dict):
         raise ValueError("Measurement conditions must be a dictionary")
