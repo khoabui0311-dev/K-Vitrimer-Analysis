@@ -16,6 +16,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from .comparison import compare_runs
+from .comparison_export import comparison_csv
 from .import_adapter import import_relaxation_upload, preview_relaxation_upload
 from .persistence import VitriFitStore
 from .publication_export import export_publication_figure
@@ -244,6 +245,19 @@ def save_comparison(req: SavedComparison, store: VitriFitStore = Depends(get_sto
 @app.get("/api/comparisons/{comparison_id}")
 def load_comparison(comparison_id: str, store: VitriFitStore = Depends(get_store)):
     return store.get_comparison(comparison_id)
+
+
+@app.get("/api/comparisons/{comparison_id}/export.csv")
+def export_comparison_csv(comparison_id: str,
+                          store: VitriFitStore = Depends(get_store)):
+    """Download a reproducible comparison table with analysis revision IDs."""
+    payload = comparison_csv(store, comparison_id)
+    return Response(
+        content=payload.encode("utf-8-sig"),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="vitrifit-comparison.csv"',
+                 "Cache-Control": "no-store"},
+    )
 
 
 @app.get("/api/figures/presets")
