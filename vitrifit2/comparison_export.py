@@ -62,7 +62,7 @@ def comparison_csv(store: VitriFitStore, comparison_id: str) -> str:
     # Sample and project names are user-controlled. Prevent spreadsheet apps
     # from interpreting them as formulas when the CSV is opened.
     def safe_cell(value):
-        if isinstance(value, str) and value.lstrip(" \\t\\r\\n").startswith(
+        if isinstance(value, str) and value.lstrip().startswith(
                 ("=", "+", "-", "@")):
             return "'" + value
         return value
