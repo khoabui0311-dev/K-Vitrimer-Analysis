@@ -115,3 +115,48 @@ def test_verified_backup_round_trip_preserves_specimen_file_bytes(tmp_path):
     assert list_measurement_files(restored, measurement) == list_measurement_files(source, measurement)
     assert get_measurement_file(restored, file_id) == original
     assert verify_backup_bytes(restored.export_backup_bytes())["status"] == "verified"
+
+
+def test_backup_restore_preserves_trim_history_fits_comparisons_and_figures(tmp_path):
+    """A restored workspace must reproduce manuscript analysis provenance."""
+    source = VitriFitStore(tmp_path / "source-analysis")
+    project = source.create_project("Vitrimer kinetics")
+    sample = source.create_sample(project, "VUGT")
+    experiment = source.import_experiment(sample, "raw.csv", b"immutable-raw", [
+        {"source_curve_id": "70C", "temperature_c": 70,
+         "time_s": [.01, 1, 2, 3, 4, 5],
+         "modulus_mpa": [1., .9, .8, .7, .6, .5]},
+        {"source_curve_id": "100C", "temperature_c": 100,
+         "time_s": [.01, 1, 2, 3, 4, 5],
+         "modulus_mpa": [1., .8, .6, .4, .3, .2]},
+    ])
+    first, second = experiment["curve_ids"]
+    run_a = source.save_analysis(first, "KWW", "KWW_tau", {}, {"tau_s": 100})
+    revision = source.apply_region(first, "keep", 1, 4)
+    run_b = source.save_analysis(second, "KWW", "KWW_tau", {}, {"tau_s": 30})
+    comparison = source.save_comparison("kinetics", "kinetics", [run_a, run_b])
+    preset = source.save_figure_preset("ACS", {"pub_rel_lw": 1.5})
+    figure = source.save_figure("Figure 1", [run_a, run_b], preset,
+                                {"panels": ["a", "b"]})
+    assert not source.get_analysis(run_a)["is_current"]
+    backup = source.export_backup_bytes()
+    assert verify_backup_bytes(backup)["status"] == "verified"
+    restored_dir = tmp_path / "restored-analysis"
+    restored_dir.mkdir()
+    with zipfile.ZipFile(io.BytesIO(backup)) as archive:
+        for name in archive.namelist():
+            destination = restored_dir / name
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes(archive.read(name))
+    restored = VitriFitStore(restored_dir)
+    assert restored.get_original_file(experiment["experiment_id"]) == b"immutable-raw"
+    assert restored.get_curve(first) == source.get_curve(first)
+    assert restored.get_curve_revision(first, revision) == source.get_curve_revision(first, revision)
+    assert restored.get_analysis(run_a) == source.get_analysis(run_a)
+    assert restored.get_analysis(run_b) == source.get_analysis(run_b)
+    assert restored.get_comparison(comparison) == source.get_comparison(comparison)
+    assert restored.get_figure_preset(preset) == source.get_figure_preset(preset)
+    assert restored.get_figure(figure) == source.get_figure(figure)
+    assert restored.undo(first) == source.undo(first)
+    assert restored.get_analysis(run_a)["is_current"]
+    assert verify_backup_bytes(restored.export_backup_bytes())["status"] == "verified"
