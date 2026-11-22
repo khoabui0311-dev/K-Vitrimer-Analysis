@@ -101,6 +101,13 @@ def analyze_rheology_csv(store, measurement_id, filename, raw_bytes, *,
             plateau_points=plateau_points,
             departure_fraction=departure_fraction,
             max_plateau_cv=max_plateau_cv)
+    # Preserve original observation order in analysis results for inspectable
+    # browser plots. Raw bytes remain the authoritative immutable source.
+    if method == "amplitude_sweep":
+        scale = {"Pa": 1, "kPa": 1e3, "MPa": 1e6}[modulus_unit]
+        result["observations"] = {
+            "strain_percent": data["strain_percent"],
+            "storage_modulus_pa": [v * scale for v in data["storage_modulus"]]}
     config = {"columns": columns, "frequency_unit": frequency_unit,
               "modulus_unit": modulus_unit, "plateau_points": plateau_points,
               "departure_fraction": departure_fraction,
@@ -111,7 +118,7 @@ def analyze_rheology_csv(store, measurement_id, filename, raw_bytes, *,
     with store._db() as db:
         db.execute("INSERT INTO v2_measurement_analyses VALUES (?,?,?,?,?,?,?,?)",
                    (analysis_id, measurement_id, file_id, method,
-                    "rheology_csv_v1", _json(config), _json(result), _now()))
+                    "rheology_csv_v2", _json(config), _json(result), _now()))
     return analysis_id
 
 
