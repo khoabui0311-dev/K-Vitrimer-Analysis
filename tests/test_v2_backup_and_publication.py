@@ -44,7 +44,7 @@ def test_backup_roundtrip_original_upload_and_sqlite(tmp_path):
     backup = store.export_backup_bytes()
     with ZipFile(BytesIO(backup)) as archive:
         manifest = json.loads(archive.read("manifest.json"))
-        assert manifest["format"] == "vitrifit2-backup-v1"
+        assert manifest["format"] == "vitrifit2-backup-v2"
         digest = hashlib.sha256(raw).hexdigest()
         assert archive.read("raw_blobs/" + digest) == raw
         # Restoration to a separate directory, matching documented manual recovery.
