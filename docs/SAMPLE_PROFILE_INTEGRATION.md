@@ -45,8 +45,8 @@ manifest and the raw files. The API can download individual original bytes.
 
 - This adapter accepts explicit UTF-8 CSV only, not proprietary instrument
   formats, XLS or auto-detected columns.
-- DMA, DSC and tensile can be registered as metadata, but their sample-profile
-  import/analysis interfaces are **not yet connected**.
+- DMA temperature ramps, DSC traces and tensile tests now have explicit-CSV
+  import, persisted analysis and measured-data plots. This does not imply\n  validated instrument-specific parsing or publication-ready transition fits.
 - The current comparison requires exact metadata equality on user-selected
   keys. The user must select scientifically meaningful conditions.
 - A single-frequency oscillatory LVR measurement cannot certify a full
@@ -72,3 +72,30 @@ manifest and the raw files. The API can download individual original bytes.
 6. Verify existing v1 projects and trim/undo/redo still work unchanged.
 
 Do not merge this feature branch into main until those checks pass.
+
+## Additional thermal and mechanical CSV adapters
+
+**DMA temperature ramp:** header columns mapped to `temperature_c`,
+`storage_modulus` and `loss_modulus`. Choose Pa, kPa, MPa or GPa.
+The reported tan-delta maximum is an observed peak candidate only if the
+maximum is internal to the measured range; it is not automatically a Tg onset.
+Split cooling/heating loops before import; this adapter requires strictly
+increasing temperatures.
+
+**DSC:** map `temperature_c` and `heat_flow`; specify units (mW, W,
+W/g or mW/mg) and heating rate if known. Plots preserve the raw sign
+convention. Tg onset and enthalpy are intentionally not assigned: reliable
+results require a user-selected baseline, sample mass and sign convention.
+
+**Tensile:** map `displacement_mm` and `force_n`, then enter original
+gauge length, width and thickness in mm. Young's modulus uses only measured
+points within the explicit fit window. True stress assumes constant volume
+and homogeneous deformation. Crosshead extension is not necessarily local
+gauge strain; last point is not automatically fracture.
+
+Run `pytest -q tests/test_v2_thermal_workflow.py tests/test_v2_thermal_api.py tests/test_v2_tensile_workflow.py tests/test_v2_tensile_api.py`
+in addition to the existing v2 tests. All are committed but have **not**
+been executed in the current development session.
+
+The local environment cannot resolve github.com for cloning; a full
+repository build and test run must be completed before merging.
