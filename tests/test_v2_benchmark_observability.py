@@ -7,7 +7,8 @@ from vitrifit2.benchmark_observability import relaxation_observability
 def test_maxwell_crossing_inside_window():
     result = relaxation_observability((.01, 10., 100., 1000.),
                                       model="maxwell", parameters=(100.,))
-    assert result["predicted_crossing_within_window"] is True\n    assert result["measured_crossing_observed"] is False
+    assert result["predicted_crossing_within_window"] is True
+    assert result["measured_crossing_observed"] is False
     assert result["crossing_time_s"] == pytest.approx(100.)
 
 
