@@ -22,6 +22,7 @@ from .rheology_manifest import export_rheology_manifest_json
 from .tensile_workflow import import_tensile_csv, get_tensile_analysis, list_tensile_analyses
 from .thermal_workflow import import_thermal_csv, get_thermal_analysis, list_thermal_analyses
 from .sample_manifest import export_sample_analysis_manifest
+from .backup_verify import verify_backup_bytes
 
 router = APIRouter(prefix="/api/v2", tags=["Sample profiles and rheology"])
 MAX_UPLOAD = 50 * 1024 * 1024
@@ -266,3 +267,17 @@ def sample_manifest(req: ManifestInput,
     return Response(content, media_type="application/json",
                     headers={"Content-Disposition":
                              'attachment; filename="vitrifit-sample-analysis-manifest.json"'})
+
+
+@router.post("/backup/verify")
+async def verify_uploaded_backup(file: UploadFile = File(...)):
+    """Validate an archive in memory; never extract or overwrite workspace."""
+    # Prevent unbounded multipart uploads from exhausting local memory.
+    max_archive_bytes = 512 * 1024 * 1024
+    payload = await file.read(max_archive_bytes + 1)
+    if len(payload) > max_archive_bytes:
+        raise HTTPException(413, "Backup exceeds 512 MiB verification limit")
+    try:
+        return verify_backup_bytes(payload)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
