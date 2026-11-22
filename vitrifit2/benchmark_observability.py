@@ -2,7 +2,8 @@
 
 A fitted relaxation time outside the observed window is extrapolative.
 This module uses observed time limits and the model's predicted 1/e crossing
-to distinguish within-window predictions from extrapolation.\nMeasured threshold crossings require actual measured response values.
+to distinguish within-window predictions from extrapolation.
+Measured threshold crossings require actual measured response values.
 """
 from __future__ import annotations
 
@@ -75,7 +76,9 @@ def relaxation_observability(time_s, *, model, parameters,
         "first_observed_time_s": first,
         "last_observed_time_s": last,
         "location": location,
-        "predicted_crossing_within_window": location == "inside_window",\n        "measured_crossing_time_s": empirical_crossing,\n        "measured_crossing_observed": empirical_crossing is not None,
+        "predicted_crossing_within_window": location == "inside_window",
+        "measured_crossing_time_s": empirical_crossing,
+        "measured_crossing_observed": empirical_crossing is not None,
         "warning": (None if location == "inside_window" else
                     "Predicted crossing lies outside measurement window; "
                     "reported characteristic time is extrapolated"),
