@@ -239,3 +239,12 @@ def test_unobserved_crossing_has_no_model_measured_ratio():
         (1., 10., 100.), model="maxwell", parameters=(10.,),
         normalized_modulus=(.9, .8, .7))
     assert result["model_measured_crossing_ratio"] is None
+
+
+def test_extreme_finite_crossing_disagreement_still_warns():
+    result = relaxation_observability(
+        (1e-300, 1e-200, 1e-100), model="maxwell", parameters=(1e100,),
+        normalized_modulus=(.9, .2, .1))
+    assert result["model_measured_crossing_ratio"] is None
+    assert "factor of two" in result["warning"]
+    assert result["location"] == "after_window"
