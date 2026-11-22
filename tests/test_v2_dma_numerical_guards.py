@@ -24,3 +24,15 @@ def test_dma_interior_peak_is_not_dsc_tg_onset():
                               [1, 3, 2, 1])
     assert result["tan_delta_peak_temperature_c"] == 30
     assert "not a DSC Tg onset" in result["warning"]
+
+
+@pytest.mark.parametrize("loss_modulus", [
+    [1, 1, 1, 1, 1],
+    [1, 3, 3, 2, 1],
+    [1, 3, 2, 3, 1],
+])
+def test_dma_flat_or_tied_maximum_does_not_invent_alpha_peak(loss_modulus):
+    result = analyze_dma_ramp([20, 30, 40, 50, 60],
+                              [100] * 5, loss_modulus)
+    assert result["tan_delta_peak_temperature_c"] is None
+    assert result["tan_delta_peak_is_interior"] is False
