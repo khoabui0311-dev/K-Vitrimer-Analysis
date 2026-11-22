@@ -65,3 +65,13 @@ def test_verify_rejects_invalid_sqlite_snapshot():
         archive.writestr("vitrifit.sqlite3", b"not a sqlite database")
     with pytest.raises(ValueError, match="Invalid or incomplete"):
         verify_backup_bytes(payload.getvalue())
+
+
+@pytest.mark.parametrize("manifest", [[], None, "not an object", 42])
+def test_verify_rejects_non_object_manifest_with_clear_error(manifest):
+    payload = io.BytesIO()
+    with zipfile.ZipFile(payload, "w") as archive:
+        archive.writestr("manifest.json", json.dumps(manifest))
+        archive.writestr("vitrifit.sqlite3", b"placeholder")
+    with pytest.raises(ValueError, match="manifest must be a JSON object"):
+        verify_backup_bytes(payload.getvalue())
