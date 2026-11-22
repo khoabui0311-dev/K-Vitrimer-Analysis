@@ -85,3 +85,7 @@ footer{color:#9ba8b8;font-size:11px;margin-top:24px}
 .profile-analysis{border-top:1px solid #e2e9f1;margin-top:18px;padding-top:16px}
 .profile-json{overflow:auto;max-height:360px;white-space:pre-wrap;overflow-wrap:anywhere;background:#f6f8fb;border:1px solid #e2e9f1;border-radius:8px;padding:14px;font-size:11px}
 @media(max-width:700px){.profile-techniques{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+.profile-analysis-row{display:flex;align-items:center;gap:10px;border-bottom:1px solid #edf1f5;padding-left:10px}
+.profile-analysis-row input[type=checkbox]{accent-color:#255ca9;width:16px;height:16px;flex:none}
+.profile-analysis-row .profile-measurement{flex:1;border-bottom:0}
