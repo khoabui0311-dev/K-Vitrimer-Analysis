@@ -31,7 +31,7 @@ def test_project_roundtrip_preserves_original_bytes_and_recipe():
 
 
 @pytest.mark.parametrize('mutation', [
-    lambda d: d.update(schema_version=2),
+    lambda d: d.update(schema_version=999),
     lambda d: d['source'].update(sha256='0'*64),
     lambda d: d['source'].update(filename='../elsewhere.csv'),
     lambda d: d['source'].update(base64='not base64!'),

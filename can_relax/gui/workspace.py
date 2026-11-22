@@ -6,7 +6,9 @@ import streamlit as st
 from can_relax.core.state import analysis_identity, clear_analysis
 from can_relax.core.selection import prepare_curve
 from can_relax.io.project import DEFAULT_SETTINGS, load_project, save_project
+from can_relax.io.project_options import DEFAULT_OPTIONS
 from can_relax.version import VERSION
+from can_relax.io.figure_style import apply_style, capture_style
 
 
 def source_file(data, filename):
@@ -24,14 +26,30 @@ def open_project(state, data, parse_source):
         raise ValueError('Saved curve settings do not match the source data.')
     if project['selected_curves'] is not None and not set(project['selected_curves']).issubset(curve_ids):
         raise ValueError('Saved curve selection does not match the source data.')
+    options = project['options']
+    if not set(options['kinetics_exclusions']).issubset(curve_ids):
+        raise ValueError('Saved kinetics selection does not match the source data.')
+    reference = options['tts_reference_curve']
+    if reference is not None and (reference not in curve_ids or
+            next(r['Temp'] for r in curves if r['Curve_ID'] == reference) != options['tts_reference_temp']):
+        raise ValueError('Saved reference curve does not match the reference temperature.')
+    if options['tts_reference_temp'] is not None and options['tts_reference_temp'] not in [r['Temp'] for r in curves]:
+        raise ValueError('Saved reference temperature is not in the source data.')
     for record in curves:
         prepare_curve(record['Data'], **project['curve_timing'][record['Curve_ID']],
                       excluded=project['point_exclusions'].get(record['Curve_ID'], []))
     clear_analysis(state)
     for key in list(state):
-        if key.startswith(('timing_', 'points_', 'selection_', 'review_curve_')):
+        if key.startswith(('timing_', 'points_', 'selection_', 'review_curve_', 'point_review_', 'kinetics_editor_', 'tts_reference_')):
             state.pop(key, None)
     state.update(project['settings'])
+    state.update(options)
+    apply_style(state, project['publication_style'])
+    state.pop('figure_style_undo', None)
+    state['publication_format_name'] = 'Project figure format'
+    state['restore_kinetics_exclusions'] = options['kinetics_exclusions']
+    state.pop('kinetics_exclusion_context', None)
+    state['project_regenerate_master'] = options['tts_generated']
     state['use_example_data'] = False
     state['project_source'] = source_file(project['source_bytes'], project['filename'])
     state['source_epoch'] = state.get('source_epoch', 0) + 1
@@ -46,10 +64,15 @@ def open_project(state, data, parse_source):
     state['project_restore_selection'] = project['selected_curves']
     state['project_rerun_analysis'] = project['analysed']
     state['project_notice'] = (f"Opened {project['filename']}. Data, point exclusions and fit settings restored. "
-                               'Saved analyses are recalculated; downstream kinetics, mastercurve and plot choices must be reviewed again.')
+                               'Kinetics, spectrum, curve display and publication formatting restored. Saved analyses and mastercurves are recalculated.')
     if project['saved_version'] != VERSION:
         state['project_notice'] += f" Saved with {project['saved_version']}; running {VERSION}. Results may differ."
+    if project['schema_version'] == 1:
+        state['project_notice'] += ' This older project has no downstream choices; defaults were used for those settings.'
+    if project['schema_version'] < 3:
+        state['project_notice'] += ' This older project has no publication formatting; default formatting was used.'
     state.pop('model_comparison', None)
+    state.pop('prepared_report', None)
 
 
 def render_project_open(parse_source):
@@ -71,16 +94,23 @@ def render_project_save(source, filename, timing, exclusions, current_id):
     settings = {key: st.session_state.get(key, value) for key, value in DEFAULT_SETTINGS.items()}
     if settings['analysis_fit_model'] == 'Dual_KWW':
         settings['plateau_mode'] = 'Zero'
+    options = {key: st.session_state.get(key, value) for key, value in DEFAULT_OPTIONS.items()}
+    options['tts_generated'] = bool(st.session_state.get('master_data'))
+    is_current = bool(st.session_state.get('results')) and st.session_state.get('analysis_id') == current_id
+    if not is_current:
+        options.update(kinetics_exclusions=[], tts_reference_temp=None, tts_reference_curve=None, tts_generated=False)
     recipe = {'settings': settings, 'curve_timing': timing, 'point_exclusions': exclusions,
+              'options': options,
               'selected_curves': st.session_state.get(f'selection_{current_id}'),
-              'analysed': bool(st.session_state.get('results')) and st.session_state.get('analysis_id') == current_id}
+              'analysed': is_current}
     with st.sidebar.container():
         st.subheader('Keep your work')
         try:
+            recipe['publication_style'] = capture_style(st.session_state)
             data = save_project(source, filename, recipe)
             st.download_button('Save project', data, 'analysis.vfit', mime='application/json',
                                key='save_project', width='stretch')
-            st.caption('Includes source data, model, timing, excluded points and selected curves. Keep exported figures and downstream results separately.')
+            st.caption('Includes source data, analysis choices, report notes and publication formatting. Keep exported results separately as a record of this calculation.')
         except ValueError as exc:
             st.warning(str(exc))
 

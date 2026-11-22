@@ -4,6 +4,25 @@ import subprocess
 from desktop.launcher import LocalServer, resource_root, server_options
 
 
+def test_offline_guard_blocks_dns_and_both_connection_methods():
+    import socket
+    import pytest
+    from desktop.offline import block_external_connections
+    before = (socket.socket.connect, socket.socket.connect_ex, socket.getaddrinfo)
+    restore = block_external_connections()
+    try:
+        with socket.socket() as sock:
+            for method in (sock.connect, sock.connect_ex):
+                with pytest.raises(RuntimeError, match='non-loopback'):
+                    method(('192.0.2.1', 443))
+        with pytest.raises(RuntimeError, match='non-loopback'):
+            socket.getaddrinfo('example.invalid', 443)
+        assert socket.getaddrinfo('127.0.0.1', 80)
+    finally:
+        restore()
+    assert (socket.socket.connect, socket.socket.connect_ex, socket.getaddrinfo) == before
+
+
 def test_desktop_resources_and_local_only_configuration():
     root = resource_root()
     assert (root / 'can_relax/gui/app.py').is_file()

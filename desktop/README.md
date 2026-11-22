@@ -7,9 +7,9 @@ in the user's web browser; a small native launcher starts and stops the server.
 
 ## Install and use
 
-1. Run `dist/VitriFit_Setup_2.0.0-rc.1_x64.exe`.
+1. Run `dist/VitriFit_Setup_2.0.0-rc.2_x64.exe`.
 2. Launch **VitriFit** from the desktop or Start menu.
-3. Use the browser interface normally. Save downloaded results before quitting.
+3. Use the browser interface normally. Save your project and results before quitting.
 4. Click **Quit** in the launcher to stop the server. Closing the browser tab alone
    does not stop it; **Open application** reopens the interface.
 
@@ -22,9 +22,9 @@ The installer does not require administrator privileges. It installs under
 Windows Settings > Apps. Diagnostic logs are under
 `%LOCALAPPDATA%\VitriFit`; these are retained after uninstall.
 
-This first build is unsigned. Windows may display an unknown-publisher warning.
-Public distribution should add publisher code signing and testing on clean
-Windows machines. macOS and Linux installers are not included.
+This candidate is unsigned. Windows may display an unknown-publisher warning.
+Publisher code signing remains future work. Clean-runner verification reports
+are attached to the release. macOS and Linux installers are not included.
 
 ## Build
 
@@ -45,16 +45,17 @@ is required for portable use. The Setup EXE includes that complete folder.
 Outputs under ignored `dist/`:
 
 - `VitriFit/`: complete portable application.
-- `VitriFit_Setup_2.0.0-rc.1_x64.exe`: installable package.
-- `VitriFit_Setup_2.0.0-rc.1_x64.exe.sha256`: download verification hash.
+- `VitriFit_Setup_2.0.0-rc.2_x64.exe`: installable package.
+- `VitriFit_Setup_2.0.0-rc.2_x64.exe.sha256`: download verification hash.
 - `desktop-self-test.json`: packaged application verification report.
 - `release-manifest.json`: version, source commit/hashes, dependency versions and artifact hashes.
 
 The build refuses to produce an installer if its bundled self-test fails. That
-test checks HTTP startup and frontend JavaScript, four example curve analyses,
-mastercurve generation, Excel reading/writing, and TIFF/JPEG/PDF/SVG exports.
-It blocks outbound socket connections in the analysis test process. The HTTP
-server runs in a separate process, so this is not a system-wide network block.
+test checks HTTP startup and frontend JavaScript, CSV import and bulk review,
+four curve analyses, project saving/fresh-session reopening, report/format
+exports, mastercurve generation, Excel reading/writing, and TIFF/JPEG/PDF/SVG.
+It blocks Python DNS/connect/connect_ex outside loopback in both the analysis
+test process and the separate HTTP server. This is not an OS-wide network block.
 The regression suite separately checks launching from another working folder
 and server shutdown. The Windows parent-process watcher stops orphaned servers.
 
@@ -62,7 +63,7 @@ Run the same test on a portable or installed build:
 
 ```powershell
 $exe = 'C:\path\to\VitriFit.exe'
-Start-Process -FilePath $exe -ArgumentList '--self-test "C:\path\to\report.json"' -Wait
+Start-Process -FilePath $exe -ArgumentList '--self-test "C:\path\to\report.json"' -WindowStyle Hidden -Wait
 Get-Content 'C:\path\to\report.json'
 ```
 
@@ -71,6 +72,13 @@ On a Windows account without an existing installation, run
 run the installed application from another working folder without Python on PATH,
 and uninstall the test copy. It avoids creating shortcuts during the test and
 refuses to overwrite an existing installation.
+
+For upgrades, pass `-PreviousInstaller 'C:\path\to\previous-setup.exe'
+-TestName upgrade-trial`. The test installs the previous version in a new
+test folder, creates three user-file sentinels, upgrades using the registered
+location, verifies the new app, uninstalls, and checks the sentinels are unchanged.
+It leaves preserved sentinels and JSON evidence under `dist/` for inspection.
+CI downloads the published rc.1 installer with a pinned SHA-256 before this test.
 
 Third-party license files and package metadata are bundled under `_internal`.
 The application remains covered by the repository's Academic and Research License.

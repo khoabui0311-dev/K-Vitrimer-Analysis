@@ -1,32 +1,47 @@
 # VitriFit 2.0
 
 Stress relaxation fitting and kinetics analysis for materials research.
-This development branch contains **2.0.0-dev.2**, the new workspace preview.
-The published Windows candidate remains **2.0.0-rc.1** and does not contain
-these new workspace features. Previously named K Vitrimer Analysis.
+Version **2.0.0-rc.2** brings saved projects, bulk point review, analysis reports
+and reusable publication formats to the Windows release candidate.
+Previously named K Vitrimer Analysis. This is a prerelease for research evaluation.
 See the [quick-start guide](docs/QUICK_START.md) and
 [candidate release notes](docs/RELEASE_NOTES_2.0.md).
 
-## New workspace preview
+## New in the 2.0 workspace
 
 - Import data and choose the model in the main workspace, with dataset and fit-review summaries.
+- Exclude or restore groups of measurements using a graph box/lasso, point-number
+  ranges, or elapsed-time intervals. Undo edits and restore all manual exclusions.
 - Save a `.vfit` project containing the original CSV/XLSX, model settings, curve timing,
-  point exclusions and selected curves. Reopening restores the recipe and recalculates
-  an analysis that had been run. Kinetics selections, mastercurves and plot styling
-  must be reviewed again; export those results separately.
+  point exclusions, selected curves, kinetics model/component/exclusions, mastercurve
+  reference and normalization, spectrum settings, curve display choices and report notes.
+  Publication formatting is included: figure dimensions, fonts, colors, labels,
+  legends, display axes, visibility and export resolution.
+  Reopening restores the recipe and recalculates an analysis and mastercurve that had
+  been generated. Older `.vfit` files remain readable, using defaults for new choices.
 - Compare Maxwell, single KWW and two-Maxwell for one curve using the same retained
   observations and plateau policy. Inspect fit overlays, residuals, AICc/BIC and warnings,
   then explicitly choose a model to refit all temperatures.
+- Prepare a self-contained HTML analysis report and a strict JSON numerical snapshot
+  from the **Report** tab. The report includes selected curves, residuals, parameters,
+  kinetics, available mastercurves/comparisons, spectrum estimates and provenance.
+  Downloads are invalidated when their inputs change. Reports open offline and can
+  be printed to PDF using the browser.
+- Show or hide fitted curves in each publication figure. Export RGB SVG/PDF for
+  scalable figures, or TIFF/JPEG using the selected resolution and color space.
+- Save reusable `.vstyle` figure formats from **Publish** and apply them to other
+  datasets. Format files contain display settings only, with no measurements.
 
-Run the preview from this branch using the source instructions below.
 See [the workspace guide](docs/WORKSPACE_PREVIEW.md) for a complete walkthrough.
+See [candidate validation](docs/VALIDATION_2.0_RC2.md) for experimental stability
+findings and the limits of the checks.
 
 ## Installable offline application (Windows)
 
 Download the installer from the repository's
 [Releases](https://github.com/khoabui0311-dev/K-Vitrimer-Analysis/releases) when published,
 or use a supplied candidate build. Source ZIP downloads do not include installers.
-Run `VitriFit_Setup_2.0.0-rc.1_x64.exe` to install the desktop edition.
+Run `VitriFit_Setup_2.0.0-rc.2_x64.exe` to install the desktop edition.
 Launch **VitriFit** from the desktop or Start menu.
 The installer includes Python and the analysis libraries; no Python installation
 or internet connection is needed to use it. Windows 10/11 x64 and a web browser

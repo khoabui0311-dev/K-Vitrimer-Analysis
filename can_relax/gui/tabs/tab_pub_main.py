@@ -12,11 +12,25 @@ from PIL import Image
 import matplotlib.mathtext as mathtext
 from can_relax.core.kinetics import KineticsEngine, predict_van_t_hoff
 from can_relax.gui.labels import curve_labels
-from can_relax.gui.exporting import figure_bytes
+from can_relax.gui.exporting import figure_bytes, MIME_TYPES
 from can_relax.core.extrapolation import maxwell_equivalent_tv
+from can_relax.gui.figure_style import render_style_controls, render_style_download
+from can_relax.io.figure_style import JOURNAL_SIZES
 
 def save_and_download(fig, title_prefix, pub_colorspace, key_suffix):
-    # High-resolution files are prepared only on request, not on every UI rerun.
+    # Render exports only on request. Each rerun drops old downloads so changed
+    # styles, selections and visibility cannot silently export an earlier figure.
+    st.caption('SVG and PDF keep lines and text sharp when resized. These exports use RGB; TIFF/JPEG use the selected color space.')
+    if st.button('Prepare SVG / PDF downloads', key=f'prepare_vector_{key_suffix}'):
+        for column, fmt in zip(st.columns(2), ('svg', 'pdf')):
+            with column:
+                try:
+                    content = figure_bytes(fig, fmt, colorspace='RGB')
+                    st.download_button(f'Download {fmt.upper()} (vector)', content,
+                        f'{title_prefix}_RGB.{fmt}', mime=MIME_TYPES[fmt],
+                        key=f'dl_{fmt}_{key_suffix}', on_click='ignore')
+                except ValueError as exc:
+                    st.error(f'{fmt.upper()}: {exc}')
     tiff_dpi = st.selectbox('TIFF resolution (DPI)', [300, 600, 1200], index=2, key=f'tiff_dpi_{key_suffix}')
     if not st.button('Prepare TIFF / JPEG downloads', key=f'prepare_{key_suffix}'):
         return
@@ -62,7 +76,7 @@ def _render_figure1(pan_settings, pan_preview, active_res, glob, auto_bounds):
                 with ax3c: x_unit_select = st.selectbox("Time Unit", ["Seconds (s)", "Minutes (min)", "Hours (h)"], key="pub_xunit")
                 
                 chk1, chk2, chk3 = st.columns(3)
-                with chk1: show_fit_pub = st.checkbox("Fits", value=False, key="pub_showfit")
+                with chk1: show_fit_pub = st.checkbox("Show fitted curves", value=False, key="pub_showfit")
                 with chk2: show_tau_star = st.checkbox("τ* mark", value=True, key="pub_taustar")
                 with chk3: annotate_tau_star = st.checkbox("τ* label", value=False, key="pub_taulabel")
 
@@ -234,12 +248,13 @@ def _render_figure2(pan_settings, pan_preview, active_res, kinetics_df, glob, au
                     pl_y_2 = st.number_input("Y pos ", -1.0, 2.0, 1.02, 0.01, key="ply_2")
 
                 tau_kin_model = st.selectbox("Tau Kinetics Model", ["Arrhenius", "VFT"], key="f2_model")
+                show_kin_fit = st.checkbox("Show fitted line", value=True, key="pub_kin_showfit")
                 chk4, chk5 = st.columns(2)
                 with chk4: show_tv = st.checkbox("Show T_v", value=True, key="pub_showtv", disabled=(tau_kin_model != "Arrhenius"))
                 with chk5: show_ea_std = st.checkbox("Ea ± std", value=True, key="pub_eastd", disabled=(tau_kin_model != "Arrhenius"))
 
                 kc1, kc2 = st.columns(2)
-                with kc1: kin_line_width = st.slider("Fit Line Width", 0.5, 6.0, 1.5, 0.5, key="pub_kin_lw")
+                with kc1: kin_line_width = st.slider("Fit Line Width", 0.5, 6.0, 1.5, 0.5, key="pub_kin_lw", disabled=not show_kin_fit)
                 with kc2: kin_marker_size = st.slider("Data Marker Size", 1, 15, 6, 1, key="pub_kin_ms")
 
                 kin_font_family = st.selectbox("Font Family ", ["Arial", "Times New Roman", "Courier New", "DejaVu Sans"], key="pub_kinfont_family")
@@ -294,11 +309,11 @@ def _render_figure2(pan_settings, pan_preview, active_res, kinetics_df, glob, au
                         tau_target_pub = 1e12 / G_Pa_pub
                         ln_tau_t_pub = np.log(tau_target_pub)
                         Tv_pub = maxwell_equivalent_tv(slope_pub, intercept_pub, G_prime_input)
-                        st.caption('Tv is a Maxwell-equivalent extrapolation using the supplied modulus and selected characteristic time. It is not a KWW integral-viscosity estimate or evidence of a topology transition.')
+                        st.caption('Tv is extrapolated using the supplied modulus and selected characteristic time. It is not a KWW integral-viscosity estimate or evidence of a topology transition.')
                         
                         c1, c2, c3 = st.columns(3)
                         c1.metric("Ea", f"{Ea_pub:.1f} ± {Ea_std_pub:.1f} kJ/mol" if show_ea_std else f"{Ea_pub:.1f} kJ/mol")
-                        if show_tv: c2.metric("Maxwell-equivalent Tv", f"{Tv_pub:.1f} °C" if np.isfinite(Tv_pub) else "Unavailable")
+                        if show_tv: c2.metric("Tv", f"{Tv_pub:.1f} °C" if np.isfinite(Tv_pub) else "Unavailable")
                         c3.metric("R²", f"{r_sq_pub:.4f}")
                     else:
                         B_pub, T0_pub = fit_res_pub['Params']['B'], fit_res_pub['Params']['T0'] - 273.15
@@ -324,25 +339,27 @@ def _render_figure2(pan_settings, pan_preview, active_res, kinetics_df, glob, au
                         if tau_kin_model == "Arrhenius":
                             x_data = fit_res_pub['Plot']['x'] * 1000.0
                             y_data = fit_res_pub['Plot']['y']
-                            ax2.scatter(x_data, y_data, s=kin_marker_size**2, alpha=0.8, edgecolors='black', linewidth=0.8, color='steelblue', zorder=3)
+                            ax2.scatter(x_data, y_data, s=kin_marker_size**2, alpha=0.8, edgecolors='black', linewidth=0.8, color=glob.get('data_color', 'steelblue'), zorder=3)
                             x_range = np.linspace(x_data.min() * 0.95, x_data.max() * 1.05, 100)
                             y_fit = (slope_pub / 1000.0) * x_range + intercept_pub
                             label_fit = r"$E_\mathrm{a} = %.1f \pm %.1f\ \mathrm{kJ\ mol}^{-1}$" % (Ea_pub, Ea_std_pub) if show_ea_std else r"$E_\mathrm{a} = %.1f\ \mathrm{kJ\ mol}^{-1}$" % Ea_pub
                             label_fit += "\n" + r"$R^2 = %.4f$" % r_sq_pub
-                            ax2.plot(x_range, y_fit, '--', color='red', linewidth=kin_line_width, label=label_fit, zorder=2)
+                            if show_kin_fit:
+                                ax2.plot(x_range, y_fit, '--', color=glob.get('fit_color', 'red'), linewidth=kin_line_width, label=label_fit, zorder=2)
                             
                             if show_tv and np.isfinite(Tv_pub):
                                 Tv_x_1000 = ((ln_tau_t_pub - intercept_pub) / slope_pub) * 1000.0
-                                ax2.plot([Tv_x_1000], [ln_tau_t_pub], marker='*', markersize=kin_marker_size * 2, color='gold', markeredgecolor='black', markeredgewidth=0.8, label="Maxwell-equivalent\n" + r"$T_\mathrm{v} = %.1f^\circ\mathrm{C}$" % Tv_pub, zorder=4)
+                                ax2.plot([Tv_x_1000], [ln_tau_t_pub], marker='*', markersize=kin_marker_size * 2, color='gold', markeredgecolor='black', markeredgewidth=0.8, label=r"$T_\mathrm{v} = %.1f^\circ\mathrm{C}$" % Tv_pub, zorder=4)
                         else:
                             inv_T = 1.0 / T_K_all
                             ln_tau = np.log(np.array(taus_list))
-                            ax2.scatter(inv_T * 1000, ln_tau, s=kin_marker_size**2, alpha=0.8, edgecolors='black', linewidth=0.8, color='steelblue', zorder=3)
+                            ax2.scatter(inv_T * 1000, ln_tau, s=kin_marker_size**2, alpha=0.8, edgecolors='black', linewidth=0.8, color=glob.get('data_color', 'steelblue'), zorder=3)
                             T_K_grid = np.linspace(T_K_all.min(), T_K_all.max(), 150)
                             y_fit = fit_res_pub['Params']['A'] + fit_res_pub['Params']['B'] / (T_K_grid - fit_res_pub['Params']['T0'])
                             label_fit = r"VFT: $B = %.0f\ \mathrm{K},\ T_0 = %.1f^\circ\mathrm{C}$" % (B_pub, T0_pub)
                             label_fit += "\n" + r"$R^2 = %.4f$" % r_sq_pub
-                            ax2.plot(1000 / T_K_grid, y_fit, '--', color='red', linewidth=kin_line_width, label=label_fit, zorder=2)
+                            if show_kin_fit:
+                                ax2.plot(1000 / T_K_grid, y_fit, '--', color=glob.get('fit_color', 'red'), linewidth=kin_line_width, label=label_fit, zorder=2)
 
                         ax2.set_xlabel(r"$1000/T\ (\mathrm{K}^{-1})$", fontdict=font_label_kin, labelpad=8)
                         ax2.set_ylabel(r"$\ln(\tau)$", fontdict=font_label_kin, labelpad=8)
@@ -351,7 +368,8 @@ def _render_figure2(pan_settings, pan_preview, active_res, kinetics_df, glob, au
                             ax2.set_xlim(kin_xmin, kin_xmax)
                             ax2.set_ylim(kin_ymin, kin_ymax)
                         
-                        if show_kin_leg: apply_legend(ax2, kin_leg_pos, kin_leg_box, fontsize=kin_leg_font_size, ncol=kin_leg_ncol)
+                        if show_kin_leg and ax2.get_legend_handles_labels()[0]:
+                            apply_legend(ax2, kin_leg_pos, kin_leg_box, fontsize=kin_leg_font_size, ncol=kin_leg_ncol)
 
                         if panel_l_2:
                             ax2.text(pl_x_2, pl_y_2, f"({panel_l_2})", transform=ax2.transAxes,
@@ -379,8 +397,9 @@ def _render_figure3(pan_settings, pan_preview, kinetics_df, glob, auto_bounds):
                 with f3_pan_c2:
                     pl_x_3 = st.number_input("X pos  ", -1.0, 2.0, -0.12, 0.01, key="plx_3")
                     pl_y_3 = st.number_input("Y pos  ", -1.0, 2.0, 1.02, 0.01, key="ply_3")
+                show_eyr_fit = st.checkbox("Show fitted line", value=True, key="eyr_showfit")
                 ec1, ec2 = st.columns(2)
-                with ec1: eyr_line_width = st.slider("Fit Line Width", 0.5, 6.0, 1.5, 0.5, key="eyr_lw")
+                with ec1: eyr_line_width = st.slider("Fit Line Width", 0.5, 6.0, 1.5, 0.5, key="eyr_lw", disabled=not show_eyr_fit)
                 with ec2: eyr_marker_size = st.slider("Data Marker Size", 1, 15, 6, 1, key="eyr_ms")
                 eyr_font_family = st.selectbox("Font Family", ["Arial", "Times New Roman", "Courier New", "DejaVu Sans"], key="eyr_ff")
                 els1, els2, els3 = st.columns(3)
@@ -440,12 +459,13 @@ def _render_figure3(pan_settings, pan_preview, kinetics_df, glob, auto_bounds):
 
                         x_data = fit_res_pub['Plot']['x']
                         y_data = fit_res_pub['Plot']['y']
-                        ax3.scatter(x_data * 1000, y_data, s=eyr_marker_size**2, alpha=0.8, edgecolors='black', linewidth=0.8, color='steelblue', zorder=3)
+                        ax3.scatter(x_data * 1000, y_data, s=eyr_marker_size**2, alpha=0.8, edgecolors='black', linewidth=0.8, color=glob.get('data_color', 'steelblue'), zorder=3)
                         x_range = np.linspace(x_data.min() * 0.95, x_data.max() * 1.05, 100)
                         y_fit = fit_res_pub['Params']['slope'] * x_range + fit_res_pub['Params']['intercept']
                         label_fit = r"$\Delta H^\ddagger = %.1f\ \mathrm{kJ\ mol}^{-1}$" % fit_res_pub['dH']
                         label_fit += "\n" + r"$\Delta S^\ddagger = %.1f\ \mathrm{J\ mol}^{-1}\mathrm{K}^{-1}$" % fit_res_pub['dS']
-                        ax3.plot(x_range * 1000, y_fit, '--', color='red', linewidth=eyr_line_width, label=label_fit, zorder=2)
+                        if show_eyr_fit:
+                            ax3.plot(x_range * 1000, y_fit, '--', color=glob.get('fit_color', 'red'), linewidth=eyr_line_width, label=label_fit, zorder=2)
 
                         ax3.set_xlabel(r"$1000/T\ (\mathrm{K}^{-1})$", fontdict={'family': eyr_font_family, 'size': eyr_label_size, 'weight': eyr_label_weight, 'style': eyr_label_style})
                         ax3.set_ylabel(r"$\ln(\tau \cdot T)$", fontdict={'family': eyr_font_family, 'size': eyr_label_size, 'weight': eyr_label_weight, 'style': eyr_label_style})
@@ -453,7 +473,8 @@ def _render_figure3(pan_settings, pan_preview, kinetics_df, glob, auto_bounds):
                             ax3.set_xlim(eyr_xmin, eyr_xmax)
                             ax3.set_ylim(eyr_ymin, eyr_ymax)
 
-                        if show_eyr_leg: apply_legend(ax3, eyr_leg_pos, eyr_leg_box, fontsize=eyr_leg_font_size, ncol=eyr_leg_ncol)
+                        if show_eyr_leg and ax3.get_legend_handles_labels()[0]:
+                            apply_legend(ax3, eyr_leg_pos, eyr_leg_box, fontsize=eyr_leg_font_size, ncol=eyr_leg_ncol)
                         if panel_l_3:
                             ax3.text(pl_x_3, pl_y_3, f"({panel_l_3})", transform=ax3.transAxes, fontfamily=glob['panel_font_family'], fontsize=glob['panel_font_size'], fontweight=glob['panel_font_weight'], fontstyle=glob['panel_font_style'], va='bottom', ha='right')
 
@@ -476,8 +497,9 @@ def _render_figure4(pan_settings, pan_preview, active_res, kinetics_df, glob, au
                 with f4_pan_c2:
                     pl_x_4 = st.number_input("X pos   ", -1.0, 2.0, -0.12, 0.01, key="plx_4")
                     pl_y_4 = st.number_input("Y pos   ", -1.0, 2.0, 1.02, 0.01, key="ply_4")
+                show_vh_fit = st.checkbox("Show fitted line", value=True, key="vh_showfit")
                 vc1, vc2 = st.columns(2)
-                with vc1: vh_line_width = st.slider("Fit Line Width", 0.5, 6.0, 1.5, 0.5, key="vh_lw")
+                with vc1: vh_line_width = st.slider("Fit Line Width", 0.5, 6.0, 1.5, 0.5, key="vh_lw", disabled=not show_vh_fit)
                 with vc2: vh_marker_size = st.slider("Data Marker Size", 1, 15, 6, 1, key="vh_ms")
                 vh_font_family = st.selectbox("Font Family", ["Arial", "Times New Roman", "Courier New", "DejaVu Sans"], key="vh_ff")
                 vls1, vls2, vls3 = st.columns(3)
@@ -543,12 +565,13 @@ def _render_figure4(pan_settings, pan_preview, active_res, kinetics_df, glob, au
 
                         x_data = fit_res_pub['Plot']['x']
                         y_data = fit_res_pub['Plot']['y']
-                        ax4.scatter(x_data, y_data, s=vh_marker_size**2, alpha=0.8, edgecolors='black', linewidth=0.8, color='steelblue', zorder=3)
+                        ax4.scatter(x_data, y_data, s=vh_marker_size**2, alpha=0.8, edgecolors='black', linewidth=0.8, color=glob.get('data_color', 'steelblue'), zorder=3)
                         x_range = np.linspace(x_data.min() * 0.95, x_data.max() * 1.05, 100)
                         T_range = 1000.0 / x_range
                         y_fit = predict_van_t_hoff(T_range, **fit_res_pub['Params'])
                         label_fit = "Empirical modulus fit\n" + r"$\Delta H_{diss} = %.1f\ \mathrm{kJ\ mol}^{-1}$" % fit_res_pub['dH_diss']
-                        ax4.plot(x_range, y_fit, '--', color='red', linewidth=vh_line_width, label=label_fit, zorder=2)
+                        if show_vh_fit:
+                            ax4.plot(x_range, y_fit, '--', color=glob.get('fit_color', 'red'), linewidth=vh_line_width, label=label_fit, zorder=2)
 
                         ax4.set_xlabel(r"$1000/T\ (\mathrm{K}^{-1})$", fontdict={'family': vh_font_family, 'size': vh_label_size, 'weight': vh_label_weight, 'style': vh_label_style})
                         ax4.set_ylabel(r"$G_0$ (MPa)", fontdict={'family': vh_font_family, 'size': vh_label_size, 'weight': vh_label_weight, 'style': vh_label_style})
@@ -556,7 +579,8 @@ def _render_figure4(pan_settings, pan_preview, active_res, kinetics_df, glob, au
                             ax4.set_xlim(vh_xmin, vh_xmax)
                             ax4.set_ylim(vh_ymin, vh_ymax)
 
-                        if show_vh_leg: apply_legend(ax4, vh_leg_pos, vh_leg_box, fontsize=vh_leg_font_size, ncol=vh_leg_ncol)
+                        if show_vh_leg and ax4.get_legend_handles_labels()[0]:
+                            apply_legend(ax4, vh_leg_pos, vh_leg_box, fontsize=vh_leg_font_size, ncol=vh_leg_ncol)
                         if panel_l_4:
                             ax4.text(pl_x_4, pl_y_4, f"({panel_l_4})", transform=ax4.transAxes, fontfamily=glob['panel_font_family'], fontsize=glob['panel_font_size'], fontweight=glob['panel_font_weight'], fontstyle=glob['panel_font_style'], va='bottom', ha='right')
 
@@ -571,6 +595,7 @@ def _render_figure4(pan_settings, pan_preview, active_res, kinetics_df, glob, au
 def render_publication(tab_pub, PLOTLY_STYLE: dict, Tg_input: float, G_prime_input: float):
     with tab_pub:
         st.header("📝 Publication Figures")
+        style_slot = render_style_controls()
         if 'active_results' in st.session_state and st.session_state.active_results:
             active_res = st.session_state.active_results
             kinetics_df = st.session_state.get('kinetics_df', pd.DataFrame())
@@ -631,12 +656,8 @@ def render_publication(tab_pub, PLOTLY_STYLE: dict, Tg_input: float, G_prime_inp
                         "ACS/RSC Double-Column (170 x 140 mm)",
                         "Custom"
                     ], key="pub_preset")
-                    if fig_preset == "ACS/RSC Single-Column (85 x 75 mm)":
-                        default_width, default_height, disable_size = 8.5, 7.5, True
-                    elif fig_preset == "ACS/RSC Double-Column (170 x 140 mm)":
-                        default_width, default_height, disable_size = 17.0, 14.0, True
-                    else:
-                        default_width, default_height, disable_size = 12.7, 10.0, False
+                    default_width, default_height = JOURNAL_SIZES.get(fig_preset, (12.7, 10.0))
+                    disable_size = fig_preset in JOURNAL_SIZES
 
                     if st.session_state.get('pub_size_preset') != fig_preset:
                         st.session_state.update(pub_w=float(default_width), pub_h=float(default_height), pub_size_preset=fig_preset)
@@ -655,15 +676,25 @@ def render_publication(tab_pub, PLOTLY_STYLE: dict, Tg_input: float, G_prime_inp
                     
                     pub_colorspace = st.selectbox("Color Space Mode", ["RGB", "CMYK (for Print/Publication)"], key="pub_colorspace")
 
+                with st.expander('Figure colors'):
+                    st.color_picker('Kinetics data points', '#4682b4', key='pub_data_color')
+                    st.color_picker('Kinetics fitted lines', '#ff0000', key='pub_fit_color')
+                    palette = PLOTLY_STYLE.get('colorway', ['#6366f1', '#f43f5e', '#10b981', '#f59e0b', '#8b5cf6', '#3b82f6'])
+                    st.caption('Relaxation curve colors repeat in this order for additional curves.')
+                    for index in range(6):
+                        st.color_picker(f'Curve color {index + 1}', palette[index % len(palette)], key=f'pub_curve_color_{index}')
+
             glob = {
                 'fig_width': fig_width, 'fig_height': fig_height,
                 'panel_font_family': panel_font_family, 'panel_font_weight': panel_font_weight,
                 'panel_font_size': panel_font_size, 'panel_font_style': panel_font_style,
                 'pub_colorspace': pub_colorspace,
-                'color_palette': PLOTLY_STYLE.get('colorway', ['#6366f1', '#f43f5e', '#10b981', '#f59e0b', '#3b82f6', '#8b5cf6'])
+                'color_palette': [st.session_state[f'pub_curve_color_{i}'] for i in range(6)],
+                'data_color': st.session_state['pub_data_color'], 'fit_color': st.session_state['pub_fit_color']
             }
 
             _render_figure1(pan_settings, pan_preview, active_res, glob, auto_bounds)
             _render_figure2(pan_settings, pan_preview, active_res, kinetics_df, glob, auto_bounds, G_prime_input)
             _render_figure3(pan_settings, pan_preview, kinetics_df, glob, auto_bounds)
             _render_figure4(pan_settings, pan_preview, active_res, kinetics_df, glob, auto_bounds)
+        render_style_download(style_slot)

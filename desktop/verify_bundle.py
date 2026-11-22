@@ -2,7 +2,6 @@
 import io
 from pathlib import Path
 import re
-import socket
 import tempfile
 import time
 import sys
@@ -11,7 +10,6 @@ import sys
 def verify():
     from desktop.launcher import LocalServer, resource_root, server_options
     from streamlit import config
-    from streamlit.testing.v1 import AppTest
     from PIL import Image
     import matplotlib
     matplotlib.use('Agg')
@@ -28,15 +26,9 @@ def verify():
 
     # Block outbound connections in the analysis process. Loopback remains
     # available to verify the HTTP server and its bundled frontend resources.
-    original_connect = socket.socket.connect
-
-    def offline_connect(sock, address):
-        if isinstance(address, tuple) and address[0] not in ('127.0.0.1', '::1', 'localhost'):
-            raise RuntimeError(f'Offline test blocked external connection: {address}')
-        return original_connect(sock, address)
-
-    socket.socket.connect = offline_connect
-    server = LocalServer()
+    from desktop.offline import block_external_connections
+    restore_network = block_external_connections()
+    server = LocalServer(offline_test=True)
     try:
         server.start()
         deadline = time.monotonic() + 90
@@ -57,13 +49,10 @@ def verify():
                     raise RuntimeError('Bundled frontend script is unavailable.')
         for key, value in server_options(server.port).items():
             config.set_option(key, value)
-        app = AppTest.from_file(str(resource_root() / 'can_relax/gui/app.py'), default_timeout=90).run()
-        if app.exception:
-            raise RuntimeError(str(app.exception))
-        app.checkbox(key='use_example_data').check().run()
+        from desktop.workflow_check import verify_workflow
+        app, workflow = verify_workflow(resource_root() / 'can_relax/gui/app.py',
+                                        (resource_root() / 'examples/toy_data.csv').read_bytes())
         from can_relax.core.models import PRONY
-        app.selectbox(key='analysis_fit_model').select(PRONY).run()
-        next(button for button in app.button if 'Run Analysis' in button.label).click().run()
         if app.exception:
             raise RuntimeError(str(app.exception))
         results = app.session_state['results']
@@ -94,9 +83,11 @@ def verify():
         finally:
             plt.close('all')
         return {'http': 'ok', 'frontend_scripts': len(scripts), 'example_curves': len(results), 'fit_model': PRONY,
-                'mastercurve': 'ok', 'excel': 'ok', 'exports': exports,
+                'mastercurve': 'ok', 'excel': 'ok', 'exports': exports, 'workflow': workflow,
                 'desktop_window': 'ok' if sys.platform == 'win32' else 'not tested',
-                'analysis_outbound_connections': 'blocked during test'}
+                'analysis_outbound_connections': 'blocked during test',
+                'server_outbound_connections': 'blocked during test',
+                'offline_scope': 'Python DNS/connect/connect_ex blocked outside loopback in analysis and server processes; not OS-level network isolation'}
     finally:
         server.stop()
-        socket.socket.connect = original_connect
+        restore_network()

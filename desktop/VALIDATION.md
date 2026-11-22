@@ -1,4 +1,10 @@
-# Desktop edition 1.1.0 validation
+# Desktop verification history
+
+Current candidate: see [2.0.0-rc.2 validation](../docs/VALIDATION_2.0_RC2.md)
+and the exact build/installation/upgrade reports attached to its GitHub release.
+The entries below are historical and describe their respective versions.
+
+## Desktop edition 1.1.0 validation
 
 On 2026-11-06, the regression suite passed (170 tests), followed by six
 focused Prony tests including an additional UI/CSV test. Synthetic curves
