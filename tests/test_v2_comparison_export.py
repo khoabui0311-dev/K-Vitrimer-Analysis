@@ -48,3 +48,25 @@ def test_comparison_export_rejects_missing_session(tmp_path):
     store = VitriFitStore(tmp_path / "v2")
     with pytest.raises(KeyError):
         comparison_csv(store, "missing")
+
+
+def test_csv_escapes_spreadsheet_formula_in_sample_and_project_names(tmp_path):
+    store = VitriFitStore(tmp_path / "v2")
+    project = store.create_project("  =HYPERLINK(1)")
+    runs = []
+    for name in ("+SUM(1,2)", "@SUM(1,2)"):
+        sample = store.create_sample(project, name)
+        imported = store.import_experiment(
+            sample, "safe.csv", b"synthetic",
+            [{"source_curve_id": "relax", "temperature_c": 70,
+              "time_s": [0.01, 1, 10], "modulus_mpa": [1, .7, .2]}])
+        runs.append(store.save_analysis(imported["curve_ids"][0],
+                                        "KWW", "1/e", {}, {"tau_s": 3}))
+    comparison = store.save_comparison("=formula", "curves", runs)
+    rows = list(csv.DictReader(StringIO(comparison_csv(store, comparison))))
+    assert rows[0]["comparison_name"] == "'=formula"
+    assert rows[0]["project_name"].startswith("'  =")
+    assert rows[0]["sample_name"] == "'+SUM(1,2)"
+    assert rows[1]["sample_name"] == "'@SUM(1,2)"
+    # Original metadata remains unmodified inside the database.
+    assert comparison_rows(store, comparison)[0]["sample_name"] == "+SUM(1,2)"
