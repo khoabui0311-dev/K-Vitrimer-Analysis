@@ -94,6 +94,7 @@ export default function App() {
   const [kineticModel, setKineticModel] = useState("Arrhenius");
   const [fitWindows, setFitWindows] = useState<Record<string, [number, number]>>({});
   const [savedComparisons, setSavedComparisons] = useState<Item[]>([]);
+  const [activeComparisonId, setActiveComparisonId] = useState("");
   const [savedFigures, setSavedFigures] = useState<Item[]>([]);
   const [temperature, setTemperature] = useState(100);
   const [comparison, setComparison] = useState<any>(null);
@@ -250,8 +251,9 @@ export default function App() {
   async function saveComparison() {
     if (!comparison) return;
     const name=window.prompt("Name this comparison","Cross-sample comparison"); if(!name?.trim()) return;
-    await run(async () => {await api("/comparisons","POST",
+    await run(async () => {const saved = await api<{id:string}>("/comparisons","POST",
       {name,run_ids:selectedRuns,mode:compareMode,settings:{temperature_c:temperature,kinetic_model:kineticModel,windows:fitWindows}});
+      setActiveComparisonId(saved.id);
       await refreshComparisons();});
   }
   async function savePreset() {
@@ -275,6 +277,7 @@ export default function App() {
     if (!id) return;
     await run(async () => {
       const saved:any = await api("/comparisons/" + id);
+      setActiveComparisonId(id);
       setSelectedRuns(saved.run_ids); setCompareMode(saved.mode);
       setTemperature(Number(saved.settings.temperature_c ?? 100));
       setKineticModel(saved.settings.kinetic_model || "Arrhenius");
@@ -546,11 +549,12 @@ export default function App() {
         {tab==="Comparison"&&<section className="card"><h2>Cross-sample analysis</h2>
           <p className="muted">Select analyses from different experiments. Definitions of τ must agree. Stale fits are blocked.</p>
           <label className="field" style={{maxWidth:360}}>Reopen saved comparison
-            <select value="" onChange={e=>reopenComparison(e.target.value)}>
+            <select value={activeComparisonId} onChange={e=>reopenComparison(e.target.value)}>
               <option value="">Choose comparison</option>
               {savedComparisons.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
           </label>
+          {activeComparisonId && <p><a href={"/api/comparisons/" + encodeURIComponent(activeComparisonId) + "/export.csv"} download="vitrifit-comparison.csv">Download saved comparison CSV (includes revision provenance)</a></p>}
           <div className="run-list">{runs.map(r=><label key={r.id} className={"run-item "+(r.is_current?"":"stale")}>
             <input type="checkbox" checked={selectedRuns.includes(r.id)} onChange={e=>{
               setComparison(null);setSelectedRuns(a=>e.target.checked?[...a,r.id]:a.filter(x=>x!==r.id));}}/>
