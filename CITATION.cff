@@ -2,7 +2,7 @@ cff-version: 1.2.0
 message: "Please cite the exact VitriFit version used in your analysis."
 type: software
 title: "VitriFit: stress relaxation and kinetics analysis"
-version: "2.0.0-rc.1"
+version: "2.0.0-dev.2"
 authors:
   - family-names: Bui
     given-names: Vo Khoa

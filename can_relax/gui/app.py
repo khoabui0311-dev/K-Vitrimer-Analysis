@@ -30,6 +30,9 @@ from can_relax.core.analyzer import CurveAnalyzer
 from can_relax.core.models import PRONY, TAU_INDICES
 from can_relax.version import APP_NAME, VERSION, RELEASE_CHANNEL
 from can_relax.core.spectrum import SpectrumAnalyzer
+from can_relax.gui.workspace import (render_project_open, render_project_save,
+                                     render_data_summary, render_result_summary)
+from can_relax.gui.model_comparison import render_comparison
 
 # Shared Plotly layout for visual consistency across all tabs
 PLOTLY_STYLE = dict(
@@ -64,6 +67,9 @@ def inject_custom_css():
     [data-testid="stMetric"]:hover {
         transform: translateY(-2px);
         box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+    }
+    [data-testid="stMetricValue"] {
+        font-size: clamp(1rem, 2vw, 1.65rem);
     }
     
     /* Buttons */
@@ -130,6 +136,11 @@ st.set_page_config(layout="wide", page_title=APP_NAME, page_icon="🧪")
 inject_custom_css()
 st.sidebar.title(f"🧪 {APP_NAME}")
 st.sidebar.caption(f"{VERSION} | {RELEASE_CHANNEL}")
+render_project_open(parse_uploaded_file)
+st.title('Your relaxation workspace')
+st.caption('Bring in your data, review the measurements, then fit and compare. Save a project to continue later.')
+if st.session_state.get('project_notice'):
+    st.info(st.session_state.pop('project_notice'))
 
 # Init Modules
 sim = MaterialSimulator()
@@ -161,30 +172,36 @@ def get_tau_1_over_e(t, g):
 # TABS
 tab_analysis, tab_sim, tab_pub, tab_comparison, tab_plotting, tab_education, tab_credits = st.tabs([
     "🚀 Analysis", "🧪 Virtual Lab", "📝 Publish", "📊 Compare", "📈 Plotting", "📚 Education", "©️ Credits"
-])
+], key='workspace_tabs')
 
 # ------------------------------------------------------------------
 # TAB 1: ANALYSIS (Exact Workflow)
 # ------------------------------------------------------------------
 with tab_analysis:
+    input_column, fitting_column = st.columns([1.1, 1], gap='medium')
     # ── Data Input ──────────────────────────────────────────────
-    with st.sidebar.expander("📁 Data Input", expanded=True):
+    with input_column.container(border=True):
+        st.subheader('1 · Bring in your data')
+        st.caption('Upload relaxation modulus measured at one or more temperatures.')
         uploaded_file = st.file_uploader(
             "Upload CSV or XLSX",
             type=["csv", "xlsx"],
-            label_visibility="collapsed",
+            key=f"source_upload_{st.session_state.get('source_epoch', 0)}",
             help="Wide-format CSV or XLSX: columns = Temperature, then Time/Modulus pairs"
         )
         use_example_data = st.checkbox("Use toy_data.csv Example", value=False, key="use_example_data")
+        if uploaded_file is None and not use_example_data:
+            uploaded_file = st.session_state.get('project_source')
+        data_overview = st.container()
+        if uploaded_file is None and not use_example_data:
+            st.info('Start with the example to explore the workspace, or upload your CSV/XLSX.')
+        with st.expander('What should my file contain?'):
+            st.markdown('Use paired **Time / Modulus** columns under temperature headers, or repeating **Temperature / Time / Modulus** triplets. Label time as seconds or minutes and modulus as Pa, kPa or MPa.')
+            st.caption('Use relaxation modulus, not raw stress or oscillatory storage modulus. Unlabelled time and modulus are interpreted as seconds and MPa.')
 
     # ── Physics & Fitting (merged) ────────────────────────────────
-    with st.sidebar.expander("⚙️ Physics & Fitting", expanded=True):
-        G_prime_input = st.number_input("Rubbery G' (MPa)", 0.01, 5000.0, 1.0, help="Used for Tv calculation")
-        Tg_input = st.number_input("Tg (°C)", value=50.0, help="Curves below this temperature are skipped")
-        time_origin = st.number_input("Loading time origin (s)", value=0.0, help="Subtract this instrument clock value to obtain elapsed time since loading. Cutoffs do not reset this origin.")
-        time_cutoff = st.number_input("Short-Time Cutoff (s)", min_value=0.0, value=0.0, step=0.1, help="Exclude elapsed times below this value after subtracting the loading origin. This does not reset time to zero.")
-        st.caption('Elapsed time = recorded time − loading origin. Cutoff removes early elapsed times; it does not move the loading origin. Defaults apply to all curves; individual adjustments are available in Data review.')
-        st.markdown("---")
+    with fitting_column.container(border=True):
+        st.subheader('2 · Choose your fit')
         fit_model = st.selectbox("Model", ["Maxwell", "Single_KWW", "Dual_KWW", PRONY], key="analysis_fit_model")
         if fit_model == PRONY:
             st.latex(r"G(t)=G_\infty+G_1 e^{-t/\tau_1}+G_2 e^{-t/\tau_2}")
@@ -198,16 +215,25 @@ with tab_analysis:
         if fit_model == 'Dual_KWW':
             plateau_mode = 'Zero'
             st.caption('Plateau options apply to Maxwell, single KWW and two-Maxwell (Prony).')
-        fixed_plateau = st.number_input('Fixed plateau (MPa)', min_value=0.0, value=0.0,
-                                         key='fixed_plateau') if plateau_mode == 'Fixed' else 0.0
+        fixed_plateau_value = st.number_input('Fixed plateau (MPa)', min_value=0.0, value=0.0,
+                                         key='fixed_plateau', disabled=plateau_mode != 'Fixed')
+        fixed_plateau = fixed_plateau_value if plateau_mode == 'Fixed' else 0.0
         if plateau_mode != 'Zero':
             st.caption('Plateau estimated over the measurement window; it does not establish permanent crosslinks. Fitted tau describes the relaxing component.')
-        kinetics_mode = st.radio("Kinetics Base:", ["Fit Parameter", "Raw 1/e"])
-        st.caption("Raw 1/e is the interval from the first retained observation. For a truncated KWW curve it is not the intrinsic fitted tau.")
+        with st.expander('Timing and material settings'):
+            G_prime_input = st.number_input("Rubbery G' (MPa)", 0.01, 5000.0, 1.0, key='g_prime_input', help="Used for Tv calculation")
+            Tg_input = st.number_input("Tg (°C)", value=50.0, key='tg_input', help="Curves below this temperature are skipped")
+            time_origin = st.number_input("Loading time origin (s)", value=0.0, key='time_origin', help="Subtract this instrument clock value to obtain elapsed time since loading. Cutoffs do not reset this origin.")
+            time_cutoff = st.number_input("Short-Time Cutoff (s)", min_value=0.0, value=0.0, step=0.1, key='time_cutoff', help="Exclude early elapsed times without resetting the loading origin.")
+            st.caption('Elapsed time = recorded time − loading origin. Individual adjustments are available in Data review.')
+            kinetics_mode = st.radio("Kinetics Base:", ["Fit Parameter", "Raw 1/e"], key='kinetics_mode')
+            st.caption("Raw 1/e is measured from the first retained observation; it is not necessarily an intrinsic fitted tau.")
+        st.caption(f'Curves below {Tg_input:g} °C are excluded. Each temperature is fitted independently.')
+        run_btn = st.button("▶ Run Analysis", type="primary", width='stretch')
 
     # ── Always-visible Run button ─────────────────────────────────
-    st.sidebar.markdown("---")
-    run_btn = st.sidebar.button("▶ Run Analysis", type="primary", width='stretch')
+    restore_analysis = st.session_state.pop('project_rerun_analysis', False)
+    run_btn = run_btn or restore_analysis
 
     source_bytes = uploaded_file.getvalue() if uploaded_file else (EXAMPLE_DATA.read_bytes() if use_example_data else b'')
     curves = []
@@ -220,6 +246,9 @@ with tab_analysis:
             clear_analysis(st.session_state)
             st.error(f'Input rejected: {exc}')
             st.stop()
+        if curves:
+            with data_overview:
+                render_data_summary(curves, uploaded_file.name if uploaded_file else 'toy_data.csv')
         dataset_id = analysis_identity(source_bytes, {})
         if st.session_state.get('review_dataset') != dataset_id:
             st.session_state['review_dataset'] = dataset_id
@@ -237,7 +266,7 @@ with tab_analysis:
             edited_timing = st.data_editor(timing, hide_index=True, disabled=['Curve_ID', 'Temperature (C)'],
                 column_config={'Cutoff (s)': st.column_config.NumberColumn(min_value=0, required=True),
                                'Loading origin (s)': st.column_config.NumberColumn(required=True)},
-                key=f'timing_{dataset_id}_{time_origin}_{time_cutoff}')
+                key=f"timing_{dataset_id}_{time_origin}_{time_cutoff}_{st.session_state.get('source_epoch', 0)}")
             st.session_state['review_timing_table'] = edited_timing.copy()
             review_settings = {row['Curve_ID']: {'origin': float(row['Loading origin (s)']), 'cutoff': float(row['Cutoff (s)'])}
                                for _, row in edited_timing.iterrows()}
@@ -259,7 +288,7 @@ with tab_analysis:
                     st.stop()
                 edited_points = st.data_editor(preview, hide_index=True, height=300,
                     disabled=[c for c in preview.columns if c != 'Keep'],
-                    key=f'points_{dataset_id}_{chosen_id}_{settings}')
+                    key=f"points_{dataset_id}_{chosen_id}_{settings}_{st.session_state.get('source_epoch', 0)}")
                 exclusions[chosen_id] = edited_points.loc[~edited_points['Keep'], 'Point'].astype(int).tolist()
                 _, preview, audit = prepare_curve(chosen['Data'], **settings, excluded=exclusions[chosen_id])
                 raw_plot = go.Figure()
@@ -278,6 +307,8 @@ with tab_analysis:
         'curve_timing': review_settings, 'point_exclusions': {cid: ids for cid, ids in exclusions.items() if ids}})
     if st.session_state.get('analysis_id') != current_id:
         clear_analysis(st.session_state)
+    if st.session_state.get('comparison_id') != current_id:
+        st.session_state.pop('model_comparison', None)
     # PROCESS: clear old state before parsing so a failed upload cannot retain old results.
     if (uploaded_file or use_example_data) and run_btn:
         clear_analysis(st.session_state)
@@ -326,6 +357,7 @@ with tab_analysis:
     # DISPLAY
     if 'results' in st.session_state and st.session_state.results:
         all_results = st.session_state.results
+        render_result_summary(all_results, fit_model)
         metadata = {'software': {'name': APP_NAME, 'version': VERSION},
             'fit_method': 'Independent per-temperature least squares on retained-reference-normalized modulus',
             'temperature_law_imposed_on_curve_fits': False,
@@ -342,13 +374,17 @@ with tab_analysis:
                        for r in all_results]}
         st.download_button('Download analysis provenance JSON', json.dumps(metadata, indent=2),
                            'analysis_provenance.json', mime='application/json')
-        for r in all_results:
-            for warning in r['Warnings']:
-                st.caption(f"{r['Curve_ID']}: {warning}")
+        with st.expander('Preprocessing notes and curve warnings'):
+            for r in all_results:
+                for warning in r['Warnings']:
+                    st.caption(f"{r['Curve_ID']}: {warning}")
         
         # Live Filter
         labels = curve_labels(all_results)
         col_sel, _ = st.columns([1, 1])
+        restored_selection = st.session_state.pop('project_restore_selection', None)
+        if restored_selection is not None:
+            st.session_state[f'selection_{current_id}'] = [cid for cid in restored_selection if cid in labels]
         with col_sel:
             selected_curves = st.multiselect("Select Curves:", list(labels), default=list(labels),
                 format_func=labels.get, key=f"selection_{current_id}")
@@ -362,7 +398,10 @@ with tab_analysis:
             st.session_state.selection_id = selection_id
         st.session_state.active_results = active_results 
 
-        t1, t2, t3, t4 = st.tabs(["Curves", "Kinetics", "Mastercurve", "\U0001f308 Spectrum"])
+        t1, t_compare, t2, t3, t4 = st.tabs(["Curves", "Compare models", "Kinetics", "Mastercurve", "\U0001f308 Spectrum"], key='analysis_results_tabs')
+        with t_compare:
+            render_comparison(curves, review_settings, exclusions, Tg_input,
+                              plateau_mode, fixed_plateau, current_id)
         
         # 1. CURVES
         with t1:
@@ -465,7 +504,7 @@ with tab_analysis:
                     st.dataframe(df_details, column_config=col_config, hide_index=True, width='stretch')
                     csv_details = df_details.to_csv(index=False)
                     st.download_button("\U0001f4e5 Download Fit Parameters CSV", csv_details, "fit_parameters.csv", key="dl_fit_params")
-            with st.expander('Residuals and fit checks', expanded=False):
+            with st.expander('Residuals and fit checks', expanded=True):
                 residual_plot = go.Figure()
                 for r in active_results:
                     fit = r['Fits'][fit_model]
@@ -812,6 +851,9 @@ with tab_analysis:
 
 
 
+
+    render_project_save(source_bytes, uploaded_file.name if uploaded_file else 'toy_data.csv',
+                        review_settings, exclusions, current_id)
 
 # ------------------------------------------------------------------
 # TAB 3: VIRTUAL LAB  →  extracted to can_relax/gui/tabs/tab_virtual_lab.py

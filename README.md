@@ -1,9 +1,25 @@
 # VitriFit 2.0
 
 Stress relaxation fitting and kinetics analysis for materials research.
-Current candidate: **2.0.0-rc.1**. Previously named K Vitrimer Analysis.
+This development branch contains **2.0.0-dev.2**, the new workspace preview.
+The published Windows candidate remains **2.0.0-rc.1** and does not contain
+these new workspace features. Previously named K Vitrimer Analysis.
 See the [quick-start guide](docs/QUICK_START.md) and
 [candidate release notes](docs/RELEASE_NOTES_2.0.md).
+
+## New workspace preview
+
+- Import data and choose the model in the main workspace, with dataset and fit-review summaries.
+- Save a `.vfit` project containing the original CSV/XLSX, model settings, curve timing,
+  point exclusions and selected curves. Reopening restores the recipe and recalculates
+  an analysis that had been run. Kinetics selections, mastercurves and plot styling
+  must be reviewed again; export those results separately.
+- Compare Maxwell, single KWW and two-Maxwell for one curve using the same retained
+  observations and plateau policy. Inspect fit overlays, residuals, AICc/BIC and warnings,
+  then explicitly choose a model to refit all temperatures.
+
+Run the preview from this branch using the source instructions below.
+See [the workspace guide](docs/WORKSPACE_PREVIEW.md) for a complete walkthrough.
 
 ## Installable offline application (Windows)
 
