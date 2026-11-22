@@ -35,6 +35,9 @@ export default function SampleProfile({sampleId}:{sampleId:string}){
   const [analyses,setAnalyses]=useState<Analysis[]>([]);
   const [active,setActive]=useState<Analysis|null>(null);
   const [departure,setDeparture]=useState(.05);
+  const [comparisonIds,setComparisonIds]=useState<string[]>([]);
+  const [comparisonKeys,setComparisonKeys]=useState("temperature_c,geometry_id,material_state_id");
+  const [comparison,setComparison]=useState<Record<string,any>|null>(null);
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState("");
   const [notice,setNotice]=useState("");
@@ -49,7 +52,7 @@ export default function SampleProfile({sampleId}:{sampleId:string}){
     if(sampleId) refresh().catch(e=>setError(err(e)));
   },[sampleId]);
   useEffect(()=>{
-    setAnalyses([]);setActive(null);
+    setAnalyses([]);setActive(null);setComparisonIds([]);setComparison(null);
     if(measurementId) request<Analysis[]>("/measurements/"+measurementId+"/rheology/analyses")
       .then(setAnalyses).catch(e=>setError(err(e)));
   },[measurementId]);
@@ -116,6 +119,16 @@ export default function SampleProfile({sampleId}:{sampleId:string}){
       link.click();URL.revokeObjectURL(url);
     });
   }
+  async function compareSelected(){
+    if(comparisonIds.length<2)return;
+    await execute(async()=>{
+      const result=await request<Record<string,any>>("/rheology/compare","POST",{
+        analysis_ids:comparisonIds,
+        required_condition_keys:comparisonKeys.split(",").map(s=>s.trim()).filter(Boolean)
+      });
+      setComparison(result);
+    });
+  }
   const selected=profile?.specimens.flatMap(s=>s.measurements).find(m=>m.measurement_id===measurementId);
   const traces=active?.method==="frequency_sweep" ? [
     {x:active.results.angular_frequency_rad_s,y:active.results.storage_modulus_pa,
@@ -180,12 +193,27 @@ export default function SampleProfile({sampleId}:{sampleId:string}){
         </>}
       <h2 style={{marginTop:22}}>Analysis history ({analyses.length})</h2>
       {analyses.length===0&&<p className="muted">No saved analyses for this measurement.</p>}
-      <div className="run-list">{analyses.map(a=><button key={a.analysis_id}
+      <div className="run-list">{analyses.map(a=><div key={a.analysis_id} className="profile-analysis-row">
+        <input type="checkbox" aria-label={"Select analysis "+a.analysis_id+" for comparison"}
+          checked={comparisonIds.includes(a.analysis_id)}
+          onChange={e=>setComparisonIds(ids=>e.target.checked?[...ids,a.analysis_id]:ids.filter(id=>id!==a.analysis_id))}/>
+        <button
         className={"profile-measurement "+(active?.analysis_id===a.analysis_id?"selected":"")}
         onClick={()=>{setActive(a);setDeparture(Number(a.config.departure_fraction??.05));}}>
         <strong>{a.method} · {a.analysis_id.slice(0,8)}</strong>
         <small>Source SHA256 {a.source_sha256.slice(0,16)}… · {a.algorithm_version}</small>
-      </button>)}</div>
+      </button></div>)}</div>
+      <div className="controls">
+        <label className="field">Required matching conditions (comma-separated)
+          <input value={comparisonKeys} onChange={e=>setComparisonKeys(e.target.value)}/></label>
+        <button className="subtle" disabled={busy||comparisonIds.length<2} onClick={compareSelected}>
+          Compare selected analyses</button>
+      </div>
+      {comparison&&<div className={comparison.status==="conditions_matched"?"muted":"warning"}>
+        <strong>{comparison.status}</strong> · mismatched or missing keys:{" "}
+        {(comparison.mismatched_or_missing_keys||[]).join(", ")||"none"}.
+        <details><summary>Comparison provenance</summary><pre className="profile-json">{JSON.stringify(comparison,null,2)}</pre></details>
+      </div>}
       {active&&<div className="profile-analysis">
         <div className="controls"><button className="subtle" disabled={busy} onClick={manifest}>
           Export provenance JSON</button>
