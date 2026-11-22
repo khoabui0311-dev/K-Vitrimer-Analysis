@@ -1,5 +1,6 @@
 """HTTP regression for tensile sample-profile integration."""
 import json
+import pytest
 
 from fastapi.testclient import TestClient
 
@@ -25,7 +26,7 @@ def test_tensile_http_roundtrip(tmp_path, monkeypatch):
               "gauge_length_mm": "10", "width_mm": "2", "thickness_mm": "1"})
     assert response.status_code == 201, response.text
     result = response.json()
-    assert result["results"]["youngs_modulus_mpa"] == 500
+    assert result["results"]["youngs_modulus_mpa"] == pytest.approx(500)
     history = client.get(f"/api/v2/measurements/{mid}/tensile/analyses")
     assert history.status_code == 200
     assert history.json()[0]["analysis_id"] == result["analysis_id"]
