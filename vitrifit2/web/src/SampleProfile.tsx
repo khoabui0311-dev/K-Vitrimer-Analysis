@@ -32,6 +32,9 @@ export default function SampleProfile({sampleId}:{sampleId:string}){
   const [columns,setColumns]=useState('{"strain_percent":"strain","storage_modulus":"Gp"}');
   const [frequencyUnit,setFrequencyUnit]=useState("Hz");
   const [modulusUnit,setModulusUnit]=useState("Pa");
+  const [gaugeLength,setGaugeLength]=useState(10);
+  const [width,setWidth]=useState(2);
+  const [thickness,setThickness]=useState(1);
   const [analyses,setAnalyses]=useState<Analysis[]>([]);
   const [active,setActive]=useState<Analysis|null>(null);
   const [departure,setDeparture]=useState(.05);
@@ -53,11 +56,14 @@ export default function SampleProfile({sampleId}:{sampleId:string}){
   },[sampleId]);
   useEffect(()=>{
     setAnalyses([]);setActive(null);setComparisonIds([]);setComparison(null);
-    if(measurementId) request<Analysis[]>("/measurements/"+measurementId+"/rheology/analyses")
-      .then(setAnalyses).catch(e=>setError(err(e)));
+    if(measurementId){
+      const isTensile=profile?.specimens.flatMap(s=>s.measurements).find(m=>m.measurement_id===measurementId)?.technique==="Tensile";
+      request<Analysis[]>("/measurements/"+measurementId+(isTensile?"/tensile/analyses":"/rheology/analyses"))
+        .then(setAnalyses).catch(e=>setError(err(e)));
+    }
   },[measurementId]);
   useEffect(()=>{
-    setColumns(method==="amplitude_sweep"
+    setColumns(method==="tensile_test"?'{"displacement_mm":"extension","force_n":"load"}':method==="amplitude_sweep"
       ?'{"strain_percent":"strain","storage_modulus":"Gp"}'
       :'{"frequency":"freq","storage_modulus":"Gp","loss_modulus":"Gpp"}');
   },[method]);
@@ -93,8 +99,15 @@ export default function SampleProfile({sampleId}:{sampleId:string}){
       form.append("columns_json",JSON.stringify(mapping));
       form.append("frequency_unit",frequencyUnit);form.append("modulus_unit",modulusUnit);
       form.append("departure_fraction",String(departure));
-      const result=await request<Analysis>("/measurements/"+measurementId+"/rheology/import","POST",form);
-      setAnalyses(await request<Analysis[]>("/measurements/"+measurementId+"/rheology/analyses"));
+      if(selected?.method==="tensile_test"){
+        form.append("gauge_length_mm",String(gaugeLength));
+        form.append("width_mm",String(width));
+        form.append("thickness_mm",String(thickness));
+      }
+      const result=await request<Analysis>("/measurements/"+measurementId+
+        (selected?.method==="tensile_test"?"/tensile/import":"/rheology/import"),"POST",form);
+      setAnalyses(await request<Analysis[]>("/measurements/"+measurementId+
+        (selected?.method==="tensile_test"?"/tensile/analyses":"/rheology/analyses")));
       setActive(result);await refresh();setNotice("Raw CSV and analysis saved with provenance.");
     });
   }
@@ -108,7 +121,7 @@ export default function SampleProfile({sampleId}:{sampleId:string}){
     });
   }
   async function manifest(){
-    if(!active)return;
+    if(!active||active.method==="tensile_test")return;
     await execute(async()=>{
       const response=await fetch("/api/v2/rheology/manifest",{
         method:"POST",headers:{"Content-Type":"application/json"},
@@ -174,15 +187,21 @@ export default function SampleProfile({sampleId}:{sampleId:string}){
     </section>}
     {selected&&<section className="card">
       <h2>{selected.method} · Import and analyses</h2>
-      {selected.technique!=="Rheology"||!["amplitude_sweep","frequency_sweep"].includes(selected.method)
+      {!((selected.technique==="Rheology"&&["amplitude_sweep","frequency_sweep"].includes(selected.method))||
+         (selected.technique==="Tensile"&&selected.method==="tensile_test"))
         ?<p className="warning">Metadata only. This method has no CSV analysis adapter yet.</p>
         :<>
         <p className="muted">CSV with header row, numeric values and explicit mapping. No automatic instrument parsing or hidden unit assumptions.</p>
+        {selected.method==="tensile_test"&&<div className="controls">
+          <label className="field">Gauge length (mm)<input type="number" min=".001" step=".1" value={gaugeLength} onChange={e=>setGaugeLength(Number(e.target.value))}/></label>
+          <label className="field">Width (mm)<input type="number" min=".001" step=".1" value={width} onChange={e=>setWidth(Number(e.target.value))}/></label>
+          <label className="field">Thickness (mm)<input type="number" min=".001" step=".1" value={thickness} onChange={e=>setThickness(Number(e.target.value))}/></label>
+        </div>}
         <div className="controls">
           <label className="field">CSV file<input type="file" accept=".csv,text/csv"
             onChange={e=>setFile(e.target.files?.[0]||null)}/></label>
-          <label className="field">Modulus unit<select value={modulusUnit} onChange={e=>setModulusUnit(e.target.value)}>
-            {["Pa","kPa","MPa"].map(u=><option key={u}>{u}</option>)}</select></label>
+          {selected.method!=="tensile_test"&&<label className="field">Modulus unit<select value={modulusUnit} onChange={e=>setModulusUnit(e.target.value)}>
+            {["Pa","kPa","MPa"].map(u=><option key={u}>{u}</option>)}</select></label>}
           {selected.method==="frequency_sweep"&&<label className="field">Frequency unit
             <select value={frequencyUnit} onChange={e=>setFrequencyUnit(e.target.value)}>
               {["Hz","rad/s"].map(u=><option key={u}>{u}</option>)}</select></label>}
@@ -210,25 +229,40 @@ export default function SampleProfile({sampleId}:{sampleId:string}){
         <strong>{a.method} · {a.analysis_id.slice(0,8)}</strong>
         <small>Source SHA256 {a.source_sha256.slice(0,16)}… · {a.algorithm_version}</small>
       </button></div>)}</div>
-      <div className="controls">
+      {selected.technique==="Rheology"&&<div className="controls">
         <label className="field">Required matching conditions (comma-separated)
           <input value={comparisonKeys} onChange={e=>setComparisonKeys(e.target.value)}/></label>
         <button className="subtle" disabled={busy||comparisonIds.length<2} onClick={compareSelected}>
           Compare selected analyses</button>
-      </div>
+      </div>}
       {comparison&&<div className={comparison.status==="conditions_matched"?"muted":"warning"}>
         <strong>{comparison.status}</strong> · mismatched or missing keys:{" "}
         {(comparison.mismatched_or_missing_keys||[]).join(", ")||"none"}.
         <details><summary>Comparison provenance</summary><pre className="profile-json">{JSON.stringify(comparison,null,2)}</pre></details>
       </div>}
       {active&&<div className="profile-analysis">
-        <div className="controls"><button className="subtle" disabled={busy} onClick={manifest}>
+        <div className="controls"><button className="subtle" disabled={busy||active.method==="tensile_test"} onClick={manifest}>
           Export provenance JSON</button>
           {active.method==="amplitude_sweep"&&<>
             <label className="field">LVR departure fraction<input type="number" min=".001" max=".99"
               step=".01" value={departure} onChange={e=>setDeparture(Number(e.target.value))}/></label>
             <button className="primary" disabled={busy} onClick={reanalyze}>Reanalyze (new revision)</button>
           </>}</div>
+        {active.method==="tensile_test"&&<>
+          <p className="muted">Young’s modulus: {active.results.youngs_modulus_mpa===null?"not determined":
+            Number(active.results.youngs_modulus_mpa).toFixed(2)+" MPa"} · Max engineering stress:{" "}
+            {Number(active.results.max_engineering_stress_mpa).toFixed(2)} MPa</p>
+          <Plot data={[{x:active.results.engineering_strain,y:active.results.engineering_stress_mpa,
+            name:"Engineering",type:"scatter",mode:"lines"},
+            ...(active.results.true_strain_estimate?[{x:active.results.true_strain_estimate,
+              y:active.results.true_stress_mpa_estimate,name:"True (estimated)",type:"scatter",mode:"lines"}]:[])] as any}
+            layout={{autosize:true,margin:{l:75,r:20,t:20,b:65},
+              xaxis:{title:{text:"Strain (dimensionless)"}},
+              yaxis:{title:{text:"Stress (MPa)"}}}}
+            useResizeHandler style={{width:"100%",height:380}}
+            config={{responsive:true,displaylogo:false}}/>
+          <p className="warning">{String(active.results.warning)}</p>
+        </>}
         {active.method==="frequency_sweep"&&<Plot data={traces as any}
           layout={{autosize:true,margin:{l:75,r:20,t:20,b:65},
             xaxis:{title:{text:"Angular frequency (rad/s)"},type:"log"},
