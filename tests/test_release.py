@@ -1,3 +1,4 @@
+from tests import APP_PATH
 """Release identity, traceable exports and honest Arrhenius regression intervals."""
 from pathlib import Path
 import numpy as np
@@ -50,7 +51,7 @@ def test_provenance_has_version_and_method(monkeypatch):
         return real_download(label, data, *args, **kwargs)
 
     monkeypatch.setattr(st, 'download_button', capture)
-    app = AppTest.from_file('can_relax/gui/app.py', default_timeout=60).run()
+    app = AppTest.from_file(APP_PATH, default_timeout=60).run()
     app.checkbox(key='use_example_data').check().run()
     next(b for b in app.button if 'Run Analysis' in b.label).click().run()
     assert not app.exception

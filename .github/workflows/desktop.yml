@@ -10,8 +10,9 @@ on:
       - 'requirements*.txt'
       - 'CITATION.cff'
       - '.github/workflows/desktop.yml'
+      - '.github/scripts/install_inno.ps1'
   pull_request:
-    paths: ['can_relax/**', 'desktop/**', 'requirements*.txt']
+    paths: ['can_relax/**', 'desktop/**', 'tests/**', 'requirements*.txt', 'CITATION.cff', '.github/workflows/desktop.yml', '.github/scripts/install_inno.ps1']
 permissions:
   contents: read
 jobs:
@@ -20,6 +21,8 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -28,7 +31,7 @@ jobs:
       - run: .\.venv\Scripts\python.exe -m pip install -r requirements-desktop-lock.txt
       - run: .\.venv\Scripts\python.exe -m pip check
       - run: .\.venv\Scripts\python.exe -m pytest -q --tb=short
-      - run: choco install innosetup --version=6.7.3 --no-progress -y
+      - run: .\.github\scripts\install_inno.ps1
       - run: .\desktop\build_windows.ps1
       - run: .\desktop\test_installer.ps1
       - uses: actions/upload-artifact@v4

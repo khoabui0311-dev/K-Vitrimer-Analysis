@@ -1,3 +1,4 @@
+from tests import APP_PATH
 """Counterexamples found during the September 2026 whole-project audit."""
 import io
 import numpy as np
@@ -125,7 +126,7 @@ def test_raw_crossing_retains_recrossings_hidden_by_downsampling():
 
 def test_comparison_edits_and_failed_reanalysis_clear_results(monkeypatch):
     from streamlit.testing.v1 import AppTest
-    app = AppTest.from_file('can_relax/gui/app.py', default_timeout=60).run()
+    app = AppTest.from_file(APP_PATH, default_timeout=60).run()
     app.text_area(key='data_1').set_value('100,100\n120,10\n140,1').run()
     next(b for b in app.button if 'Analyze All' in b.label).click().run()
     assert not app.exception
@@ -147,7 +148,7 @@ def test_publication_presets_legends_and_no_figure_leak(monkeypatch):
         figures[title] = fig
     monkeypatch.setattr(tab_pub_main, 'save_and_download', capture)
     initial = set(plt.get_fignums())
-    app = AppTest.from_file('can_relax/gui/app.py', default_timeout=60).run()
+    app = AppTest.from_file(APP_PATH, default_timeout=60).run()
     app.checkbox(key='use_example_data').check().run()
     next(b for b in app.button if 'Run Analysis' in b.label).click().run()
     app.checkbox(key='sh_fig3').check().run()

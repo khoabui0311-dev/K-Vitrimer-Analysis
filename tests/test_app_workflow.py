@@ -1,3 +1,4 @@
+from tests import APP_PATH
 """Streamlit state/engine integration; high-resolution downloads are stubbed."""
 import numpy as np
 import pytest
@@ -11,7 +12,7 @@ def _button(app, text):
 def test_example_analysis_and_configuration_invalidation(monkeypatch):
     from can_relax.gui.tabs import tab_pub_main
     monkeypatch.setattr(tab_pub_main, 'save_and_download', lambda *args: None)
-    app = AppTest.from_file('can_relax/gui/app.py', default_timeout=60).run()
+    app = AppTest.from_file(APP_PATH, default_timeout=60).run()
     assert not app.exception
     app.checkbox(key='use_example_data').check().run()
     _button(app, 'Run Analysis').click().run()
@@ -58,7 +59,7 @@ def test_replicates_incomplete_raw_curves_and_dataset_replacement(monkeypatch):
             'Time':t, 'Modulus':version[0]*np.exp(-t/(1000+100*i))})}
             for i, temp in enumerate([100,100,140])]
     monkeypatch.setattr(parser, 'parse_curve_records', records)
-    app = AppTest.from_file('can_relax/gui/app.py', default_timeout=60).run()
+    app = AppTest.from_file(APP_PATH, default_timeout=60).run()
     app.checkbox(key='use_example_data').check().run()
     _button(app, 'Run Analysis').click().run()
     assert not app.exception
