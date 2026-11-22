@@ -122,3 +122,26 @@ New regression tests:
 `tests/test_v2_backup_sample_profile.py` and
 `tests/test_v2_sample_manifest.py`. These are committed but remain
 **unexecuted** until a full local checkout and pytest run is possible.
+
+## Read-only backup verification UI and API
+
+The Sample Profile now provides a **Verify backup** control for local ZIP files.
+`POST /api/v2/backup/verify` reads the uploaded archive and verifies:
+
+- Expected entry names and no duplicate ZIP names.
+- Supported manifest format and valid unique SHA-256 identifiers.
+- Exact raw-blob membership and digest integrity.
+- SQLite `PRAGMA integrity_check`.
+- All raw digests referenced by both legacy experiments and v2 specimen
+  attachments are present in the manifest.
+
+The verifier **never restores or extracts** the backup to the workspace.
+The HTTP upload is capped at 512 MiB and uncompressed ZIP metadata is
+limited to 2 GiB, with conservative compression-ratio checks. Larger
+legitimate backups require a future streaming verifier; do not assume that
+a size-limit rejection indicates corruption.
+
+Run `pytest -q tests/test_v2_backup_verify.py tests/test_v2_backup_verify_api.py`
+as part of the release gate. The new tests have been committed but not
+executed in this environment. No restore button is exposed until safe
+staged restoration and rollback have been tested.
