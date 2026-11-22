@@ -59,5 +59,14 @@ def comparison_csv(store: VitriFitStore, comparison_id: str) -> str:
     buffer = StringIO(newline="")
     writer = csv.DictWriter(buffer, fieldnames=COLUMNS, lineterminator="\n")
     writer.writeheader()
-    writer.writerows(comparison_rows(store, comparison_id))
+    # Sample and project names are user-controlled. Prevent spreadsheet apps
+    # from interpreting them as formulas when the CSV is opened.
+    def safe_cell(value):
+        if isinstance(value, str) and value.lstrip(" \\t\\r\\n").startswith(
+                ("=", "+", "-", "@")):
+            return "'" + value
+        return value
+
+    for row in comparison_rows(store, comparison_id):
+        writer.writerow({key: safe_cell(value) for key, value in row.items()})
     return buffer.getvalue()
