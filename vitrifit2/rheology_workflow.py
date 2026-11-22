@@ -126,7 +126,7 @@ def get_rheology_analysis(store, analysis_id):
     _ensure_analysis_schema(store)
     with store._db() as db:
         row = store._require(db, "v2_measurement_analyses", analysis_id)
-        file = store._require(db, "v2_measurement_files", row["file_id"])
+        if row["method"] not in ("amplitude_sweep", "frequency_sweep"):\n            raise ValueError("Not a rheology analysis")\n        file = store._require(db, "v2_measurement_files", row["file_id"])
     # Recheck raw-file integrity whenever reproducing an analysis.
     get_measurement_file(store, row["file_id"])
     return {"analysis_id": analysis_id, "measurement_id": row["measurement_id"],
