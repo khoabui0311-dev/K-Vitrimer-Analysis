@@ -53,9 +53,16 @@ def relaxation_observability(time_s, *, model, parameters,
     else:
         implementation = TwoMaxwell()
         upper = max(float(params[1]), float(params[2])) * 100
-        tau = float(brentq(
-            lambda value: float(implementation.func(value, *params)) - threshold,
-            0., upper))
+        if not math.isfinite(upper) or upper <= 0:
+            raise ValueError("Dual-Maxwell crossing bracket overflows")
+        try:
+            tau = float(brentq(
+                lambda value: float(implementation.func(value, *params)) - threshold,
+                0., upper))
+        except ValueError as exc:
+            raise ValueError("Dual-Maxwell crossing cannot be bracketed") from exc
+    if not math.isfinite(tau) or tau < 0:
+        raise ValueError("Predicted crossing time is nonfinite; check parameters")
     empirical_crossing = None
     if normalized_modulus is not None:
         y = np.asarray(normalized_modulus, dtype=float)
