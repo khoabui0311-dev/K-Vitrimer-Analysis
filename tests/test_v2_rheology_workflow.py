@@ -23,7 +23,7 @@ def test_frequency_csv_roundtrip(tmp_path):
     reopened = VitriFitStore(tmp_path)
     result = get_rheology_analysis(reopened, aid)
     assert result["results"]["tan_delta"] == pytest.approx([.5, .5])
-    assert result["algorithm_version"] == "rheology_csv_v1"
+    assert result["algorithm_version"] == "rheology_csv_v2"
     assert result["source_sha256"]
     assert len(get_sample_profile(reopened, sample)["techniques"]["Rheology"][0]["files"]) == 1
 
@@ -37,6 +37,7 @@ def test_amplitude_csv_roundtrip(tmp_path):
         columns={"strain_percent": "strain", "storage_modulus": "Gp"})
     result = get_rheology_analysis(VitriFitStore(tmp_path), aid)
     assert result["results"]["status"] == "departure_detected"
+    assert result["results"]["observations"]["strain_percent"][-1] == pytest.approx(.2)
     assert result["results"]["first_departure_strain_percent"] == pytest.approx(.2)
 
 
