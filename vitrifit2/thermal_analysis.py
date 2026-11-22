@@ -31,11 +31,15 @@ def analyze_dma_ramp(temperature_c, storage_modulus, loss_modulus, *,
     if np.any(ep <= 0) or np.any(epp < 0) or not np.all(np.isfinite(ep + epp)):
         raise ValueError("DMA moduli must be finite with E'>0 and E''>=0")
     measured = epp / ep
+    if not np.all(np.isfinite(measured)):
+        raise ValueError("DMA tan delta overflow; inspect modulus magnitudes")
     if tan_delta is not None:
         provided = np.asarray(tan_delta, dtype=float)
         if provided.shape != t.shape or not np.all(np.isfinite(provided)):
             raise ValueError("Invalid supplied tan delta")
         discrepancy = float(np.max(np.abs(provided - measured)))
+        if not np.isfinite(discrepancy):
+            raise ValueError("DMA supplied tan delta discrepancy overflow")
     else:
         discrepancy = None
     # Report only interior peaks; an endpoint maximum is not evidence of
