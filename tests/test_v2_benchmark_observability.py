@@ -198,3 +198,20 @@ def test_first_point_exact_threshold_does_not_hide_later_crossing():
     assert result["measured_multiple_crossings"] is True
     assert result["measured_crossing_time_s"] == pytest.approx(1.)
     assert result["measured_crossing_bracket_s"] == [1., 1.]
+
+
+def test_noisy_measured_crossing_warns_even_when_model_tau_is_observable():
+    result = relaxation_observability(
+        (1., 2., 3., 4., 5.), model="maxwell", parameters=(3.,),
+        normalized_modulus=(.9, .2, .6, .1, .05))
+    assert result["location"] == "inside_window"
+    assert "Multiple measured downward threshold crossings" in result["warning"]
+    assert "extrapolated" not in result["warning"]
+
+
+def test_noisy_crossing_and_extrapolation_both_reported():
+    result = relaxation_observability(
+        (1., 2., 3., 4., 5.), model="maxwell", parameters=(100.,),
+        normalized_modulus=(.9, .2, .6, .1, .05))
+    assert "Multiple measured downward threshold crossings" in result["warning"]
+    assert "extrapolated" in result["warning"]
