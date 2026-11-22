@@ -45,7 +45,10 @@ def analyze_dma_ramp(temperature_c, storage_modulus, loss_modulus, *,
     # Report only interior peaks; an endpoint maximum is not evidence of
     # a captured transition in the observed temperature window.
     peak_idx = int(np.argmax(measured))
-    peak = float(t[peak_idx]) if 0 < peak_idx < len(t)-1 else None
+    # A flat maximum or a tied peak cannot define a unique observed alpha peak.
+    unique_maximum = np.count_nonzero(measured == measured[peak_idx]) == 1
+    peak = (float(t[peak_idx]) if unique_maximum
+            and 0 < peak_idx < len(t)-1 else None)
     return {"temperature_c": t.tolist(), "storage_modulus_pa": ep.tolist(),
             "loss_modulus_pa": epp.tolist(), "tan_delta": measured.tolist(),
             "tan_delta_peak_temperature_c": peak,
