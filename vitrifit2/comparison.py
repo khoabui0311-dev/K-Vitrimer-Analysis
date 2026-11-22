@@ -8,6 +8,8 @@ from __future__ import annotations
 from collections import defaultdict
 import math
 
+from scipy.stats import t as student_t
+
 from can_relax.core.kinetics import KineticsEngine
 from .persistence import VitriFitStore
 
@@ -100,7 +102,10 @@ def compare_runs(store: VitriFitStore, run_ids: list[str], mode: str,
         fit = engine.fit_arrhenius(ts, taus) if kinetic_model == "Arrhenius" else engine.fit_vft(ts, taus)
         entry = {"sample_id": sample_id, "sample": group[0]["sample"],
                  "project": group[0]["project"],
-                 "observations": group, "fit_available": fit is not None}
+                 "observations": group, "fit_available": fit is not None,
+                 "n_observations": len(group),
+                 "n_distinct_temperatures": len(set(ts)),
+                 "retained_temperature_range_c": [min(ts), max(ts)]}
         if fit is None:
             entry["warning"] = "Insufficient distinct temperatures or unsuccessful fit"
         else:
@@ -110,9 +115,27 @@ def compare_runs(store: VitriFitStore, run_ids: list[str], mode: str,
                 entry["Ea_std_kj_mol"] = _finite(fit["Ea_std"])
                 entry["slope"] = _finite(fit["Params"]["slope"])
                 entry["intercept"] = _finite(fit["Params"]["intercept"])
-                entry["warning"] = fit.get("Warning")
+                n_distinct = len(set(ts))
+                if n_distinct == 2:
+                    entry["r2"] = None
+                    entry["Ea_std_kj_mol"] = None
+                    entry["Ea_ci95_kj_mol"] = None
+                    entry["warning"] = "Two-point slope only; R² and confidence interval are undefined"
+                else:
+                    stderr = entry["Ea_std_kj_mol"]
+                    if stderr is not None and math.isfinite(stderr):
+                        margin = float(student_t.ppf(0.975, n_distinct - 2) * stderr)
+                        entry["Ea_ci95_kj_mol"] = [
+                            entry["Ea_kj_mol"] - margin, entry["Ea_kj_mol"] + margin]
+                    else:
+                        entry["Ea_ci95_kj_mol"] = None
+                    entry["warning"] = (
+                        "Only three distinct temperatures; confidence interval is highly uncertain"
+                        if n_distinct == 3 else fit.get("Warning"))
             else:
                 entry["parameters"] = {k: _finite(v) for k,v in fit["Params"].items()}
+                if len(set(ts)) < 5:
+                    entry["warning"] = "VFT with fewer than five distinct temperatures: T0 is poorly constrained"
             # Publication/interactive plot points are generated from the fitted
             # equation strictly within this sample's selected measured window.
             # This is not extrapolation and cannot fill missing experimental data.
