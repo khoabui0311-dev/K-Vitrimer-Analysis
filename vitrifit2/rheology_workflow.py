@@ -30,7 +30,7 @@ def _parse_columns(raw_bytes, columns):
     reader = csv.DictReader(StringIO(text), strict=True)
     if not reader.fieldnames or len(set(reader.fieldnames)) != len(reader.fieldnames):
         raise ValueError("Missing or duplicate CSV headers")
-    if any(c not in reader.fieldnames for c in columns.values()):
+    if any(not isinstance(c, str) or c not in reader.fieldnames for c in columns.values()):
         raise ValueError("Mapped CSV columns missing")
     try:
         rows = list(reader)
@@ -80,7 +80,7 @@ def analyze_rheology_csv(store, measurement_id, filename, raw_bytes, *,
                 if method == "frequency_sweep"
                 else {"strain_percent", "storage_modulus"}
                 if method == "amplitude_sweep" else None)
-    if required is None or set(columns) != required:
+    if required is None or not isinstance(columns, dict) or set(columns) != required:
         raise ValueError("Unsupported rheology method or incomplete column mapping")
     with store._db() as db:
         measurement = store._require(db, "v2_measurements", measurement_id)
