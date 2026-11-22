@@ -476,8 +476,16 @@ class VitriFitStore:
                 destination.close()
                 source.close()
             with closing(sqlite3.connect(snapshot)) as db:
-                hashes = [row[0] for row in db.execute(
-                    "SELECT DISTINCT file_sha256 FROM experiments")]
+                # Backups must include BOTH legacy relaxation uploads and
+                # specimen-centric DMA/DSC/Tensile/Rheology attachments.
+                hashes = {row[0] for row in db.execute(
+                    "SELECT DISTINCT file_sha256 FROM experiments")}
+                tables = {row[0] for row in db.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'")}
+                if "v2_measurement_files" in tables:
+                    hashes.update(row[0] for row in db.execute(
+                        "SELECT DISTINCT sha256 FROM v2_measurement_files"))
+                hashes = sorted(hashes)
             buffer = BytesIO()
             with ZipFile(buffer, "w", ZIP_DEFLATED) as archive:
                 archive.write(snapshot, "vitrifit.sqlite3")
@@ -487,7 +495,7 @@ class VitriFitStore:
                         raise IOError(f"Corrupt or missing raw upload {digest}")
                     archive.writestr("raw_blobs/" + digest, raw)
                 archive.writestr("manifest.json", _json({
-                    "format": "vitrifit2-backup-v1", "created_at": _now(),
+                    "format": "vitrifit2-backup-v2", "created_at": _now(),
                     "original_file_hashes": hashes, "database": "vitrifit.sqlite3",
                     "restore": "Stop the app, then extract this archive into the configured VITRIFIT2_DATA_DIR."
                 }))
