@@ -2,7 +2,7 @@
 
 A fitted relaxation time outside the observed window is extrapolative.
 This module uses observed time limits and the model's predicted 1/e crossing
-to distinguish measured from extrapolated characteristic times.
+to distinguish within-window predictions from extrapolation.\nMeasured threshold crossings require actual measured response values.
 """
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ _MODELS = {"maxwell": Maxwell, "kww": SingleKWW, "dual_maxwell": TwoMaxwell}
 
 
 def relaxation_observability(time_s, *, model, parameters,
-                            threshold=math.exp(-1)):
+                            threshold=math.exp(-1), normalized_modulus=None):
     """Classify predicted 1/e crossing relative to measured time interval.
 
     Time values must be nonnegative, ordered, and include at least two points.
@@ -50,6 +50,22 @@ def relaxation_observability(time_s, *, model, parameters,
         tau = float(brentq(
             lambda value: float(implementation.func(value, *params)) - threshold,
             0., upper))
+    empirical_crossing = None
+    if normalized_modulus is not None:
+        y = np.asarray(normalized_modulus, dtype=float)
+        if (y.ndim != 1 or y.shape != t.shape
+                or not np.all(np.isfinite(y))):
+            raise ValueError("Measured response must match finite measurement times")
+        # Only an actual measured bracket establishes empirical observability.
+        # Linear interpolation is descriptive, not an independent fitted tau.
+        brackets = np.flatnonzero(
+            ((y[:-1] >= threshold) & (y[1:] <= threshold))
+            | ((y[:-1] <= threshold) & (y[1:] >= threshold)))
+        if len(brackets):
+            i = int(brackets[0])
+            empirical_crossing = (float(t[i]) if y[i] == threshold else
+                float(t[i] + (threshold-y[i]) * (t[i+1]-t[i])
+                      / (y[i+1]-y[i])) if y[i+1] != y[i] else float(t[i]))
     first, last = float(t[0]), float(t[-1])
     location = ("before_window" if tau < first else
                 "after_window" if tau > last else "inside_window")
@@ -59,7 +75,7 @@ def relaxation_observability(time_s, *, model, parameters,
         "first_observed_time_s": first,
         "last_observed_time_s": last,
         "location": location,
-        "observed_crossing": location == "inside_window",
+        "predicted_crossing_within_window": location == "inside_window",\n        "measured_crossing_time_s": empirical_crossing,\n        "measured_crossing_observed": empirical_crossing is not None,
         "warning": (None if location == "inside_window" else
                     "Predicted crossing lies outside measurement window; "
                     "reported characteristic time is extrapolated"),
