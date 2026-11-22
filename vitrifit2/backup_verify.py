@@ -81,5 +81,5 @@ def verify_backup_bytes(payload: bytes) -> dict:
                     "database_integrity": "ok",
                     "safe_to_consider_restore": True,
                     "warning": "Verification does not perform a restore."}
-    except (BadZipFile, KeyError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+    except (BadZipFile, KeyError, UnicodeDecodeError, json.JSONDecodeError,\n            sqlite3.DatabaseError, OSError, EOFError, RuntimeError) as exc:
         raise ValueError("Invalid or incomplete VitriFit backup ZIP") from exc
