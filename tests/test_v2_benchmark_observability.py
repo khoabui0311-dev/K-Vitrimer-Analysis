@@ -119,3 +119,20 @@ def test_unrepresentable_or_unbracketed_crossing_rejected(model, parameters, thr
     with pytest.raises(ValueError, match="crossing|bracket"):
         relaxation_observability((.01, 1., 10.), model=model,
                                  parameters=parameters, threshold=threshold)
+
+
+def test_empirical_crossing_reports_acquisition_bracket_not_false_precision():
+    result = relaxation_observability(
+        (1., 10., 100., 1000.), model="kww", parameters=(100., .5),
+        normalized_modulus=(1., .9, .2, .1))
+    assert result["measured_crossing_bracket_s"] == [10., 100.]
+    assert 10. < result["measured_crossing_time_s"] < 100.
+    assert result["crossing_time_s"] == pytest.approx(100.)
+
+
+def test_unobserved_empirical_crossing_has_no_acquisition_bracket():
+    result = relaxation_observability(
+        (1., 10., 100.), model="maxwell", parameters=(10.,),
+        normalized_modulus=(1., .9, .8))
+    assert result["measured_crossing_time_s"] is None
+    assert result["measured_crossing_bracket_s"] is None
