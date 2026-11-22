@@ -29,7 +29,9 @@ def relaxation_observability(time_s, *, model, parameters,
     if (t.ndim != 1 or len(t) < 2 or not np.all(np.isfinite(t))
             or np.any(t < 0) or np.any(np.diff(t) <= 0)):
         raise ValueError("Need finite increasing nonnegative measurement times")
-    if not math.isfinite(threshold) or not 0 < threshold < 1:
+    if (isinstance(threshold, (bool, np.bool_))
+            or not isinstance(threshold, (int, float, np.integer, np.floating))
+            or not math.isfinite(threshold) or not 0 < threshold < 1):
         raise ValueError("threshold must be between zero and one")
     try:
         params = np.asarray(parameters, dtype=float)
@@ -63,8 +65,7 @@ def relaxation_observability(time_s, *, model, parameters,
         # Only an actual measured bracket establishes empirical observability.
         # Linear interpolation is descriptive, not an independent fitted tau.
         brackets = np.flatnonzero(
-            ((y[:-1] >= threshold) & (y[1:] <= threshold))
-            | ((y[:-1] <= threshold) & (y[1:] >= threshold)))
+            (y[:-1] >= threshold) & (y[1:] <= threshold))
         if len(brackets):
             i = int(brackets[0])
             empirical_crossing = (float(t[i]) if y[i] == threshold else
