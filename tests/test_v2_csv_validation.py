@@ -7,7 +7,7 @@ from vitrifit2.rheology_workflow import _parse_columns
 @pytest.mark.parametrize("raw, mapping, message", [
     (b"a,b\n1,NaN\n2,3\n", {"x": "a", "y": "b"}, "NaN"),
     (b"a,b\n1,inf\n2,3\n", {"x": "a", "y": "b"}, "NaN"),
-    (b"a,b\n1,2\n3,4\n", {"x": "a", "y": "a"}, "duplicate|missing"),
+    (b"a,b\n1,2\n3,4\n", {"x": "a", "y": "a"}, "(?i:duplicate|missing)"),
     (b"a,a\n1,2\n", {"x": "a"}, "duplicate"),
     (b"a,b\n1,2,3\n", {"x": "a", "y": "b"}, "more fields"),
     (b"a,b\n1,hello\n", {"x": "a", "y": "b"}, "Non-numeric"),
