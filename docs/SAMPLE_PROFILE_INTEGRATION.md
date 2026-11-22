@@ -99,3 +99,26 @@ been executed in the current development session.
 
 The local environment cannot resolve github.com for cloning; a full
 repository build and test run must be completed before merging.
+
+## Backup safety and unified provenance (2026-11-22)
+
+A critical backup-completeness bug was identified and fixed: the legacy
+`/api/backup` implementation originally archived only hashes referenced by
+`experiments.file_sha256`. The current implementation also enumerates
+`v2_measurement_files.sha256` when that table exists, deduplicates by digest,
+and verifies each blob before writing it into the ZIP. The archive manifest
+format is now `vitrifit2-backup-v2`; the database and raw blob paths remain
+unchanged. Backward compatibility with existing v1 workspace databases is
+preserved by checking table existence first.
+
+`POST /api/v2/analyses/manifest` now exports a technique-independent
+analysis manifest with project/sample/specimen/measurement hierarchy,
+conditions, algorithm version, config, source filename, SHA256 and optionally
+results. The Sample Profile export button uses this endpoint for all
+techniques. A manifest contains **no raw bytes** and is not a substitute
+for the full backup or separately downloaded original files.
+
+New regression tests:
+`tests/test_v2_backup_sample_profile.py` and
+`tests/test_v2_sample_manifest.py`. These are committed but remain
+**unexecuted** until a full local checkout and pytest run is possible.
