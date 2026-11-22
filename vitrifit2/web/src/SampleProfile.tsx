@@ -228,6 +228,15 @@ export default function SampleProfile({sampleId}:{sampleId:string}){
             yaxis:{title:{text:"Modulus (Pa)"},type:"log"},showlegend:true}}
           useResizeHandler style={{width:"100%",height:380}}
           config={{responsive:true,displaylogo:false}}/>}
+        {active.method==="amplitude_sweep"&&active.results.observations&&<Plot
+          data={[{x:active.results.observations.strain_percent,
+            y:active.results.observations.storage_modulus_pa,
+            type:"scatter",mode:"lines+markers",name:"Measured G′"}] as any}
+          layout={{autosize:true,margin:{l:75,r:20,t:20,b:65},
+            xaxis:{title:{text:"Oscillatory strain amplitude (%)"},type:"log"},
+            yaxis:{title:{text:"Storage modulus G′ (Pa)"},type:"log"}}}
+          useResizeHandler style={{width:"100%",height:360}}
+          config={{responsive:true,displaylogo:false}}/>}
         {active.method==="amplitude_sweep"&&<p className="warning">
           LVR: {String(active.results.status)} · last measured in-range amplitude:
           {" "}{String(active.results.highest_measured_in_range_strain_percent??"not established")}%.
