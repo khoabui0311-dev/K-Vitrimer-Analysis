@@ -38,6 +38,8 @@ def verify_backup_bytes(payload: bytes) -> dict:
             if "manifest.json" not in names or "vitrifit.sqlite3" not in names:
                 raise ValueError("Missing backup manifest or database")
             manifest = json.loads(archive.read("manifest.json"))
+            if not isinstance(manifest, dict):
+                raise ValueError("Backup manifest must be a JSON object")
             if manifest.get("format") not in (
                     "vitrifit2-backup-v1", "vitrifit2-backup-v2"):
                 raise ValueError("Unsupported backup format")
