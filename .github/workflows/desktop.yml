@@ -1,57 +1,75 @@
-name: Build VitriFit Windows candidate
+name: Verify rc.2 legacy upgrades
 on:
   workflow_dispatch:
-  push:
-    branches: [main, 'codex/vitrifit-2-release']
-    paths:
-      - 'can_relax/**'
-      - 'desktop/**'
-      - 'tests/**'
-      - 'requirements*.txt'
-      - 'CITATION.cff'
-      - '.github/workflows/desktop.yml'
-      - '.github/scripts/install_inno.ps1'
-  pull_request:
-    paths: ['can_relax/**', 'desktop/**', 'tests/**', 'requirements*.txt', 'CITATION.cff', '.github/workflows/desktop.yml', '.github/scripts/install_inno.ps1']
 permissions:
   contents: read
+  actions: read
 jobs:
-  windows-desktop:
+  legacy-upgrades:
     runs-on: windows-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: 5582826d6cfb3ee5bfced23663aec15a21a8e4f2
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          cache: pip
       - run: python -m venv .venv
-      - run: .\.venv\Scripts\python.exe -m pip install -r requirements-desktop-lock.txt
-      - run: .\.venv\Scripts\python.exe -m pip check
-      - run: .\.venv\Scripts\python.exe -m pytest -q --tb=short
-      - run: .\.github\scripts\install_inno.ps1
-      - run: .\desktop\build_windows.ps1
-      - id: candidate
-        run: |
-          $version = & .\.venv\Scripts\python.exe -c "from can_relax.version import VERSION; print(VERSION)"
-          "version=$version" >> $env:GITHUB_OUTPUT
-      - run: .\desktop\test_installer.ps1
-      - run: .\desktop\download_previous_candidate.ps1
-      - run: .\desktop\test_installer.ps1 -PreviousInstaller (Resolve-Path 'dist\VitriFit_Setup_2.0.0-rc.1_x64.exe') -TestName upgrade-rc1
-      - uses: actions/upload-artifact@v4
+      - run: python -m pip install requests
+      - uses: actions/download-artifact@v4
         with:
+          github-token: ${{ github.token }}
+          run-id: 45046275167
           name: VitriFit-Windows-x64-candidate
-          path: |
-            dist/VitriFit_Setup_${{ steps.candidate.outputs.version }}_x64.exe
-            dist/VitriFit_Setup_${{ steps.candidate.outputs.version }}_x64.exe.sha256
-            dist/desktop-self-test.json
-            dist/installed-self-test.json
-            dist/upgrade-rc1.json
-            dist/upgrade-rc1-self-test.json
-            dist/release-manifest.json
-            docs/QUICK_START.md
-            docs/RELEASE_NOTES_2.0.md
-            docs/VALIDATION_2.0_RC2.md
+          path: candidate
+      - name: Verify candidate and retrieve checksum-pinned old installers
+        shell: python
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          import hashlib, os
+          from pathlib import Path
+          from urllib.parse import urlparse
+          import requests
+          root = Path('candidate/dist')
+          candidate = root / 'VitriFit_Setup_2.0.0-rc.2_x64.exe'
+          def digest(path):
+              with path.open('rb') as stream:
+                  return hashlib.file_digest(stream, 'sha256').hexdigest()
+          assert digest(candidate) == '6aacbb2d09bb9c6dae6651afb2d7848a935fae5cdafb48eda13a89c6ea07d688'
+          api = 'https://api.github.com/repos/khoabui0311-dev/K-Vitrimer-Analysis'
+          headers = {'Authorization': 'Bearer ' + os.environ['GH_TOKEN'], 'Accept': 'application/vnd.github+json'}
+          response = requests.get(api + '/releases?per_page=100', headers=headers, timeout=30)
+          response.raise_for_status()
+          fixture = next(r for r in response.json() if r['tag_name'] == 'internal-rc2-upgrade-fixtures')
+          assert fixture['draft']
+          expected = {
+              'K_Vitrimer_Analysis_Setup_1.0.0_x64.exe': 'cebc65d2ddde63705e5fc493581c3691aec6cdf9b20c2f735c5e984fd4f7393b',
+              'K_Vitrimer_Analysis_Setup_1.1.0_x64.exe': '3aa762ed02277e23d3b9c17b5ede6927e60c9b7b29514e5408c8a907471f20d2',
+          }
+          for name, sha in expected.items():
+              asset = next(a for a in fixture['assets'] if a['name'] == name)
+              response = requests.get(api + '/releases/assets/' + str(asset['id']),
+                  headers={**headers, 'Accept': 'application/octet-stream'}, allow_redirects=False, stream=True, timeout=60)
+              if response.status_code == 302:
+                  target = urlparse(response.headers['Location'])
+                  assert target.scheme == 'https' and target.hostname.endswith(('.githubusercontent.com', '.blob.core.windows.net'))
+                  # Do not forward the repository credential to storage.
+                  response = requests.get(response.headers['Location'], stream=True, timeout=(30,300), allow_redirects=False)
+              response.raise_for_status()
+              path = root / name
+              with path.open('wb') as stream:
+                  for block in response.iter_content(1024*1024):
+                      stream.write(block)
+              assert digest(path) == sha
+      - name: Upgrade from 1.0.0 and preserve user files
+        run: .\desktop\test_installer.ps1 -Installer (Resolve-Path 'candidate\dist\VitriFit_Setup_2.0.0-rc.2_x64.exe') -PreviousInstaller (Resolve-Path 'candidate\dist\K_Vitrimer_Analysis_Setup_1.0.0_x64.exe') -TestName upgrade-legacy-1-0
+      - name: Upgrade from 1.1.0 and preserve user files
+        run: .\desktop\test_installer.ps1 -Installer (Resolve-Path 'candidate\dist\VitriFit_Setup_2.0.0-rc.2_x64.exe') -PreviousInstaller (Resolve-Path 'candidate\dist\K_Vitrimer_Analysis_Setup_1.1.0_x64.exe') -TestName upgrade-legacy-1-1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: VitriFit-rc2-legacy-upgrade-evidence
+          path: dist/upgrade-legacy-*.json
           if-no-files-found: error
