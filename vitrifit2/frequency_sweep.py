@@ -34,16 +34,23 @@ def analyze_frequency_sweep(frequency, storage_modulus, loss_modulus, *,
     omega = f[order] * frequency_scale[frequency_unit]
     gp = gp[order] * modulus_scale[modulus_unit]
     gpp = gpp[order] * modulus_scale[modulus_unit]
+    if (not np.all(np.isfinite(omega)) or not np.all(np.isfinite(gp))
+            or not np.all(np.isfinite(gpp))):
+        raise ValueError("Unit conversion overflowed; choose physically valid values")
     difference = gp - gpp
+    if not np.all(np.isfinite(difference)):
+        raise ValueError("Modulus difference overflowed")
     crossovers = []
     log_omega = np.log(omega)
     for i in range(len(omega)-1):
         if difference[i] == 0:
             crossovers.append(float(omega[i]))
-        if difference[i] * difference[i+1] < 0:
+        if ((difference[i] < 0 < difference[i+1])
+                or (difference[i] > 0 > difference[i+1])):
             # Linear interpolation of modulus difference on log-frequency
             # coordinates remains finite even when G'' is zero.
-            fraction = -difference[i] / (difference[i+1]-difference[i])
+            # Stable normalized interpolation avoids overflow for large values.
+            fraction = abs(difference[i]) / (abs(difference[i]) + abs(difference[i+1]))
             crossovers.append(float(np.exp(
                 log_omega[i] + fraction*(log_omega[i+1]-log_omega[i]))))
     if difference[-1] == 0:
