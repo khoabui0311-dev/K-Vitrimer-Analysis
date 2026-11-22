@@ -44,6 +44,8 @@ export default function SampleProfile({sampleId}:{sampleId:string}){
   const [comparisonKeys,setComparisonKeys]=useState("temperature_c,geometry_id,material_state_id");
   const [comparison,setComparison]=useState<Record<string,any>|null>(null);
   const [busy,setBusy]=useState(false);
+  const [backupFile,setBackupFile]=useState<File|null>(null);
+  const [backupReport,setBackupReport]=useState<Record<string,unknown>|null>(null);
   const [error,setError]=useState("");
   const [notice,setNotice]=useState("");
 
@@ -74,6 +76,15 @@ export default function SampleProfile({sampleId}:{sampleId:string}){
   async function execute(task:()=>Promise<void>){
     setBusy(true);setError("");setNotice("");
     try{await task();}catch(e){setError(err(e));}finally{setBusy(false);}
+  }
+  async function verifyBackup(){
+    if(!backupFile)return;
+    await execute(async()=>{
+      const body=new FormData();
+      body.append("file",backupFile);
+      setBackupReport(await request<Record<string,unknown>>("/backup/verify","POST",body));
+      setNotice("Archive integrity verified. No data were restored or modified.");
+    });
   }
   async function addSpecimen(){
     const label=window.prompt("Specimen label (unique physical piece)","specimen-1");
