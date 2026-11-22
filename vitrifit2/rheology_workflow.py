@@ -31,8 +31,11 @@ def _parse_columns(raw_bytes, columns):
     reader = csv.DictReader(StringIO(text), strict=True)
     if not reader.fieldnames or len(set(reader.fieldnames)) != len(reader.fieldnames):
         raise ValueError("Missing or duplicate CSV headers")
-    if (len(set(columns.values())) != len(columns) or
-            any(not isinstance(c, str) or c not in reader.fieldnames for c in columns.values())):
+    if any(not isinstance(c, str) for c in columns.values()):
+        raise ValueError("Mapped CSV columns must be strings")
+    if len(set(columns.values())) != len(columns):
+        raise ValueError("Duplicate mapped CSV columns")
+    if any(c not in reader.fieldnames for c in columns.values()):
         raise ValueError("Mapped CSV columns missing")
     try:
         rows = list(reader)
