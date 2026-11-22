@@ -68,3 +68,27 @@ def test_mismatched_measured_response_rejected():
         relaxation_observability((1., 10., 100.),
                                  model="maxwell", parameters=(100.,),
                                  normalized_modulus=(1., .5))
+
+
+@pytest.mark.parametrize("parameters", [100., [[100.]], [float("nan")]])
+def test_model_parameter_shape_and_finiteness_rejected(parameters):
+    with pytest.raises(ValueError):
+        relaxation_observability((1., 10., 100.),
+                                 model="maxwell", parameters=parameters)
+
+
+def test_empirical_and_predicted_crossings_are_independent():
+    result = relaxation_observability(
+        (1., 10., 100., 1000.), model="maxwell",
+        parameters=(10000.,), normalized_modulus=(1., .5, .2, .1))
+    assert result["location"] == "after_window"
+    assert result["measured_crossing_observed"] is True
+    assert result["measured_crossing_location"] == "inside_window"
+    assert result["warning"]
+
+
+def test_kww_crossing_depends_on_threshold_but_tau_is_one_over_e():
+    result = relaxation_observability(
+        (.01, 1., 100., 1000.), model="kww",
+        parameters=(100., .5), threshold=math.exp(-2))
+    assert result["crossing_time_s"] == pytest.approx(400.)
