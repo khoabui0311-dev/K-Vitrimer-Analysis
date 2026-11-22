@@ -94,6 +94,13 @@ def relaxation_observability(time_s, *, model, parameters,
                           "inside_window")
     location = ("before_window" if tau < first else
                 "after_window" if tau > last else "inside_window")
+    warnings = []
+    if location != "inside_window":
+        warnings.append("Predicted crossing lies outside measurement window; "
+                        "reported characteristic time is extrapolated")
+    if measured_downward_crossing_count > 1:
+        warnings.append("Multiple measured downward threshold crossings; "
+                        "empirical crossing time is ambiguous and may be noise-sensitive")
     return {
         "model": model,
         "crossing_time_s": tau,
@@ -107,7 +114,5 @@ def relaxation_observability(time_s, *, model, parameters,
         "measured_multiple_crossings": measured_downward_crossing_count > 1,
         "measured_crossing_observed": empirical_crossing is not None,
         "measured_crossing_location": empirical_location,
-        "warning": (None if location == "inside_window" else
-                    "Predicted crossing lies outside measurement window; "
-                    "reported characteristic time is extrapolated"),
+        "warning": " ".join(warnings) if warnings else None,
     }
