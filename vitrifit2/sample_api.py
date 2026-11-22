@@ -21,6 +21,7 @@ from .rheology_history import (
 from .rheology_manifest import export_rheology_manifest_json
 from .tensile_workflow import import_tensile_csv, get_tensile_analysis, list_tensile_analyses
 from .thermal_workflow import import_thermal_csv, get_thermal_analysis, list_thermal_analyses
+from .sample_manifest import export_sample_analysis_manifest
 
 router = APIRouter(prefix="/api/v2", tags=["Sample profiles and rheology"])
 MAX_UPLOAD = 50 * 1024 * 1024
@@ -255,3 +256,13 @@ def thermal_history(measurement_id: str,
 def thermal_analysis(analysis_id: str,
                      store: VitriFitStore = Depends(store_dependency)):
     return get_thermal_analysis(store, analysis_id)
+
+
+@router.post("/analyses/manifest")
+def sample_manifest(req: ManifestInput,
+                    store: VitriFitStore = Depends(store_dependency)):
+    content = export_sample_analysis_manifest(
+        store, req.analysis_ids, include_results=req.include_results)
+    return Response(content, media_type="application/json",
+                    headers={"Content-Disposition":
+                             'attachment; filename="vitrifit-sample-analysis-manifest.json"'})
