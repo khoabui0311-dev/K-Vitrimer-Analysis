@@ -31,7 +31,10 @@ def relaxation_observability(time_s, *, model, parameters,
         raise ValueError("Need finite increasing nonnegative measurement times")
     if not math.isfinite(threshold) or not 0 < threshold < 1:
         raise ValueError("threshold must be between zero and one")
-    params = np.asarray(parameters, dtype=float)
+    try:
+        params = np.asarray(parameters, dtype=float)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("Invalid model parameters") from exc
     if params.ndim != 1 or not np.all(np.isfinite(params)):
         raise ValueError("Nonfinite model parameters")
     expected_count = {"maxwell": 1, "kww": 2, "dual_maxwell": 3}[model]
