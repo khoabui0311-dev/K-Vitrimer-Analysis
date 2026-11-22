@@ -88,7 +88,7 @@ def test_lvr_evidence_requires_same_specimen_and_conditions(setup):
     _, fs_large = frequency(store, specimen, strain=.2)
     assert check_frequency_sweep_lvr(store, fs_large, lvr)["status"] == "outside_measured_lvr"
     second_specimen = create_specimen(
-        store, store._db_sample_placeholder if False else _sample_id(store, specimen),
+        store, _sample_id(store, specimen),
         "disc-2")
     _, fs_other = frequency(store, second_specimen)
     assert check_frequency_sweep_lvr(store, fs_other, lvr)["status"] == "not_directly_verified"
