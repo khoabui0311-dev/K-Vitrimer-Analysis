@@ -20,6 +20,10 @@ from typing import Any
 from uuid import uuid4
 
 
+class NotesConflict(ValueError):
+    """The sample notes were saved by another editor."""
+
+
 def _id() -> str:
     return uuid4().hex
 
@@ -75,6 +79,13 @@ class VitriFitStore:
                 id TEXT PRIMARY KEY, sample_id TEXT NOT NULL REFERENCES samples(id),
                 original_filename TEXT NOT NULL, file_sha256 TEXT NOT NULL,
                 metadata_json TEXT NOT NULL, created_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS sample_notes (
+                sample_id TEXT PRIMARY KEY REFERENCES samples(id),
+                text TEXT NOT NULL, revision INTEGER NOT NULL, updated_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS import_requests (
+                id TEXT PRIMARY KEY, experiment_id TEXT NOT NULL REFERENCES experiments(id)
             );
             CREATE TABLE IF NOT EXISTS curves (
                 id TEXT PRIMARY KEY, experiment_id TEXT NOT NULL REFERENCES experiments(id),
@@ -143,6 +154,33 @@ class VitriFitStore:
             db.execute("INSERT INTO samples VALUES (?, ?, ?, ?)", (key, project_id, name.strip(), _now()))
         return key
 
+    def get_sample_notes(self, sample_id: str) -> dict:
+        with self._db() as db:
+            self._require(db, "samples", sample_id)
+            row = db.execute(
+                "SELECT text, revision, updated_at FROM sample_notes WHERE sample_id=?",
+                (sample_id,),
+            ).fetchone()
+            return dict(row) if row else {"text": "", "revision": 0, "updated_at": None}
+
+    def save_sample_notes(self, sample_id: str, text: str, revision: int) -> dict:
+        with self._db() as db:
+            db.execute("BEGIN IMMEDIATE")
+            self._require(db, "samples", sample_id)
+            row = db.execute(
+                "SELECT revision FROM sample_notes WHERE sample_id=?", (sample_id,),
+            ).fetchone()
+            if (row["revision"] if row else 0) != revision:
+                raise NotesConflict("Notes changed in another session.")
+            record = {"text": text, "revision": revision + 1, "updated_at": _now()}
+            db.execute(
+                """INSERT INTO sample_notes VALUES (?, ?, ?, ?)
+                   ON CONFLICT(sample_id) DO UPDATE SET
+                   text=excluded.text, revision=excluded.revision, updated_at=excluded.updated_at""",
+                (sample_id, record["text"], record["revision"], record["updated_at"]),
+            )
+            return record
+
     @staticmethod
     def _validate_curve(curve: dict) -> tuple[str, float, list, list]:
         source = str(curve["source_curve_id"])
@@ -160,7 +198,8 @@ class VitriFitStore:
         return source, temp, times, modulus
 
     def import_experiment(self, sample_id: str, filename: str, raw_bytes: bytes,
-                          curves: list[dict], metadata: dict | None = None) -> dict:
+                          curves: list[dict], metadata: dict | None = None,
+                          *, request_id: str | None = None) -> dict:
         """Store an original file and its parsed, row-aligned curves.
 
         Parsing/units conversion belongs to an instrument adapter (v1 parser
@@ -185,7 +224,24 @@ class VitriFitStore:
         experiment_id = _id()
         curve_ids = []
         with self._db() as db:
+            db.execute("BEGIN IMMEDIATE")
             self._require(db, "samples", sample_id)
+            if request_id:
+                previous = db.execute(
+                    """SELECT e.* FROM import_requests r JOIN experiments e ON e.id=r.experiment_id
+                       WHERE r.id=?""",
+                    (request_id,),
+                ).fetchone()
+                if previous:
+                    if (previous["sample_id"], previous["original_filename"], previous["file_sha256"]) != (
+                        sample_id, filename, digest
+                    ):
+                        raise ValueError("Import request already used for a different file or sample")
+                    curve_ids = [row["id"] for row in db.execute(
+                        "SELECT id FROM curves WHERE experiment_id=? ORDER BY created_at, id",
+                        (previous["id"],),
+                    )]
+                    return {"experiment_id": previous["id"], "curve_ids": curve_ids, "file_sha256": digest}
             db.execute("INSERT INTO experiments VALUES (?,?,?,?,?,?)",
                        (experiment_id, sample_id, filename, digest, _json(metadata or {}), _now()))
             for source, temperature, times, modulus in validated:
@@ -199,6 +255,8 @@ class VitriFitStore:
                             _json({"type": "import", "time_origin": "instrument_unmodified"}), _now()))
                 db.execute("INSERT INTO edit_state VALUES (?, '[]')", (curve_id,))
                 curve_ids.append(curve_id)
+            if request_id:
+                db.execute("INSERT INTO import_requests VALUES (?, ?)", (request_id, experiment_id))
         return {"experiment_id": experiment_id, "curve_ids": curve_ids, "file_sha256": digest}
 
     def get_original_file(self, experiment_id: str) -> bytes:
@@ -307,15 +365,19 @@ class VitriFitStore:
             return target
 
     def save_analysis(self, curve_id: str, model: str, tau_definition: str,
-                      config: dict, results: dict) -> str:
-        """Pin results to the current processing revision; never overwrite fits."""
+                      config: dict, results: dict, *, revision_id: str | None = None) -> str:
+        """Pin results to the processing revision used for fitting."""
         if not model.strip() or not tau_definition.strip():
             raise ValueError("Model and relaxation time definition are required")
         key = _id()
         with self._db() as db:
             curve = self._require(db, "curves", curve_id)
+            revision_id = revision_id or curve["active_revision_id"]
+            revision = self._require(db, "processing_revisions", revision_id)
+            if revision["curve_id"] != curve_id:
+                raise ValueError("Processing revision belongs to a different curve")
             db.execute("INSERT INTO analysis_runs VALUES (?,?,?,?,?,?,?,?)",
-                       (key, curve_id, curve["active_revision_id"], model, tau_definition,
+                       (key, curve_id, revision_id, model, tau_definition,
                         _json(config), _json(results), _now()))
         return key
 
@@ -421,6 +483,7 @@ class VitriFitStore:
         with self._db() as db:
             sql = """SELECT a.*, c.temperature_c, c.active_revision_id, c.source_curve_id,
                             s.name AS sample_name, s.id AS sample_id,
+                            e.original_filename,
                             p.name AS project_name, p.id AS project_id
                      FROM analysis_runs a
                      JOIN curves c ON c.id=a.curve_id
@@ -435,9 +498,10 @@ class VitriFitStore:
             sql += " ORDER BY a.created_at, a.id"
             rows = db.execute(sql, params).fetchall()
             return [
-                {"id": row["id"], "curve_id": row["curve_id"],
+                {"id": row["id"], "curve_id": row["curve_id"], "revision_id": row["revision_id"],
                  "temperature_c": row["temperature_c"],
                  "source_curve_id": row["source_curve_id"],
+                 "original_filename": row["original_filename"],
                  "sample_name": row["sample_name"], "sample_id": row["sample_id"],
                  "project_name": row["project_name"], "project_id": row["project_id"],
                  "model": row["model"], "tau_definition": row["tau_definition"],

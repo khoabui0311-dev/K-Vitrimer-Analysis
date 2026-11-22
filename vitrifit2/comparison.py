@@ -48,6 +48,7 @@ def compare_runs(store: VitriFitStore, run_ids: list[str], mode: str,
             "run_id": r["id"], "curve_id": r["curve_id"],
             "sample_id": r["sample_id"], "sample": r["sample_name"],
             "project": r["project_name"],
+            "original_filename": r["original_filename"], "source_curve_id": r["source_curve_id"],
             "temperature_c": float(r["temperature_c"]),
             "model": r["model"], "tau_definition": r["tau_definition"],
             "tau_s": float(tau),
@@ -67,14 +68,27 @@ def compare_runs(store: VitriFitStore, run_ids: list[str], mode: str,
 
     if mode == "curves":
         overlays = []
-        for row in rows:
-            curve = store.get_curve(row["curve_id"])
-            t = [v for v, use in zip(curve["time_s"], curve["mask"]) if use]
-            g = [v for v, use in zip(curve["modulus_mpa"], curve["mask"]) if use]
-            if not t or not g:
+        for row, record in zip(rows, records):
+            curve = store.get_curve_revision(row["curve_id"], record["revision_id"])
+            included = []
+            excluded = []
+            for time, modulus, keep in zip(curve["time_s"], curve["modulus_mpa"], curve["mask"]):
+                (included if keep else excluded).append((time, modulus))
+            if not included:
                 continue
-            overlays.append({**row, "time_s": t, "modulus_mpa": g,
-                             "normalized_modulus": [v/g[0] for v in g]})
+            ref = included[0][1]
+            if ref <= 0:
+                raise ValueError("Curve normalization requires a positive reference modulus")
+            result = record["results"]
+            overlays.append({
+                **row, "time_s": [time for time, _ in included],
+                "modulus_mpa": [modulus for _, modulus in included],
+                "normalized_modulus": [modulus / ref for _, modulus in included],
+                "excluded_time_s": [time for time, _ in excluded],
+                "excluded_normalized_modulus": [_finite(modulus / ref) for _, modulus in excluded],
+                "fit_time_s": result.get("fit_time_s", []),
+                "fit_normalized_prediction": result.get("fit_normalized_prediction", []),
+            })
         return {"mode": mode, "curves": overlays,
                 "tau_definition": rows[0]["tau_definition"]}
 

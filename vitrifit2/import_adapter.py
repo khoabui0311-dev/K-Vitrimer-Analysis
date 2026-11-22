@@ -112,7 +112,8 @@ def preview_relaxation_upload(filename: str, original_bytes: bytes) -> dict:
 
 def import_relaxation_upload(store: VitriFitStore, sample_id: str,
                              filename: str, original_bytes: bytes,
-                             metadata: dict | None = None) -> dict:
+                             metadata: dict | None = None,
+                             *, request_id: str | None = None) -> dict:
     """Commit the original bytes and unmodified canonical parsed observations.
 
     The preview does not modify, normalize, trim or sort any recorded points.
@@ -137,6 +138,11 @@ def import_relaxation_upload(store: VitriFitStore, sample_id: str,
         for item in parsed
     ]
     import_warnings = [text for c in summaries for text in c["warnings"]]
+    if request_id:
+        if not metadata or not metadata.get("preview_sha256") or metadata.get("preview_curve_count") is None:
+            raise ValueError("Inspect this file before importing")
+        if import_warnings and metadata.get("review_warnings_acknowledged") is not True:
+            raise ValueError("Review and acknowledge the warnings before importing")
     audit = {
         **(metadata or {}),
         "technique": "stress_relaxation",
@@ -148,4 +154,4 @@ def import_relaxation_upload(store: VitriFitStore, sample_id: str,
         "import_requires_review": bool(import_warnings),
     }
     return store.import_experiment(sample_id, filename, original_bytes, curves,
-                                   metadata=audit)
+                                   metadata=audit, request_id=request_id)

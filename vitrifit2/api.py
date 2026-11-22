@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+from uuid import UUID
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -18,7 +19,7 @@ from pydantic import BaseModel, Field
 from .comparison import compare_runs
 from .comparison_export import comparison_csv
 from .import_adapter import import_relaxation_upload, preview_relaxation_upload
-from .persistence import VitriFitStore
+from .persistence import NotesConflict, VitriFitStore
 from .publication_export import export_publication_figure
 from .science import fit_saved_curve, suggest_automatic_trim
 from .sample_api import router as sample_router
@@ -52,7 +53,7 @@ async def localhost_only(request, call_next):
 
 app.add_middleware(CORSMiddleware,
                    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
-                   allow_credentials=False, allow_methods=["GET", "POST"],
+                   allow_credentials=False, allow_methods=["GET", "POST", "PUT"],
                    allow_headers=["Content-Type"])
 
 
@@ -68,6 +69,11 @@ async def _not_found(request, exc: KeyError):
 
 class Named(BaseModel):
     name: str = Field(min_length=1, max_length=200)
+
+
+class SampleNotesUpdate(BaseModel):
+    text: str = Field(max_length=100_000)
+    revision: int = Field(ge=0)
 
 
 class Region(BaseModel):
@@ -103,12 +109,15 @@ class NewPreset(BaseModel):
     settings: dict
 
 
-class NewFigure(BaseModel):
-    name: str
+class FigureDraft(BaseModel):
     run_ids: list[str]
     preset_id: str | None = None
     composition: dict = Field(default_factory=dict)
     overrides: dict = Field(default_factory=dict)
+
+
+class NewFigure(FigureDraft):
+    name: str
 
 
 @app.get("/api/health")
@@ -142,6 +151,20 @@ def create_sample(project_id: str, req: Named, store: VitriFitStore = Depends(ge
     return {"id": store.create_sample(project_id, req.name)}
 
 
+@app.get("/api/samples/{sample_id}/notes")
+def read_sample_notes(sample_id: str, store: VitriFitStore = Depends(get_store)):
+    return store.get_sample_notes(sample_id)
+
+
+@app.put("/api/samples/{sample_id}/notes")
+def update_sample_notes(sample_id: str, data: SampleNotesUpdate,
+                        store: VitriFitStore = Depends(get_store)):
+    try:
+        return store.save_sample_notes(sample_id, data.text, data.revision)
+    except NotesConflict as exc:
+        raise HTTPException(409, str(exc)) from exc
+
+
 @app.get("/api/samples/{sample_id}/experiments")
 def list_experiments(sample_id: str, store: VitriFitStore = Depends(get_store)):
     return store.list_experiments(sample_id)
@@ -160,6 +183,7 @@ async def preview_import(file: UploadFile = File(...)):
 async def import_experiment(sample_id: str,
                             file: UploadFile = File(...),
                             metadata: str = Form("{}"),
+                            request_id: UUID | None = Form(None),
                             store: VitriFitStore = Depends(get_store)):
     content = await file.read(MAX_UPLOAD + 1)
     if len(content) > MAX_UPLOAD:
@@ -171,7 +195,8 @@ async def import_experiment(sample_id: str,
     if not isinstance(meta, dict):
         raise ValueError("Experiment metadata must be a JSON object")
     return import_relaxation_upload(store, sample_id, Path(file.filename or "").name,
-                                    content, metadata=meta)
+                                    content, metadata=meta,
+                                    request_id=str(request_id) if request_id else None)
 
 
 @app.get("/api/experiments/{experiment_id}/curves")
@@ -286,10 +311,39 @@ def save_figure(req: NewFigure, store: VitriFitStore = Depends(get_store)):
                                     req.preset_id, req.composition, req.overrides)}
 
 
+@app.post("/api/figures/preview")
+def preview_publication(req: FigureDraft, store: VitriFitStore = Depends(get_store)):
+    """Render draft settings without creating a figure record."""
+    content, media_type = _render_figure(store, dict(req), fmt="svg", dpi=300,
+                                         browser_preview=True)
+    return Response(content, media_type=media_type, headers={"Cache-Control": "no-store"})
+
+
 @app.get("/api/figures/{figure_id}")
 def get_figure(figure_id: str, store: VitriFitStore = Depends(get_store)):
     return store.get_figure(figure_id)
 
+
+def _render_figure(store: VitriFitStore, figure: dict, fmt: str, dpi: int,
+                   *, browser_preview: bool = False) -> tuple[bytes, str]:
+    settings = {}
+    if figure["preset_id"]:
+        settings.update(store.get_figure_preset(figure["preset_id"])["settings"])
+    settings.update(figure["overrides"])
+    if browser_preview:
+        settings["pub_colorspace"] = "RGB"
+    composition = figure["composition"]
+    kind = {"curves": "relaxation", "relaxation": "relaxation",
+            "kinetics": "kinetics", "fixed_temperature": "fixed_temperature",
+            "eyring": "eyring", "van_t_hoff": "van_t_hoff"}.get(
+                composition.get("plot_type", "relaxation"))
+    if kind is None:
+        raise ValueError("Unknown figure-composition plot type")
+    return export_publication_figure(
+        store, figure["run_ids"], kind, settings, fmt=fmt, dpi=dpi,
+        kinetic_model=composition.get("kinetic_model", "Arrhenius"),
+        windows=composition.get("windows", {}),
+        temperature_c=composition.get("temperature_c"))
 
 
 @app.get("/api/figures/{figure_id}/export")
@@ -297,25 +351,8 @@ def export_saved_publication(figure_id: str, fmt: str = "tiff",
                              dpi: int = 300, inline: bool = False,
                              store: VitriFitStore = Depends(get_store)):
     """Export a saved manuscript figure with the exact pinned fit revisions."""
-    saved = store.get_figure(figure_id)
-    settings = {}
-    if saved["preset_id"]:
-        settings.update(store.get_figure_preset(saved["preset_id"])["settings"])
-    settings.update(saved["overrides"])
-    composition = saved["composition"]
-    kind = {"curves": "relaxation", "relaxation": "relaxation",
-            "kinetics": "kinetics",
-            "fixed_temperature": "fixed_temperature",
-            "eyring": "eyring",
-            "van_t_hoff": "van_t_hoff"}.get(
-                composition.get("plot_type", "relaxation"))
-    if kind is None:
-        raise ValueError("Unknown figure-composition plot type")
-    content, media_type = export_publication_figure(
-        store, saved["run_ids"], kind, settings, fmt=fmt, dpi=dpi,
-        kinetic_model=composition.get("kinetic_model", "Arrhenius"),
-        windows=composition.get("windows", {}),
-        temperature_c=composition.get("temperature_c"))
+    content, media_type = _render_figure(store, store.get_figure(figure_id), fmt, dpi,
+                                         browser_preview=inline and fmt == "svg")
     extension = "jpg" if fmt == "jpeg" else fmt
     disposition = "inline" if inline and fmt == "svg" else "attachment"
     return Response(content, media_type=media_type,

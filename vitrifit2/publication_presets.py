@@ -6,6 +6,8 @@ Matplotlib format, or renderer. Presets use the v2 SQLite data store.
 from __future__ import annotations
 
 import numbers
+import os
+import sqlite3
 from pathlib import Path
 
 from .persistence import VitriFitStore
@@ -46,10 +48,15 @@ def apply_publication_settings(state, settings: dict) -> int:
 
 def render_preset_controls(st):
     """Insert at the start of render_publication, before existing controls."""
-    store = VitriFitStore(Path.home() / ".vitrifit2")
     with st.expander("💾 Saved publication figure styles", expanded=False):
         st.caption("Preserve all current v1 Publication controls and reuse the same settings next session.")
-        presets = store.list_figure_presets()
+        try:
+            root = Path(os.environ.get("VITRIFIT2_DATA_DIR", Path.home() / ".vitrifit2"))
+            store = VitriFitStore(root)
+            presets = store.list_figure_presets()
+        except (OSError, sqlite3.Error):
+            st.caption("The local style library is unavailable.")
+            return
         names = {p["id"]: p["name"] for p in presets}
         selected = st.selectbox("Load saved style", [""] + list(names),
                                 format_func=lambda i: names.get(i, "Choose saved style"),

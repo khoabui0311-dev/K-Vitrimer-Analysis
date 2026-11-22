@@ -35,6 +35,7 @@ def test_arrhenius_confidence_and_small_sample_reporting(tmp_path, n):
         assert "Two-point" in result["warning"]
     else:
         lo, hi = result["Ea_ci95_kj_mol"]
-        assert lo <= 65 <= hi
+        # Perfect synthetic data can give a CI only a few floating-point steps wide.
+        assert lo - 1e-10 <= 65 <= hi + 1e-10
         if n == 3:
             assert "three" in result["warning"]

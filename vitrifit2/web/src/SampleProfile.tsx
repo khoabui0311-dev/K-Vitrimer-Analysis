@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import Plot from "react-plotly.js";
+import { api, errorMessage } from "./api";
 
 type Measurement = {measurement_id:string;specimen_id:string;technique:string;method:string;
   conditions:Record<string,unknown>;files:{file_id:string;filename:string;sha256:string}[]};
@@ -10,16 +11,33 @@ type Analysis = {analysis_id:string;measurement_id:string;file_id:string;method:
   source_sha256:string;algorithm_version:string;config:Record<string,any>;
   results:Record<string,any>};
 
-async function request<T>(url:string, method="GET", body?:unknown):Promise<T>{
-  const opts:RequestInit={method};
-  if(body instanceof FormData) opts.body=body;
-  else if(body!==undefined){opts.body=JSON.stringify(body);opts.headers={"Content-Type":"application/json"};}
-  const res=await fetch("/api/v2"+url,opts);
-  if(!res.ok){const payload=await res.json().catch(()=>({detail:res.statusText}));
-    throw new Error(String(payload.detail||res.statusText));}
-  return res.json() as Promise<T>;
-}
-const err=(e:unknown)=>e instanceof Error?e.message:String(e);
+const request = <T,>(url: string, method = "GET", body?: unknown) =>
+  api<T>("/v2"+url,method,body);
+
+const columnFields: Record<string, {key:string; label:string; example:string}[]> = {
+  temperature_ramp: [
+    {key:"temperature_c",label:"Temperature (°C)",example:"T"},
+    {key:"storage_modulus",label:"Storage modulus E′",example:"Ep"},
+    {key:"loss_modulus",label:"Loss modulus E″",example:"Epp"},
+  ],
+  calorimetry: [
+    {key:"temperature_c",label:"Temperature (°C)",example:"T"},
+    {key:"heat_flow",label:"Heat flow",example:"heat"},
+  ],
+  tensile_test: [
+    {key:"displacement_mm",label:"Displacement (mm)",example:"extension"},
+    {key:"force_n",label:"Force (N)",example:"load"},
+  ],
+  amplitude_sweep: [
+    {key:"strain_percent",label:"Strain (%)",example:"strain"},
+    {key:"storage_modulus",label:"Storage modulus G′",example:"Gp"},
+  ],
+  frequency_sweep: [
+    {key:"frequency",label:"Frequency",example:"freq"},
+    {key:"storage_modulus",label:"Storage modulus G′",example:"Gp"},
+    {key:"loss_modulus",label:"Loss modulus G″",example:"Gpp"},
+  ],
+};
 
 export default function SampleProfile({sampleId}:{sampleId:string}){
   const [profile,setProfile]=useState<Profile|null>(null);
@@ -29,7 +47,7 @@ export default function SampleProfile({sampleId}:{sampleId:string}){
   const [method,setMethod]=useState("amplitude_sweep");
   const [conditions,setConditions]=useState('{"temperature_c":40,"frequency_hz":1,"geometry_id":"plate-8mm","material_state_id":"annealed"}');
   const [file,setFile]=useState<File|null>(null);
-  const [columns,setColumns]=useState('{"strain_percent":"strain","storage_modulus":"Gp"}');
+  const [columns,setColumns]=useState<Record<string,string>>({});
   const [frequencyUnit,setFrequencyUnit]=useState("Hz");
   const [modulusUnit,setModulusUnit]=useState("Pa");
   const [heatFlowUnit,setHeatFlowUnit]=useState("mW");
@@ -56,26 +74,23 @@ export default function SampleProfile({sampleId}:{sampleId:string}){
   }
   useEffect(()=>{
     setProfile(null);setSpecimenId("");setMeasurementId("");setAnalyses([]);setActive(null);
-    if(sampleId) refresh().catch(e=>setError(err(e)));
+    if(sampleId) refresh().catch(e=>setError(errorMessage(e)));
   },[sampleId]);
   useEffect(()=>{
-    setAnalyses([]);setActive(null);setComparisonIds([]);setComparison(null);
+    setAnalyses([]);setActive(null);setComparisonIds([]);setComparison(null);setFile(null);setColumns({});
+    let current = true;
     if(measurementId){
       const technique=profile?.specimens.flatMap(s=>s.measurements).find(m=>m.measurement_id===measurementId)?.technique;
       const adapter=technique==="Tensile"?"tensile":technique==="DMA"||technique==="DSC"?"thermal":"rheology";
       request<Analysis[]>("/measurements/"+measurementId+"/"+adapter+"/analyses")
-        .then(setAnalyses).catch(e=>setError(err(e)));
+        .then(items=>{ if (current) setAnalyses(items); })
+        .catch(e=>{ if (current) setError(errorMessage(e)); });
     }
+    return ()=>{ current = false; };
   },[measurementId]);
-  useEffect(()=>{
-    setColumns(method==="temperature_ramp"?'{"temperature_c":"T","storage_modulus":"Ep","loss_modulus":"Epp"}':
-      method==="calorimetry"?'{"temperature_c":"T","heat_flow":"heat"}':method==="tensile_test"?'{"displacement_mm":"extension","force_n":"load"}':method==="amplitude_sweep"
-      ?'{"strain_percent":"strain","storage_modulus":"Gp"}'
-      :'{"frequency":"freq","storage_modulus":"Gp","loss_modulus":"Gpp"}');
-  },[method]);
   async function execute(task:()=>Promise<void>){
     setBusy(true);setError("");setNotice("");
-    try{await task();}catch(e){setError(err(e));}finally{setBusy(false);}
+    try{await task();}catch(e){setError(errorMessage(e));}finally{setBusy(false);}
   }
   async function verifyBackup(){
     if(!backupFile)return;
@@ -107,8 +122,13 @@ export default function SampleProfile({sampleId}:{sampleId:string}){
   async function importCsv(){
     if(!measurementId||!file)return;
     await execute(async()=>{
-      const mapping=JSON.parse(columns);
-      if(!mapping||typeof mapping!=="object"||Array.isArray(mapping))throw Error("Columns must be a JSON object");
+      const mapping = Object.fromEntries(fields.map(field=>[
+        field.key,(columns[field.key]??field.example).trim(),
+      ]));
+      const headers = Object.values(mapping);
+      if (headers.some(header=>!header) || new Set(headers).size!==headers.length) {
+        throw new Error("Enter a different CSV column header for each measurement quantity.");
+      }
       const form=new FormData();
       form.append("file",file);form.append("method",selected?.method||method);
       form.append("columns_json",JSON.stringify(mapping));
@@ -162,6 +182,7 @@ export default function SampleProfile({sampleId}:{sampleId:string}){
     });
   }
   const selected=profile?.specimens.flatMap(s=>s.measurements).find(m=>m.measurement_id===measurementId);
+  const fields = columnFields[selected?.method??""]??[];
   const traces=active?.method==="frequency_sweep" ? [
     {x:active.results.angular_frequency_rad_s,y:active.results.storage_modulus_pa,
       name:"G′",type:"scatter" as const,mode:"lines+markers" as const},
@@ -191,13 +212,13 @@ export default function SampleProfile({sampleId}:{sampleId:string}){
       <p className="muted">Sample → physical specimen → measurement → immutable raw file → analysis.</p>
       <div className="profile-techniques">{["DMA","DSC","Rheology","Tensile"].map(t=>
         <div key={t}><strong>{t}</strong><small>{profile?.techniques[t]?.length||0} measurements</small></div>)}</div>
-      <label className="field">Specimen<select value={specimenId} onChange={e=>{setSpecimenId(e.target.value);setMeasurementId("");}}>
+      <label className="field">Specimen<select aria-label="Specimen" value={specimenId} disabled={busy} onChange={e=>{setSpecimenId(e.target.value);setMeasurementId("");}}>
         <option value="">Choose specimen</option>{profile?.specimens.map(s=>
           <option key={s.specimen_id} value={s.specimen_id}>{s.label}</option>)}</select></label>
     </section>
     {specimenId&&<section className="card">
       <h2>Create measurement</h2><div className="controls">
-        <label className="field">Technique<select value={technique} onChange={e=>{setTechnique(e.target.value);
+        <label className="field">Technique<select aria-label="Technique" value={technique} disabled={busy} onChange={e=>{setTechnique(e.target.value);
           setMethod(e.target.value==="Rheology"?"amplitude_sweep":e.target.value==="DMA"?"temperature_ramp":e.target.value==="DSC"?"calorimetry":"tensile_test");}}>
           {["Rheology","DMA","DSC","Tensile"].map(t=><option key={t}>{t}</option>)}</select></label>
         <label className="field">Method<select value={method} onChange={e=>setMethod(e.target.value)}>
@@ -211,7 +232,7 @@ export default function SampleProfile({sampleId}:{sampleId:string}){
       <h2 style={{marginTop:20}}>Saved measurements</h2>
       <div className="run-list">{profile?.specimens.find(s=>s.specimen_id===specimenId)?.measurements.map(m=>
         <button className={"profile-measurement "+(measurementId===m.measurement_id?"selected":"")}
-          key={m.measurement_id} onClick={()=>{setMeasurementId(m.measurement_id);setMethod(m.method);}}>
+          key={m.measurement_id} disabled={busy} onClick={()=>setMeasurementId(m.measurement_id)}>
           <strong>{m.technique} · {m.method}</strong>
           <small>{m.conditions.temperature_c==null?"Temperature not supplied":String(m.conditions.temperature_c)+" °C"} · {m.files.length} raw files</small>
         </button>)}</div>
@@ -237,7 +258,7 @@ export default function SampleProfile({sampleId}:{sampleId:string}){
           <label className="field">Thickness (mm)<input type="number" min=".001" step=".1" value={thickness} onChange={e=>setThickness(Number(e.target.value))}/></label>
         </div>}
         <div className="controls">
-          <label className="field">CSV file<input type="file" accept=".csv,text/csv"
+          <label className="field">CSV file<input key={measurementId} type="file" accept=".csv,text/csv"
             onChange={e=>setFile(e.target.files?.[0]||null)}/></label>
           {selected.method!=="tensile_test"&&selected.method!=="calorimetry"&&<label className="field">Modulus unit<select value={modulusUnit} onChange={e=>setModulusUnit(e.target.value)}>
             {(selected.method==="temperature_ramp"?["Pa","kPa","MPa","GPa"]:["Pa","kPa","MPa"]).map(u=><option key={u}>{u}</option>)}</select></label>}
@@ -245,8 +266,13 @@ export default function SampleProfile({sampleId}:{sampleId:string}){
             <select value={frequencyUnit} onChange={e=>setFrequencyUnit(e.target.value)}>
               {["Hz","rad/s"].map(u=><option key={u}>{u}</option>)}</select></label>}
         </div>
-        <label className="field">Column mapping (JSON)<textarea rows={3}
-          value={columns} onChange={e=>setColumns(e.target.value)}/></label>
+        <fieldset className="profile-columns" key={measurementId}>
+          <legend>CSV column headers</legend>
+          <div className="controls">{fields.map(field=><label className="field" key={field.key}>{field.label}
+            <input type="text" value={columns[field.key]??field.example}
+              onChange={event=>setColumns(previous=>({...previous,[field.key]:event.target.value}))}/>
+          </label>)}</div>
+        </fieldset>
         <button className="primary" disabled={!file||busy} onClick={importCsv}>Import, analyze and save</button>
         </>}
       <h2 style={{marginTop:22}}>Original measurement files ({selected.files.length})</h2>
@@ -259,9 +285,9 @@ export default function SampleProfile({sampleId}:{sampleId:string}){
       <h2 style={{marginTop:22}}>Analysis history ({analyses.length})</h2>
       {analyses.length===0&&<p className="muted">No saved analyses for this measurement.</p>}
       <div className="run-list">{analyses.map(a=><div key={a.analysis_id} className="profile-analysis-row">
-        <input type="checkbox" aria-label={"Select analysis "+a.analysis_id+" for comparison"}
+        {selected.technique==="Rheology"&&<input type="checkbox" aria-label={"Select analysis "+a.analysis_id+" for comparison"}
           checked={comparisonIds.includes(a.analysis_id)}
-          onChange={e=>setComparisonIds(ids=>e.target.checked?[...ids,a.analysis_id]:ids.filter(id=>id!==a.analysis_id))}/>
+          onChange={e=>setComparisonIds(ids=>e.target.checked?[...ids,a.analysis_id]:ids.filter(id=>id!==a.analysis_id))}/>}
         <button
         className={"profile-measurement "+(active?.analysis_id===a.analysis_id?"selected":"")}
         onClick={()=>{setActive(a);setDeparture(Number(a.config.departure_fraction??.05));}}>

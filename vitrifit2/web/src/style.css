@@ -94,3 +94,21 @@ footer{color:#9ba8b8;font-size:11px;margin-top:24px}
 .profile-raw-file span{display:flex;flex-direction:column;gap:5px;min-width:0}
 .profile-raw-file small{font:10px ui-monospace,monospace;color:#718198;overflow-wrap:anywhere}
 .profile-raw-file a{white-space:nowrap;color:#255ca9;text-decoration:none;font-weight:600}
+
+textarea {
+  width: 100%;
+  min-height: 12rem;
+  resize: vertical;
+  padding: .75rem;
+  border: 1px solid #cbd5e1;
+  border-radius: .5rem;
+  font: inherit;
+  line-height: 1.5;
+}
+
+.profile-columns {
+  margin: .75rem 0;
+  padding: .25rem .75rem;
+  border: 1px solid #e2e8f0;
+  border-radius: .5rem;
+}

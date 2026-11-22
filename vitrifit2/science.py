@@ -103,9 +103,10 @@ def fit_saved_curve(store: VitriFitStore, curve_id: str, model: str = "Single_KW
               "fixed_plateau_mpa": float(fixed_plateau_mpa),
               "component": component, "origin": "original_elapsed_time",
               "preprocessing": "manual_per_curve_mask", "scientific_engine": "can_relax.CurveAnalyzer"}
-    run_id = store.save_analysis(curve_id, model, definition, config, result)
+    run_id = store.save_analysis(curve_id, model, definition, config, result,
+                                 revision_id=curve["active_revision_id"])
     return {"run_id": run_id, "model": model, "tau_definition": definition,
-            "is_current": True, "results": result}
+            "is_current": store.get_analysis(run_id)["is_current"], "results": result}
 
 
 def suggest_automatic_trim(store: VitriFitStore, curve_id: str) -> dict:

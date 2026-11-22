@@ -1,30 +1,24 @@
 import { useEffect, useMemo, useState } from "react";
 import Plot from "react-plotly.js";
+import type { Data, Layout, PlotRelayoutEvent, Shape } from "plotly.js";
 import SampleProfile from "./SampleProfile";
+import RelaxationImport from "./RelaxationImport";
+import SampleNotes from "./SampleNotes";
+import { api, apiBlob, errorMessage } from "./api";
 
 type Item = { id: string; name: string };
 type Experiment = { id: string; original_filename: string; metadata?: {
   curve_quality?: {source_curve_id: string;temperature_c:number;warnings:string[]}[];
   import_warnings?: string[]; import_requires_review?: boolean; }; };
-type PreviewCurve = { source_curve_id: string; temperature_c: number; points: number;
-  first_time_s: number; last_time_s: number; time_min_s: number; time_max_s: number;
-  nonpositive_modulus_points: number; duplicate_time_steps: number;
-  decreasing_time_steps: number; warnings: string[];
-  preview_time_s: number[]; preview_modulus_mpa: number[]; };
-type ImportPreview = { filename: string; file_sha256: string; file_bytes: number;
-  curve_count: number; curves: PreviewCurve[]; temperatures_c: number[];
-  replicates_per_temperature: Record<string, number>;
-  canonical_units: Record<string, string>; warnings: string[];
-  needs_review: boolean; saved: boolean; };
 type CurveSummary = { id: string; temperature_c: number; source_curve_id: string };
 type Curve = { curve_id: string; source_curve_id: string; temperature_c: number; time_s: number[];
   modulus_mpa: number[]; mask: boolean[]; active_revision_id: string; can_undo: boolean; can_redo: boolean };
 type Run = { id: string; curve_id: string; project_name: string; sample_name: string; sample_id: string;
-  temperature_c: number; model: string; tau_definition: string; is_current: boolean;
+  temperature_c: number; original_filename: string; source_curve_id: string; model: string; tau_definition: string; is_current: boolean;
   results: { tau_s?: number; r2?: number; beta?: number; flags?: string[] } };
 type Preset = { id: string; name: string; settings: Record<string, unknown> };
-type Tab = "Library" | "Sample Profile" | "Preparation" | "Analysis" | "Comparison" | "Figure Studio";
-const tabs: Tab[] = ["Library", "Sample Profile", "Preparation", "Analysis", "Comparison", "Figure Studio"];
+type Tab = "Library" | "Sample Profile" | "Notes" | "Preparation" | "Analysis" | "Comparison" | "Figure Studio";
+const tabs: Tab[] = ["Library", "Sample Profile", "Preparation", "Analysis", "Comparison", "Figure Studio", "Notes"];
 const initialStyle: Record<string, unknown> = {
   pub_preset: "ACS/RSC Single-Column (85 x 75 mm)", pub_w: 8.5, pub_h: 7.5,
   pub_relfont_family: "Arial", pub_rel_lbl_sz: 12, pub_rel_num_sz: 10,
@@ -44,20 +38,6 @@ const initialStyle: Record<string, unknown> = {
   pl_3: "c", plx_3: -0.12, ply_3: 1.02,
   pl_4: "d", plx_4: -0.12, ply_4: 1.02
 };
-async function api<T>(url: string, method = "GET", body?: unknown): Promise<T> {
-  const options: RequestInit = { method };
-  if (body instanceof FormData) options.body = body;
-  else if (body !== undefined) {
-    options.body = JSON.stringify(body);
-    options.headers = { "Content-Type": "application/json" };
-  }
-  const response = await fetch("/api" + url, options);
-  const data = await response.json();
-  if (!response.ok) throw new Error(typeof data.detail === "string" ? data.detail : JSON.stringify(data.detail));
-  return data as T;
-}
-const errorMessage = (e: unknown) => e instanceof Error ? e.message : String(e);
-
 export default function App() {
   const [tab, setTab] = useState<Tab>("Library");
   const [projects, setProjects] = useState<Item[]>([]);
@@ -65,14 +45,11 @@ export default function App() {
   const [samples, setSamples] = useState<Item[]>([]);
   const [sampleId, setSampleId] = useState("");
   const [experiments, setExperiments] = useState<Experiment[]>([]);
+  const [experimentRefresh, setExperimentRefresh] = useState(0);
   const [experimentId, setExperimentId] = useState("");
   const [curves, setCurves] = useState<CurveSummary[]>([]);
   const [curveId, setCurveId] = useState("");
   const [curve, setCurve] = useState<Curve | null>(null);
-  const [upload, setUpload] = useState<File | null>(null);
-  const [importPreview, setImportPreview] = useState<ImportPreview | null>(null);
-  const [importAcknowledged, setImportAcknowledged] = useState(false);
-  const [previewCurveIndex, setPreviewCurveIndex] = useState(0);
   const [runs, setRuns] = useState<Run[]>([]);
   const [presets, setPresets] = useState<Preset[]>([]);
   const [busy, setBusy] = useState(false);
@@ -88,6 +65,7 @@ export default function App() {
   const [plateau, setPlateau] = useState("Zero");
   const [fixedPlateau, setFixedPlateau] = useState(0);
   const [fit, setFit] = useState<any>(null);
+  const [batchFits, setBatchFits] = useState<{curve: CurveSummary; id?: string; error?: string}[]>([]);
   const [selectedRuns, setSelectedRuns] = useState<string[]>([]);
   const [compareMode, setCompareMode] = useState("kinetics");
   const [figureKind, setFigureKind] = useState("curves");
@@ -97,11 +75,17 @@ export default function App() {
   const [activeComparisonId, setActiveComparisonId] = useState("");
   const [savedFigures, setSavedFigures] = useState<Item[]>([]);
   const [temperature, setTemperature] = useState(100);
+  const [showExcluded, setShowExcluded] = useState(false);
   const [comparison, setComparison] = useState<any>(null);
   const [style, setStyle] = useState<Record<string, unknown>>({ ...initialStyle });
   const [activeFigureId, setActiveFigureId] = useState("");
+  const [draftFigure, setDraftFigure] = useState<{url:string; key:string} | null>(null);
   const [exportFormat, setExportFormat] = useState("tiff");
   const [exportDpi, setExportDpi] = useState(1200);
+
+  useEffect(()=>()=>{
+    if (draftFigure) URL.revokeObjectURL(draftFigure.url);
+  },[draftFigure]);
 
   const refreshProjects = () => api<Item[]>("/projects").then(setProjects);
   const refreshRuns = () => api<Run[]>("/analyses").then(setRuns);
@@ -115,20 +99,41 @@ export default function App() {
   }, [projectId]);
   useEffect(() => {
     setExperiments([]); setExperimentId("");
-    if (sampleId) api<Experiment[]>("/samples/" + sampleId + "/experiments").then(setExperiments).catch(e => setError(errorMessage(e)));
   }, [sampleId]);
   useEffect(() => {
-    setCurves([]); setCurveId("");
-    if (experimentId) api<CurveSummary[]>("/experiments/" + experimentId + "/curves").then(setCurves).catch(e => setError(errorMessage(e)));
+    if (!sampleId) return;
+    let current = true;
+    api<Experiment[]>("/samples/" + sampleId + "/experiments").then(items=>{
+      if (current) setExperiments(items);
+    }).catch(e=>{ if (current) setError(errorMessage(e)); });
+    return ()=>{ current = false; };
+  }, [sampleId, experimentRefresh]);
+  useEffect(() => {
+    setCurves([]); setCurveId(""); setBatchFits([]);
+    if (!experimentId) return;
+    let current = true;
+    api<CurveSummary[]>("/experiments/" + experimentId + "/curves").then(items=>{
+      if (current) setCurves(items);
+    }).catch(e=>{ if (current) setError(errorMessage(e)); });
+    return ()=>{ current = false; };
   }, [experimentId]);
   useEffect(() => {
     setCurve(null); setFit(null); setClickAnchor(null);
-    if (curveId) api<Curve>("/curves/" + curveId).then(loadCurve).catch(e => setError(errorMessage(e)));
+    if (!curveId) return;
+    let current = true;
+    api<Curve>("/curves/" + curveId).then(data=>{
+      if (current) { loadCurve(data); setTimeLog(!data.time_s.includes(0)); }
+    }).catch(e=>{ if (current) setError(errorMessage(e)); });
+    return ()=>{ current = false; };
   }, [curveId]);
 
   function loadCurve(c: Curve) {
     setCurve(c);
-    if (c.time_s.length) { setStart(Math.min(...c.time_s)); setEnd(Math.max(...c.time_s)); }
+    const [low, high] = c.time_s.reduce(
+      ([min, max], time)=>[Math.min(min,time),Math.max(max,time)], [Infinity,-Infinity]);
+    setStart(low);
+    setEnd(high);
+    setClickAnchor(null);
   }
   async function run(task: () => Promise<void>) {
     setError(""); setBusy(true);
@@ -150,50 +155,46 @@ export default function App() {
       setSamples(await api<Item[]>("/projects/" + projectId + "/samples")); setSampleId(added.id);
     });
   }
-  async function previewImport() {
-    if (!upload) return;
-    setImportPreview(null);
-    setImportAcknowledged(false);
-    await run(async () => {
-      const form = new FormData(); form.append("file", upload);
-      const result = await api<ImportPreview>("/import-preview", "POST", form);
-      if (result.filename !== upload.name || result.file_bytes !== upload.size) {
-        throw new Error("Preview source does not match the selected file");
-      }
-      setPreviewCurveIndex(0);
-      setImportPreview(result);
-    });
-  }
-  async function importData() {
-    if (!sampleId || !upload || !importPreview ||
-        importPreview.filename !== upload.name ||
-        importPreview.file_bytes !== upload.size ||
-        (importPreview.needs_review && !importAcknowledged)) return;
-    await run(async () => {
-      const form = new FormData(); form.append("file", upload);
-      form.append("metadata", JSON.stringify({
-        preview_sha256: importPreview.file_sha256,
-        review_warnings_acknowledged: Boolean(importAcknowledged),
-        preview_curve_count: importPreview.curve_count,
-      }));
-      const result = await api<{experiment_id:string}>("/samples/" + sampleId + "/experiments", "POST", form);
-      setExperiments(await api<Experiment[]>("/samples/" + sampleId + "/experiments"));
-      setExperimentId(result.experiment_id);
-      setImportPreview(null); setImportAcknowledged(false); setUpload(null);
-      setTab("Preparation");
-    });
-  }
   function graph(data: any[], xLabel: string, yLabel: string, xScale = "linear", yScale = "linear",
-                 onSelect?: (event:any) => void, onClick?: (event:any) => void) {
-    return <Plot data={data as any} layout={{
+                 onSelect?: (event:any) => void, onClick?: (event:any) => void,
+                 shapes?: Layout["shapes"], onRelayout?: (event:PlotRelayoutEvent)=>void) {
+    return <Plot key={onSelect ? curveId+":"+xScale : undefined} data={data as any} layout={{
       autosize: true, height: 395, paper_bgcolor: "#fff", plot_bgcolor: "#fff",
       font: {family: "Arial, sans-serif", color: "#1e293b", size: 12},
       xaxis: {title: {text: xLabel}, type: xScale as any, gridcolor: "#e8eef5"},
       yaxis: {title: {text: yLabel}, type: yScale as any, gridcolor: "#e8eef5"},
-      margin: {l: 76, r: 24, t: 25, b: 64}, dragmode: "select",
+      margin: {l: 76, r: 24, t: 25, b: 64}, dragmode: onSelect?"select":"zoom",
+      selectdirection: "h", shapes, uirevision:onSelect?curveId+":"+xScale:undefined,
       legend: {orientation:"h", y:1.18, x:0}
     }} config={{responsive:true, displaylogo:false, scrollZoom:true}}
-    style={{width:"100%"}} useResizeHandler onSelected={onSelect} onClick={onClick}/>;
+    style={{width:"100%"}} useResizeHandler onSelected={onSelect} onClick={onClick} onRelayout={onRelayout}/>;
+  }
+  const trimShapes: (Partial<Shape> & {editable: boolean})[] = [];
+  const trimHandles: ("start"|"end"|null)[] = [];
+  const showBoundary = (time: number)=>Number.isFinite(time)&&(!timeLog||time>0);
+  if (start<end && showBoundary(start) && showBoundary(end)) {
+    trimShapes.push({type:"rect",xref:"x",yref:"paper",x0:start,x1:end,y0:0,y1:1,
+      fillcolor:trimMode==="keep"?"rgba(37,99,235,.09)":"rgba(218,113,63,.13)",
+      line:{width:0},layer:"below",editable:false});
+    trimHandles.push(null);
+  }
+  for (const [boundary, time] of [["start",start],["end",end]] as const) {
+    if (showBoundary(time)) {
+      trimShapes.push({type:"line",xref:"x",yref:"paper",x0:time,x1:time,y0:0,y1:1,
+        line:{color:boundary==="start"?"#2563eb":"#b45309",width:3,dash:"dash"},editable:true});
+      trimHandles.push(boundary);
+    }
+  }
+  function moveTrimHandle(event: PlotRelayoutEvent) {
+    const changes = event as Record<string, unknown>;
+    trimHandles.forEach((boundary,index)=>{
+      if (!boundary) return;
+      const time = changes[`shapes[${index}].x0`] ?? changes[`shapes[${index}].x1`];
+      if (typeof time !== "number" || !Number.isFinite(time)) return;
+      setClickAnchor(null);
+      if (boundary==="start") setStart(Math.min(end,Math.max(0,time)));
+      else setEnd(Math.max(start,time));
+    });
   }
   function selectedInterval(event:any) {
     let xs: number[] = event?.range?.x || [];
@@ -225,7 +226,11 @@ export default function App() {
     await run(async () => {
       const data:any = await api("/curves/" + curveId + "/" + mode, "POST",
         mode === "region" ? {mode:trimMode,start_s:start,end_s:end} : undefined);
-      loadCurve(mode === "region" ? data.curve : data); await refreshRuns();
+      loadCurve(mode === "region" ? data.curve : data);
+      setBatchFits([]);
+      setFit(null);
+      setComparison(null);
+      await refreshRuns();
     });
   }
   async function suggestTrim() {
@@ -235,21 +240,43 @@ export default function App() {
       setStart(proposal.start_s); setEnd(proposal.end_s); setTrimMode("keep");
     });
   }
+  const fitSettings = {model,plateau_mode:plateau,fixed_plateau_mpa:fixedPlateau,component};
+  const comparisonKey = JSON.stringify([selectedRuns,compareMode,temperature,kineticModel,fitWindows]);
+  const [shownComparisonKey, setShownComparisonKey] = useState("");
+  const comparisonIsCurrent = Boolean(comparison && shownComparisonKey===comparisonKey);
+
+  async function fitExperiment() {
+    setBatchFits([]);
+    await run(async ()=>{
+      for (const item of curves) {
+        try {
+          const result = await api<{run_id:string}>("/curves/"+item.id+"/fit","POST",fitSettings);
+          setBatchFits(previous=>[...previous,{curve:item,id:result.run_id}]);
+        } catch (error) {
+          setBatchFits(previous=>[...previous,{curve:item,error:errorMessage(error)}]);
+        }
+      }
+      await refreshRuns();
+    });
+  }
   async function fitCurve() {
     if (!curveId) return;
     await run(async () => {
       const result = await api<any>("/curves/" + curveId + "/fit", "POST",
-        {model,plateau_mode:plateau,fixed_plateau_mpa:fixedPlateau,component});
+        fitSettings);
       setFit(result); await refreshRuns();
     });
   }
   async function doComparison() {
     if (selectedRuns.length < 2) return;
-    await run(async () => setComparison(await api<any>("/compare","POST",
-      {run_ids:selectedRuns, mode:compareMode, temperature_c:temperature, kinetic_model:kineticModel, windows:fitWindows})));
+    await run(async () => {
+      setComparison(await api("/compare","POST",
+        {run_ids:selectedRuns, mode:compareMode, temperature_c:temperature, kinetic_model:kineticModel, windows:fitWindows}));
+      setShownComparisonKey(comparisonKey);
+    });
   }
   async function saveComparison() {
-    if (!comparison) return;
+    if (!comparisonIsCurrent) return;
     const name=window.prompt("Name this comparison","Cross-sample comparison"); if(!name?.trim()) return;
     await run(async () => {const saved = await api<{id:string}>("/comparisons","POST",
       {name,run_ids:selectedRuns,mode:compareMode,settings:{temperature_c:temperature,kinetic_model:kineticModel,windows:fitWindows}});
@@ -260,17 +287,30 @@ export default function App() {
     const name=window.prompt("Name this figure style","ACS/RSC style"); if(!name?.trim()) return;
     await run(async () => {await api("/figures/presets","POST",{name,settings:style}); await refreshPresets();});
   }
+  const figureSettings = {
+    run_ids:selectedRuns,
+    composition:{plot_type:figureKind,kinetic_model:kineticModel,
+      temperature_c:temperature,windows:fitWindows},
+    overrides:style,
+  };
+  const figureKey = JSON.stringify(figureSettings);
+
+  async function previewFigure() {
+    await run(async()=>{
+      const blob = await apiBlob("/figures/preview","POST",figureSettings);
+      setDraftFigure({url:URL.createObjectURL(blob),key:figureKey});
+    });
+  }
+
   async function saveFigure() {
     if (!selectedRuns.length) return;
-    const name=window.prompt("Name this figure project","Publication figure"); if(!name?.trim()) return;
-    await run(async () => {
-      const created = await api<{id:string}>("/figures", "POST", {
-        name, run_ids:selectedRuns,
-        composition:{plot_type:figureKind, kinetic_model:kineticModel,
-                     temperature_c:temperature, windows:fitWindows},
-        overrides:style
-      });
-      setActiveFigureId(created.id); await refreshFigures();
+    const name = window.prompt("Name this figure project","Publication figure");
+    if (!name?.trim()) return;
+    await run(async()=>{
+      const created = await api<{id:string}>("/figures","POST",{name,...figureSettings});
+      setDraftFigure(null);
+      setActiveFigureId(created.id);
+      await refreshFigures();
     });
   }
   async function reopenComparison(id:string) {
@@ -282,6 +322,11 @@ export default function App() {
       setTemperature(Number(saved.settings.temperature_c ?? 100));
       setKineticModel(saved.settings.kinetic_model || "Arrhenius");
       setFitWindows(saved.settings.windows || {});
+      setComparison(null);
+      setShownComparisonKey(JSON.stringify([
+        saved.run_ids,saved.mode,Number(saved.settings.temperature_c ?? 100),
+        saved.settings.kinetic_model || "Arrhenius",saved.settings.windows || {},
+      ]));
       setComparison(await api("/compare","POST",{
         run_ids:saved.run_ids,mode:saved.mode,temperature_c:saved.settings.temperature_c,
         kinetic_model:saved.settings.kinetic_model || "Arrhenius",
@@ -299,6 +344,7 @@ export default function App() {
       setTemperature(Number(saved.composition.temperature_c ?? 100));
       setKineticModel(saved.composition.kinetic_model || "Arrhenius");
       setFitWindows(saved.composition.windows || {});
+      setDraftFigure(null);
       setActiveFigureId(id);
     });
   }
@@ -324,11 +370,29 @@ export default function App() {
     });
   }
   function comparisonGraph() {
-    if (!comparison) return <p className="muted">Select at least two saved analyses to compare.</p>;
-    if (comparison.mode === "curves") return graph(comparison.curves.map((r:any)=>({
-      x:r.time_s,y:r.normalized_modulus,type:"scatter",mode:"lines",
-      name:r.sample + " · " + r.temperature_c + "°C"
-    })),"Time (s)","Normalized modulus","log");
+    if (!comparisonIsCurrent) return <p className="muted">Select at least two saved analyses and run the comparison.</p>;
+    if (comparison.mode==="curves") {
+      const colors = ["#2563eb","#b45309","#0f766e","#7c3aed","#be185d","#475569"];
+      const traces = comparison.curves.flatMap((row:any,index:number)=>{
+        const name = `${row.sample} · ${row.original_filename} · ${row.source_curve_id} · ${row.temperature_c} °C`;
+        const color = colors[index % colors.length];
+        const shared = {type:"scattergl" as const,legendgroup:row.run_id};
+        const series: Data[] = [{...shared,name:name+" · Retained",x:row.time_s,y:row.normalized_modulus,
+          mode:"markers",marker:{color,size:5}}];
+        if (row.fit_time_s?.length) series.push({
+          ...shared,name:name+" · Fit",x:row.fit_time_s,y:row.fit_normalized_prediction,
+          mode:"lines",line:{color,width:2},showlegend:false,
+        });
+        if (showExcluded&&row.excluded_time_s.length) series.push({
+          ...shared,name:name+" · Excluded",x:row.excluded_time_s,y:row.excluded_normalized_modulus,
+          mode:"markers",marker:{color,size:6,symbol:"x",opacity:.55},showlegend:false,
+        });
+        return series;
+      });
+      const hasZero = comparison.curves.some((row:any)=>row.time_s.includes(0)||
+        (showExcluded&&row.excluded_time_s.includes(0)));
+      return graph(traces,"Instrument time (s)","G/G(ref)",hasZero?"linear":"log");
+    }
     if (comparison.mode === "fixed_temperature") return graph([{
       x:comparison.rows.map((r:any)=>r.sample), y:comparison.rows.map((r:any)=>r.tau_s),
       type:"bar",marker:{color:"#2563eb"}
@@ -353,7 +417,7 @@ export default function App() {
   }
   function advancedStyleSelect(key:string,label:string,values:string[],defaultValue:string) {
     return <label className="field">{label}
-      <select value={String(style[key] ?? defaultValue)}
+      <select aria-label={label} value={String(style[key] ?? defaultValue)}
         onChange={e=>setStyle(s=>({...s,[key]:e.target.value}))}>
         {values.map(v=><option value={v} key={v}>{v}</option>)}
       </select>
@@ -404,18 +468,18 @@ export default function App() {
         {tabs.map(t=><button key={t} className={"nav "+(tab===t?"active":"")}
           onClick={()=>{setTab(t);setError("");}}>{t}</button>)}
         <p className="section-label space-top">RESEARCH LIBRARY</p>
-        <label className="field">Project<select value={projectId} onChange={e=>setProjectId(e.target.value)}>
+        <label className="field">Project<select aria-label="Project" value={projectId} disabled={busy} onChange={e=>setProjectId(e.target.value)}>
           <option value="">Choose project</option>{projects.map(p=><option value={p.id} key={p.id}>{p.name}</option>)}
         </select></label>
-        <button className="subtle" onClick={addProject}>+ Create project</button>
-        <label className="field">Sample<select value={sampleId} disabled={!projectId} onChange={e=>setSampleId(e.target.value)}>
+        <button className="subtle" disabled={busy} onClick={addProject}>+ Create project</button>
+        <label className="field">Sample<select aria-label="Sample" value={sampleId} disabled={busy||!projectId} onChange={e=>setSampleId(e.target.value)}>
           <option value="">Choose sample</option>{samples.map(s=><option value={s.id} key={s.id}>{s.name}</option>)}
         </select></label>
-        <button className="subtle" disabled={!projectId} onClick={addSample}>+ Add sample</button>
-        <label className="field">Experiment<select value={experimentId} disabled={!sampleId} onChange={e=>setExperimentId(e.target.value)}>
+        <button className="subtle" disabled={busy||!projectId} onClick={addSample}>+ Add sample</button>
+        <label className="field">Experiment<select aria-label="Experiment" value={experimentId} disabled={busy||!sampleId} onChange={e=>setExperimentId(e.target.value)}>
           <option value="">Choose experiment</option>{experiments.map(e=><option value={e.id} key={e.id}>{e.original_filename}</option>)}
         </select></label>
-        <label className="field">Curve<select value={curveId} disabled={!experimentId} onChange={e=>setCurveId(e.target.value)}>
+        <label className="field">Curve<select aria-label="Curve" value={curveId} disabled={busy||!experimentId} onChange={e=>setCurveId(e.target.value)}>
           <option value="">Choose curve</option>{curves.map(c=><option value={c.id} key={c.id}>{c.temperature_c}°C · {c.source_curve_id}</option>)}
         </select></label>
         <p className="sidebar-hint">Your original file, processing revisions, fits and figure configurations are saved locally.</p>
@@ -425,67 +489,24 @@ export default function App() {
         <p className="eyebrow">SCIENTIFIC DATA WORKSPACE</p><h1>{tab}</h1>
         <p className="lead">{tab==="Library"?"Manage persistent scientific records":
           tab==="Sample Profile"?"Specimen-centred DMA, DSC, rheology and tensile records with traceable raw data":
+          tab==="Notes"?"Record specimen history and analysis decisions":
           tab==="Preparation"?"Edit individual relaxation curves without deleting raw measurements":
-          tab==="Analysis"?"Fit selected curves and preserve each analysis revision":
+          tab==="Analysis"?"Fit individual curves or entire experiments and preserve each analysis revision":
           tab==="Comparison"?"Compare samples at matching temperatures and across kinetic windows":
           "Save publication styles without changing the original v1 rendering standards"}</p>
         {error&&<div className="error"><strong>Action failed:</strong> {error}<button onClick={()=>setError("")}>×</button></div>}
         {busy&&<p className="loading">Processing…</p>}
-        {tab==="Sample Profile"&&<SampleProfile sampleId={sampleId}/>}
-        {tab==="Library"&&<section className="card"><h2>Import relaxation experiment</h2>
-          <p className="muted">Inspect CSV, TXT, Excel 97–2003 XLS, or XLSX first. The existing unit-validated relaxation parser reads one or more temperature curves, including replicates. No automatic trimming occurs during import.</p>
-          <div className="row">
-            <input type="file" disabled={!sampleId} accept=".csv,.txt,.xls,.xlsx"
-              onChange={e=>{setUpload(e.target.files?.[0]||null);setImportPreview(null);setImportAcknowledged(false);}}/>
-            <button className="subtle" disabled={!sampleId||!upload||busy} onClick={previewImport}>Inspect file</button>
-            <button className="primary" disabled={!sampleId||!upload||!importPreview||
-              importPreview.filename!==upload?.name||importPreview.file_bytes!==upload?.size||
-              (importPreview.needs_review&&!importAcknowledged)||busy} onClick={importData}>Save to library</button>
-          </div>
-          {importPreview&&<div className="import-preview">
-            <div className="card-head"><h3>Import review — {importPreview.filename}</h3>
-              <span className="tag">{importPreview.curve_count} curves detected</span></div>
-            <p className="hint">Canonical units: seconds (s), MPa, °C. Original uploaded bytes are retained unchanged; the preview does not save anything.</p>
-            <div className="preview-meta">
-              <span><strong>Temperatures:</strong> {importPreview.temperatures_c.map(t=>t+" °C").join(", ")}</span>
-              <span><strong>Replicates:</strong> {Object.keys(importPreview.replicates_per_temperature).length?
-                Object.entries(importPreview.replicates_per_temperature).map(([t,n])=>t+" °C × "+n).join("; "):"None detected"}</span>
-            </div>
-            <div className="preview-table"><table className="results">
-              <thead><tr><th>Curve</th><th>Temperature</th><th>Points</th><th>Time (s)</th><th>Quality</th></tr></thead>
-              <tbody>{importPreview.curves.map((c,i)=><tr key={i}
-                className={previewCurveIndex===i?"selected-row":""}
-                onClick={()=>setPreviewCurveIndex(i)}>
-                <td>{c.source_curve_id}</td><td>{c.temperature_c} °C</td>
-                <td>{c.points}</td><td>{c.time_min_s.toPrecision(4)} – {c.time_max_s.toPrecision(4)}</td>
-                <td>{c.warnings.length?<span className="warn-text">{c.warnings.length} warnings</span>:
-                  <span className="ok-text">No detected issues</span>}</td>
-              </tr>)}</tbody></table></div>
-            {importPreview.curves[previewCurveIndex]&&<div className="preview-curve">
-              <h3>Curve preview: {importPreview.curves[previewCurveIndex].temperature_c} °C</h3>
-              {graph([{
-                x:importPreview.curves[previewCurveIndex].preview_time_s,
-                y:importPreview.curves[previewCurveIndex].preview_modulus_mpa,
-                type:"scatter", mode:"lines+markers", name:"Original observations",
-                line:{color:"#2563eb",width:2},marker:{size:4},
-              }],"Instrument time (s)","Modulus (MPa)")}
-              <p className="hint">The chart is decimated for inspection (up to 120 points). Import preserves every original parsed point.</p>
-            </div>}
-            {importPreview.warnings.length>0&&<div className="import-warnings">
-              <strong>Scientific review required</strong>
-              <ul>{importPreview.warnings.map((w,i)=><li key={i}>{w}</li>)}</ul>
-              <label><input type="checkbox" checked={importAcknowledged}
-                onChange={e=>setImportAcknowledged(e.target.checked)}/>
-                I have reviewed these warnings. Keep the original points and correct them in Data Preparation.
-              </label>
-            </div>}
-          </div>}
+        {tab==="Sample Profile"&&<SampleProfile key={sampleId} sampleId={sampleId}/>}
+        <div hidden={tab!=="Notes"}><SampleNotes sampleId={sampleId}/></div>
+        <section hidden={tab!=="Library"} className="card"><h2>Import relaxation experiments</h2>
+          <RelaxationImport key={projectId} samples={samples} defaultSampleId={sampleId}
+            onSaved={()=>setExperimentRefresh(count=>count+1)}/>
           <p className="hint"><a href="/api/backup" download>Download complete local-library backup (SQLite + original uploads)</a></p>
           <div className="stats"><div><strong>{projects.length}</strong><small>Projects</small></div>
             <div><strong>{samples.length}</strong><small>Samples</small></div>
             <div><strong>{experiments.length}</strong><small>Experiments</small></div>
             <div><strong>{runs.length}</strong><small>Saved fits</small></div></div>
-        </section>}
+        </section>
         {tab==="Preparation"&&<section className="card"><div className="card-head"><h2>Individual curve editor</h2><span className="tag">Non-destructive</span></div>
           {!curve?<p className="muted">Select a curve from the research library on the left.</p>:<>
             {(()=>{
@@ -499,23 +520,27 @@ export default function App() {
             })()}
             <div className="row compact"><label><input type="checkbox" checked={normalized} onChange={e=>setNormalized(e.target.checked)}/> Normalized modulus</label>
               <label><input type="checkbox" checked={timeLog} onChange={e=>setTimeLog(e.target.checked)}/> Log time</label></div>
-            {graph(displayed,"Instrument time (s)",normalized?"G/G(ref)":"Modulus (MPa)",timeLog?"log":"linear","linear",selectedInterval,pointClicked)}
-            <p className="hint">Drag a box on the graph or click two points to choose a region. The precise start and end can be edited below.</p>
+            {graph(displayed,"Instrument time (s)",normalized?"G/G(ref)":"Modulus (MPa)",timeLog?"log":"linear","linear",selectedInterval,pointClicked,trimShapes,moveTrimHandle)}
+            <p className="hint">Brush across the graph or click two points to select a time interval. Click a dashed boundary to activate it, then drag it to refine the interval before applying.</p>
             <div className="controls"><label className="field">Action<select value={trimMode} onChange={e=>setTrimMode(e.target.value)}>
               <option value="keep">Keep region</option><option value="exclude">Exclude region</option></select></label>
               <label className="field">Start (s)<input type="number" step="any" value={start} onChange={e=>setStart(Number(e.target.value))}/></label>
               <label className="field">End (s)<input type="number" step="any" value={end} onChange={e=>setEnd(Number(e.target.value))}/></label>
               <button className="subtle" disabled={busy} onClick={suggestTrim}>Suggest auto trim</button>
-              <button className="primary" disabled={busy||end<=start} onClick={()=>editCurve("region")}>Apply</button>
+              <button className="primary" disabled={busy||end<start||clickAnchor!==null} onClick={()=>editCurve("region")}>Apply</button>
               <button className="subtle" disabled={!curve.can_undo||busy} onClick={()=>editCurve("undo")}>↶ Undo</button>
               <button className="subtle" disabled={!curve.can_redo||busy} onClick={()=>editCurve("redo")}>↷ Redo</button>
             </div>
             <div className="bottom-note"><span>{curve.mask.filter(Boolean).length} / {curve.mask.length} points retained</span>
+              <span>Proposed edit retains {curve.time_s.filter((time,index)=>{
+                const inside = time>=start&&time<=end;
+                return curve.mask[index]&&(trimMode==="keep"?inside:!inside);
+              }).length} points</span>
               <span>Revision {curve.active_revision_id.slice(0,9)}</span></div>
           </>}
         </section>}
         {tab==="Analysis"&&<section className="card"><h2>Relaxation fitting</h2>
-          {!curve?<p className="muted">Choose a curve first.</p>:<>
+          {!experimentId?<p className="muted">Choose an experiment first.</p>:<>
             <div className="controls"><label className="field">Model<select value={model} onChange={e=>{
               setModel(e.target.value);setComponent(["Maxwell","Single_KWW"].includes(e.target.value)?"characteristic":"slow");
             }}>{["Single_KWW","Maxwell","Dual_KWW","Two-Maxwell (Prony)"].map(m=><option key={m}>{m}</option>)}</select></label>
@@ -525,18 +550,33 @@ export default function App() {
                 <option>Zero</option><option>Fit</option><option>Fixed</option></select></label>
               {plateau==="Fixed"&&<label className="field">G∞ (MPa)<input type="number" step="any" value={fixedPlateau}
                 onChange={e=>setFixedPlateau(Number(e.target.value))}/></label>}
-              <button className="primary" disabled={busy} onClick={fitCurve}>Run & save</button></div>
-            <label className="field" style={{maxWidth:380}}>Reopen saved analysis for this curve
-              <select defaultValue="" onChange={e=>{
+              <button className="primary" disabled={busy||!curve} onClick={fitCurve}>Fit this curve</button>
+              <button className="subtle" disabled={busy||curves.length<2} onClick={fitExperiment}>Fit all {curves.length} curves in experiment</button>
+            </div>
+            {batchFits.length>0&&<div>
+              <p role="status">{batchFits.filter(item=>!item.error).length} fits saved · {batchFits.filter(item=>item.error).length} failed</p>
+              {batchFits.filter(item=>item.error).map(item=><p className="warning" key={item.curve.id}>
+                {item.curve.temperature_c} °C · {item.curve.source_curve_id} — {item.error}
+              </p>)}
+              <button className="subtle" disabled={busy||batchFits.every(item=>!item.id)} onClick={()=>{
+                setSelectedRuns(batchFits.flatMap(item=>item.id?[item.id]:[]));
+                setComparison(null);
+                setActiveComparisonId("");
+                setTab("Comparison");
+              }}>Select these fits in Comparison</button>
+            </div>}
+            {curve&&<label className="field" style={{maxWidth:380}}>Reopen saved analysis for this curve
+              <select key={curve.active_revision_id} defaultValue="" onChange={e=>{
                 const existing=runs.find(r=>r.id===e.target.value);
-                if(existing)setFit({results:existing.results});
+                setFit(existing ?? null);
               }}><option value="">Select saved fit</option>
                 {runs.filter(r=>r.curve_id===curveId).map(r=>
                   <option key={r.id} value={r.id}>{r.model} · τ {r.results.tau_s?.toPrecision(4)} s {r.is_current?"":"(stale)"}</option>)}
               </select>
-            </label>
+            </label>}
             <p className="hint">The manually selected points go directly to the existing fitting engine; the old automatic trimming routine is not run again.</p>
-            {fit?.results&&<><div className="stats"><div><strong>{Number(fit.results.tau_s).toPrecision(5)} s</strong><small>τ</small></div>
+            {fit?.results&&<>{fit.is_current===false&&<p className="warning">Historical fit from an earlier trim revision.</p>}
+              <div className="stats"><div><strong>{Number(fit.results.tau_s).toPrecision(5)} s</strong><small>τ</small></div>
               <div><strong>{Number(fit.results.r2).toFixed(4)}</strong><small>R²</small></div>
               <div><strong>{fit.results.beta==null?"—":Number(fit.results.beta).toFixed(3)}</strong><small>β</small></div></div>
               {graph([{x:fit.results.fit_time_s,y:fit.results.fit_normalized_observed,mode:"markers",name:"Measured"},
@@ -558,10 +598,10 @@ export default function App() {
           <div className="run-list">{runs.map(r=><label key={r.id} className={"run-item "+(r.is_current?"":"stale")}>
             <input type="checkbox" checked={selectedRuns.includes(r.id)} onChange={e=>{
               setComparison(null);setSelectedRuns(a=>e.target.checked?[...a,r.id]:a.filter(x=>x!==r.id));}}/>
-            <span><strong>{r.sample_name}</strong><small>{r.project_name} · {r.temperature_c}°C · {r.model}</small></span>
+            <span><strong>{r.sample_name}</strong><small>{r.project_name} · {r.original_filename} · {r.source_curve_id} · {r.temperature_c}°C · {r.model}</small></span>
             <span className="run-tau">{r.results.tau_s?.toPrecision(4)} s {r.is_current?"":"⚠ stale"}</span>
           </label>)}{!runs.length&&<p className="muted">No saved analyses yet.</p>}</div>
-          <div className="controls"><label className="field">Comparison<select value={compareMode} onChange={e=>{setCompareMode(e.target.value);setComparison(null);}}>
+          <div className="controls"><label className="field">Comparison<select aria-label="Comparison" value={compareMode} onChange={e=>{setCompareMode(e.target.value);setComparison(null);}}>
             <option value="kinetics">Kinetics (Arrhenius / VFT)</option><option value="fixed_temperature">τ at measured temperature</option><option value="curves">Relaxation overlay</option>
           </select></label>
             {compareMode==="kinetics"&&<label className="field">Kinetics<select value={kineticModel} onChange={e=>setKineticModel(e.target.value)}>
@@ -569,39 +609,35 @@ export default function App() {
             {compareMode==="fixed_temperature"&&<label className="field">Temperature (°C)<input type="number" value={temperature}
               onChange={e=>setTemperature(Number(e.target.value))}/></label>}
             <button className="primary" disabled={busy||selectedRuns.length<2} onClick={doComparison}>Compare</button>
-            <button className="subtle" disabled={busy||!comparison} onClick={saveComparison}>Save comparison</button>
+            <button className="subtle" disabled={busy||!comparisonIsCurrent} onClick={saveComparison}>Save comparison</button>
           </div>
-          {compareMode==="kinetics"&&selectedRuns.length>0&&
-            <div className="window-editor"><p className="small-heading">Independent kinetic fitting windows (°C)</p>
-              {Array.from(new Map<string,Run>(runs.filter(r=>selectedRuns.includes(r.id)).map(r=>[r.sample_id,r] as [string,Run])).values()).map(r=>{
-                const sampleRuns=runs.filter(x=>x.sample_id===r.sample_id&&selectedRuns.includes(x.id));
-                const low=Math.min(...sampleRuns.map(x=>x.temperature_c));
-                const high=Math.max(...sampleRuns.map(x=>x.temperature_c));
-                const bounds=fitWindows[r.sample_id]||[low,high];
-                return <div className="window-row" key={r.sample_id}><span>{r.sample_name}</span>
-                  <input aria-label={r.sample_name+" min C"} type="number" value={bounds[0]}
-                    onChange={e=>setFitWindows(s=>({...s,[r.sample_id]:[Number(e.target.value),bounds[1]]}))}/>
-                  <span>to</span>
-                  <input aria-label={r.sample_name+" max C"} type="number" value={bounds[1]}
-                    onChange={e=>setFitWindows(s=>({...s,[r.sample_id]:[bounds[0],Number(e.target.value)]}))}/>
-                  <button className="subtle" onClick={()=>setFitWindows(s=>{
-                    const next={...s};delete next[r.sample_id];return next;
-                  })}>Reset</button>
-                </div>;
-              })}
-            </div>}
+          {compareMode==="kinetics"&&selectedRuns.length>0&&kineticWindowEditor()}
+          {comparisonIsCurrent&&comparison?.mode==="curves"&&<label>
+            <input type="checkbox" checked={showExcluded} onChange={e=>setShowExcluded(e.target.checked)}/>
+            Show excluded observations
+          </label>}
           {comparisonGraph()}
-          {comparison?.samples&&<table className="results"><thead><tr><th>Sample</th><th>Points</th><th>Ea (kJ/mol)</th><th>R²</th><th>Notes</th></tr></thead>
+          {comparisonIsCurrent&&comparison?.samples&&<table className="results"><thead>
+            <tr><th>Sample</th><th>Temperatures</th><th>Points</th>
+              {kineticModel==="VFT"?<><th>A</th><th>B (K)</th><th>T₀ (K)</th></>:
+                <><th>Ea (kJ/mol)</th><th>Ea 95% CI (kJ/mol)</th></>}
+              <th>R²</th><th>Notes</th></tr></thead>
             <tbody>{comparison.samples.map((s:any)=><tr key={s.sample_id}>
-              <td>{s.sample}</td><td>{s.observations.length}</td>
-              <td>{s.Ea_kj_mol==null?"—":Number(s.Ea_kj_mol).toFixed(2)}</td>
-              <td>{s.r2==null?"—":Number(s.r2).toFixed(4)}</td><td>{s.warning||"Fit available"}</td></tr>)}</tbody>
+              <td>{s.sample}</td><td>{s.n_distinct_temperatures}</td><td>{s.observations.length}</td>
+              {kineticModel==="VFT"?["A","B","T0"].map(parameter=>
+                <td key={parameter}>{s.parameters?.[parameter]?.toPrecision(4)??"—"}</td>):
+                <><td>{s.Ea_kj_mol?.toFixed(2)??"—"}</td>
+                  <td>{s.Ea_ci95_kj_mol?.map((value:number)=>value.toFixed(2)).join(" to ")??"—"}</td></>}
+              <td>{s.r2?.toFixed(4)??"—"}</td><td>{s.warning||"Fit available"}</td></tr>)}</tbody>
           </table>}
         </section>}
         {tab==="Figure Studio"&&<section className="card"><div className="card-head"><h2>Publication settings</h2><span className="tag">v1 standards protected</span></div>
-          <p className="muted">This first version saves and restores publication style settings. Full figure rendering remains in the existing Publication tab until feature parity is verified.</p>
+          <p className="muted">Select saved analyses, preview your settings, and save a figure to export with its source revisions.</p>
           <label className="field" style={{maxWidth:360}}>Reopen figure project
-            <select value="" onChange={e=>reopenFigure(e.target.value)}><option value="">Choose saved figure</option>
+            <select aria-label="Reopen figure project" value={activeFigureId} onChange={e=>{
+              if (e.target.value) void reopenFigure(e.target.value);
+              else setActiveFigureId("");
+            }}><option value="">Choose saved figure</option>
               {savedFigures.map(f=><option key={f.id} value={f.id}>{f.name}</option>)}
             </select>
           </label>
@@ -623,7 +659,7 @@ export default function App() {
               <option>RGB</option><option>CMYK (for Print/Publication)</option></select></label>
           </div>
           <div className="controls"><label className="field">Figure content
-            <select value={figureKind} onChange={e=>setFigureKind(e.target.value)}>
+            <select aria-label="Figure content" value={figureKind} onChange={e=>setFigureKind(e.target.value)}>
               <option value="curves">Relaxation curves</option>
               <option value="kinetics">Arrhenius / VFT kinetics</option>
               <option value="eyring">Eyring activation kinetics (Fig. 3)</option>
@@ -639,6 +675,11 @@ export default function App() {
               </label>}
           </div>
 
+          {figureKind==="curves"&&<div className="controls">
+            {advancedStyleSelect("pub_xscale","Time axis",["Linear","Log"],"Log")}
+            {advancedStyleSelect("pub_yscale","Modulus axis",["Linear","Log"],"Linear")}
+            {advancedStyleToggle("pub_relleg","Show legend",true)}
+          </div>}
           {(figureKind==="kinetics"||figureKind==="eyring"||figureKind==="van_t_hoff")&&selectedRuns.length>0&&
             kineticWindowEditor()}
           {(figureKind==="eyring"||figureKind==="van_t_hoff")&&(()=>{
@@ -693,8 +734,19 @@ export default function App() {
               </div>
             </div>;
           })()}
-          <div className="row"><button className="primary" disabled={busy} onClick={savePreset}>Save style preset</button>
-            <button className="subtle" disabled={!selectedRuns.length||busy} onClick={saveFigure}>Save figure project ({selectedRuns.length} analyses)</button></div>
+          <div className="row">
+            <button className="primary" disabled={!selectedRuns.length||busy} onClick={previewFigure}>Preview current settings</button>
+            <button className="subtle" disabled={busy} onClick={savePreset}>Save style preset</button>
+            <button className="subtle" disabled={!selectedRuns.length||busy} onClick={saveFigure}>Save figure project ({selectedRuns.length} analyses)</button>
+          </div>
+          {draftFigure&&<div className="saved-figure-preview">
+            <h3>Draft figure preview</h3>
+            {draftFigure.key===figureKey?<img alt="Draft publication figure" src={draftFigure.url}/>:
+              <p className="hint">Settings changed. Preview again to see the updated figure.</p>}
+            {String(style.pub_colorspace).startsWith("CMYK")&&<p className="hint">
+              The browser preview uses RGB. TIFF, JPEG, and PDF exports use the saved CMYK setting.
+            </p>}
+          </div>}
           {activeFigureId&&<div className="saved-figure-preview">
             <h3>Saved-figure preview</h3>
             <p className="hint">This preview comes from the saved source-analysis revisions and stored figure settings. To use new controls, save a new figure project.</p>
@@ -705,7 +757,7 @@ export default function App() {
             <h3>Export saved figure</h3>
             <p className="hint">Saved figures use the exact processing revision of each analysis, even if you later trim the source data. Journal dimensions, typefaces and export conversion follow the existing Publication implementation.</p>
             <div className="controls">
-              <label className="field">Format<select value={exportFormat} onChange={e=>{setExportFormat(e.target.value);setExportDpi(e.target.value==="tiff"?1200:e.target.value==="jpeg"?600:300);}}>
+              <label className="field">Format<select aria-label="Format" value={exportFormat} onChange={e=>{setExportFormat(e.target.value);setExportDpi(e.target.value==="tiff"?1200:e.target.value==="jpeg"?600:300);}}>
                 <option value="tiff">TIFF (publication)</option>
                 <option value="jpeg">JPEG</option>
                 <option value="pdf">PDF</option>
