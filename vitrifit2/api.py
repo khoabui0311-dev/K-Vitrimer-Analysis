@@ -20,6 +20,7 @@ from .import_adapter import import_relaxation_upload, preview_relaxation_upload
 from .persistence import VitriFitStore
 from .publication_export import export_publication_figure
 from .science import fit_saved_curve, suggest_automatic_trim
+from .sample_api import router as sample_router
 
 DATA_DIR = Path.home() / ".vitrifit2"
 MAX_UPLOAD = 50 * 1024 * 1024
@@ -307,6 +308,8 @@ def export_saved_publication(figure_id: str, fmt: str = "tiff",
                     headers={"Content-Disposition":
                              f'{disposition}; filename="VitriFit_Figure_{figure_id[:8]}.{extension}"'})
 
+
+app.include_router(sample_router)
 
 # In production, serve the prebuilt React interface from the same origin.
 # In development, Vite proxies /api to the localhost backend.
