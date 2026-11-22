@@ -8,6 +8,7 @@ from __future__ import annotations
 import csv
 from io import StringIO
 import json
+import math
 from uuid import uuid4
 
 from .frequency_sweep import analyze_frequency_sweep
@@ -30,7 +31,7 @@ def _parse_columns(raw_bytes, columns):
     reader = csv.DictReader(StringIO(text), strict=True)
     if not reader.fieldnames or len(set(reader.fieldnames)) != len(reader.fieldnames):
         raise ValueError("Missing or duplicate CSV headers")
-    if any(not isinstance(c, str) or c not in reader.fieldnames for c in columns.values()):
+    if (len(set(columns.values())) != len(columns) or\n            any(not isinstance(c, str) or c not in reader.fieldnames for c in columns.values())):
         raise ValueError("Mapped CSV columns missing")
     try:
         rows = list(reader)
