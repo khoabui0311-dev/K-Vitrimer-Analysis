@@ -31,7 +31,8 @@ def _parse_columns(raw_bytes, columns):
     reader = csv.DictReader(StringIO(text), strict=True)
     if not reader.fieldnames or len(set(reader.fieldnames)) != len(reader.fieldnames):
         raise ValueError("Missing or duplicate CSV headers")
-    if (len(set(columns.values())) != len(columns) or\n            any(not isinstance(c, str) or c not in reader.fieldnames for c in columns.values())):
+    if (len(set(columns.values())) != len(columns) or
+            any(not isinstance(c, str) or c not in reader.fieldnames for c in columns.values())):
         raise ValueError("Mapped CSV columns missing")
     try:
         rows = list(reader)
@@ -127,7 +128,9 @@ def get_rheology_analysis(store, analysis_id):
     _ensure_analysis_schema(store)
     with store._db() as db:
         row = store._require(db, "v2_measurement_analyses", analysis_id)
-        if row["method"] not in ("amplitude_sweep", "frequency_sweep"):\n            raise ValueError("Not a rheology analysis")\n        file = store._require(db, "v2_measurement_files", row["file_id"])
+        if row["method"] not in ("amplitude_sweep", "frequency_sweep"):
+            raise ValueError("Not a rheology analysis")
+        file = store._require(db, "v2_measurement_files", row["file_id"])
     # Recheck raw-file integrity whenever reproducing an analysis.
     get_measurement_file(store, row["file_id"])
     return {"analysis_id": analysis_id, "measurement_id": row["measurement_id"],
