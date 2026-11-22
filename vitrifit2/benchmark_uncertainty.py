@@ -40,6 +40,11 @@ def bootstrap_relaxation(time_s, normalized_modulus, *, model="kww",
     initial = implementation.get_initial_guess(t, y)
     optimum, _ = curve_fit(implementation.func, t, y, p0=initial,
                            bounds=bounds, maxfev=20000)
+    # Canonicalize the point estimate as well as the bootstrap draws.
+    # Two-Maxwell arms are exchangeable: (w, tau1, tau2) is equivalent
+    # to (1-w, tau2, tau1). Report tau1 <= tau2 consistently.
+    if model == "dual_maxwell" and optimum[1] > optimum[2]:
+        optimum = np.asarray([1.0 - optimum[0], optimum[2], optimum[1]])
     predicted = np.asarray(implementation.func(t, *optimum), dtype=float)
     residual = y - predicted
     residual -= residual.mean()
