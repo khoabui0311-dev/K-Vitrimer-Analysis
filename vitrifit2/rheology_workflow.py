@@ -47,6 +47,8 @@ def _parse_columns(raw_bytes, columns):
                 for name, column in columns.items()}
     except (TypeError, ValueError, KeyError) as exc:
         raise ValueError("Non-numeric or missing mapped CSV values") from exc
+    if any(not math.isfinite(v) for values in data.values() for v in values):
+        raise ValueError("CSV contains NaN or infinite mapped observations")
     return data
 
 
