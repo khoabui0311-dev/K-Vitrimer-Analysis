@@ -89,3 +89,8 @@ footer{color:#9ba8b8;font-size:11px;margin-top:24px}
 .profile-analysis-row{display:flex;align-items:center;gap:10px;border-bottom:1px solid #edf1f5;padding-left:10px}
 .profile-analysis-row input[type=checkbox]{accent-color:#255ca9;width:16px;height:16px;flex:none}
 .profile-analysis-row .profile-measurement{flex:1;border-bottom:0}
+
+.profile-raw-file{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 0;border-bottom:1px solid #e8edf4;font-size:12px}
+.profile-raw-file span{display:flex;flex-direction:column;gap:5px;min-width:0}
+.profile-raw-file small{font:10px ui-monospace,monospace;color:#718198;overflow-wrap:anywhere}
+.profile-raw-file a{white-space:nowrap;color:#255ca9;text-decoration:none;font-weight:600}
