@@ -41,11 +41,9 @@ def analyze_frequency_sweep(frequency, storage_modulus, loss_modulus, *,
         if difference[i] == 0:
             crossovers.append(float(omega[i]))
         if difference[i] * difference[i+1] < 0:
-            # Interpolate log ratio rather than modulus difference: consistent
-            # with logarithmic frequency and modulus axes.
-            r0 = np.log(gp[i] / gpp[i])
-            r1 = np.log(gp[i+1] / gpp[i+1])
-            fraction = -r0 / (r1-r0)
+            # Linear interpolation of modulus difference on log-frequency
+            # coordinates remains finite even when G'' is zero.
+            fraction = -difference[i] / (difference[i+1]-difference[i])
             crossovers.append(float(np.exp(
                 log_omega[i] + fraction*(log_omega[i+1]-log_omega[i]))))
     if difference[-1] == 0:
