@@ -1,0 +1,57 @@
+"""Read-only backup validation regressions."""
+import io
+import json
+import zipfile
+
+import pytest
+
+from vitrifit2.backup_verify import verify_backup_bytes
+from vitrifit2.persistence import VitriFitStore
+from vitrifit2.sample_profile import (
+    create_specimen, create_measurement, attach_measurement_file,
+)
+
+
+def test_verify_backup_with_sample_profile(tmp_path):
+    store = VitriFitStore(tmp_path / "data")
+    sample = store.create_sample(store.create_project("P"), "S")
+    specimen = create_specimen(store, sample, "film")
+    measurement = create_measurement(store, specimen, "DSC", "calorimetry")
+    attach_measurement_file(store, measurement, "dsc.csv", b"T,heat\n1,2\n3,4\n")
+    status = verify_backup_bytes(store.export_backup_bytes())
+    assert status["status"] == "verified"
+    assert status["raw_blob_count"] == 1
+    assert status["database_integrity"] == "ok"
+
+
+def test_verify_rejects_missing_raw_blob(tmp_path):
+    store = VitriFitStore(tmp_path)
+    sample = store.create_sample(store.create_project("P"), "S")
+    specimen = create_specimen(store, sample, "film")
+    measurement = create_measurement(store, specimen, "DSC", "calorimetry")
+    attach_measurement_file(store, measurement, "raw.csv", b"abc")
+    original = store.export_backup_bytes()
+    output = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(original)) as src, zipfile.ZipFile(output, "w") as dst:
+        for item in src.namelist():
+            if not item.startswith("raw_blobs/"):
+                dst.writestr(item, src.read(item))
+    with pytest.raises(ValueError, match="unexpected or missing"):
+        verify_backup_bytes(output.getvalue())
+
+
+def test_verify_rejects_unknown_entries(tmp_path):
+    store = VitriFitStore(tmp_path)
+    original = store.export_backup_bytes()
+    output = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(original)) as src, zipfile.ZipFile(output, "w") as dst:
+        for item in src.namelist():
+            dst.writestr(item, src.read(item))
+        dst.writestr("../escape", b"unsafe")
+    with pytest.raises(ValueError, match="unexpected or missing"):
+        verify_backup_bytes(output.getvalue())
+
+
+def test_verify_rejects_bad_archive():
+    with pytest.raises(ValueError):
+        verify_backup_bytes(b"not a ZIP")
