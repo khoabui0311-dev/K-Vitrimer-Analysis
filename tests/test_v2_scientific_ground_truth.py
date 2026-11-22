@@ -39,3 +39,9 @@ def test_synthetic_ground_truth_fit_and_provenance(tmp_path, model, tau_s, beta)
     store.apply_region(curve_id, "keep", 0.1, 250)
     assert not store.get_analysis(result["run_id"])["is_current"]
     assert store.get_analysis(result["run_id"])["results"]["tau_s"] == fitted["tau_s"]
+    refitted = fit_saved_curve(store, curve_id, model=model)
+    assert refitted["run_id"] != result["run_id"]
+    assert refitted["results"]["tau_s"] == pytest.approx(tau_s, rel=0.15)
+    assert store.get_analysis(refitted["run_id"])["is_current"]
+    assert not store.get_analysis(result["run_id"])["is_current"]
+    assert refitted["results"]["revision_id"] != fitted["revision_id"]
