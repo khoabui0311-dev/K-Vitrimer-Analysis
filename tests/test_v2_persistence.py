@@ -111,3 +111,17 @@ def test_invalid_curve_rejected_without_experiment_row(store):
         store.import_experiment(sample, "bad.csv", b"bad",
             [{"source_curve_id": "bad", "temperature_c": 70,
               "time_s": [0, 1], "modulus_mpa": [1]}])
+
+
+def test_corrupt_existing_raw_blob_cannot_be_reused_for_new_experiment(store):
+    sample = store.create_sample(store.create_project("P"), "VUGT")
+    curve = [{"source_curve_id": "70C", "temperature_c": 70,
+              "time_s": [.01, 1., 2.], "modulus_mpa": [1., .8, .6]}]
+    first = store.import_experiment(sample, "raw.csv", b"original", curve)
+    blob = store.blobs / first["file_sha256"]
+    blob.write_bytes(b"tampered")
+    before = store.list_experiments(sample)
+    with pytest.raises(IOError, match="raw blob is corrupt"):
+        store.import_experiment(sample, "repeat.csv", b"original", curve)
+    assert store.list_experiments(sample) == before
+    assert blob.read_bytes() == b"tampered"
