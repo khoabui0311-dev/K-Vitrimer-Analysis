@@ -1,0 +1,29 @@
+name: VitriFit 2 browser build
+on:
+  push:
+    paths:
+      - "vitrifit2/web/**"
+      - ".github/workflows/v2-browser.yml"
+  pull_request:
+    paths:
+      - "vitrifit2/web/**"
+      - ".github/workflows/v2-browser.yml"
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: vitrifit2/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-audit --no-fund
+      - run: npm run build

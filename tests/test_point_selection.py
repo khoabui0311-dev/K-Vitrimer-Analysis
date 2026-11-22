@@ -1,3 +1,4 @@
+from pathlib import Path
 import numpy as np
 import pandas as pd
 import pytest
@@ -36,14 +37,14 @@ def test_review_workflow_invalidation_and_provenance(monkeypatch):
     from streamlit.testing.v1 import AppTest
     from can_relax.gui.tabs import tab_pub_main
     monkeypatch.setattr(tab_pub_main, 'save_and_download', lambda *args: None)
-    app = AppTest.from_file('can_relax/gui/app.py', default_timeout=60).run()
+    app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / 'can_relax/gui/app.py'), default_timeout=60).run()
     app.checkbox(key='use_example_data').check().run()
     def run_analysis():
         next(b for b in app.button if 'Run Analysis' in b.label).click().run()
         assert not app.exception
     run_analysis()
     old_id = app.session_state['analysis_id']
-    point_key = next(k for k in app.session_state.filtered_state if k.startswith('points_'))
+    point_key = next(k for k in app.session_state._state.filtered_state if k.startswith('points_'))
     app.session_state[point_key] = {'edited_rows': {1: {'Keep': False}}, 'added_rows': [], 'deleted_rows': []}
     app.run()
     assert not app.exception
@@ -52,7 +53,7 @@ def test_review_workflow_invalidation_and_provenance(monkeypatch):
     assert app.session_state['analysis_id'] != old_id
     first = app.session_state['results'][0]
     assert first['Preprocessing']['manual_selection']['excluded_point_numbers'] == [2]
-    timing_key = next(k for k in app.session_state.filtered_state if k.startswith('timing_'))
+    timing_key = next(k for k in app.session_state._state.filtered_state if k.startswith('timing_'))
     app.session_state[timing_key] = {'edited_rows': {0: {'Loading origin (s)': .01, 'Cutoff (s)': 1.}}, 'added_rows': [], 'deleted_rows': []}
     app.run()
     assert not app.exception

@@ -24,21 +24,33 @@ def _load_file_robustly(file_path):
     if path.suffix.lower() == ".xlsx":
         try:
             return pd.read_excel(path, header=None)
-        except (BadZipFile, ImportError) as exc:
+        except (BadZipFile, ImportError, ValueError) as exc:
             raise ValueError(f'Cannot read XLSX workbook: {exc}') from exc
-    raise ValueError("Unsupported file type; use CSV, TXT or XLSX (convert legacy XLS first).")
+    if path.suffix.lower() == ".xls":
+        try:
+            # A genuine BIFF workbook; a renamed XLSX or HTML file is not XLS.
+            return pd.read_excel(path, header=None, engine="xlrd")
+        except Exception as exc:
+            # xlrd raises XLRDError (a direct Exception subclass) for an
+            # invalid BIFF container; surface a safe, actionable parser error.
+            raise ValueError(f'Cannot read legacy XLS workbook: {exc}. '
+                             'Check that the file is a genuine Excel 97-2003 XLS file.') from exc
+    raise ValueError("Unsupported relaxation input; use CSV, TXT, XLS or XLSX.")
 
 
 def _kind(label):
     text = str(label).strip().lower()
     if re.search(r"storage|loss|g_prime|g['′]|frequency|stress", text):
         raise ValueError("Expected time-domain relaxation modulus. Convert stress using the imposed strain; storage/loss modulus and frequency data are not relaxation modulus.")
-    if re.search(r"temp|celsius|°c", text):
-        return "temp"
+    # Descriptive headers may append acquisition temperature to every label:
+    # 'Time (s) — 60°C' and 'Modulus (MPa) — 60°C'. Identify the
+    # primary measurement field BEFORE treating °C as a temp-column signal.
     if re.search(r"modulus|\b(?:mpa|kpa|pa)\b", text):
         return "mod"
     if re.search(r"time|\b(?:sec|seconds?|min|minutes?|s)\b", text):
         return "time"
+    if re.search(r"temp|celsius|°c", text):
+        return "temp"
     return None
 
 

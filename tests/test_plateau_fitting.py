@@ -1,3 +1,4 @@
+from pathlib import Path
 """Recovery checks for plateau fits with a nonzero physical start time."""
 import numpy as np
 import pandas as pd
@@ -71,7 +72,7 @@ def test_plateau_controls_invalidate_and_export(monkeypatch):
     from streamlit.testing.v1 import AppTest
     from can_relax.gui.tabs import tab_pub_main
     monkeypatch.setattr(tab_pub_main, 'save_and_download', lambda *args: None)
-    app = AppTest.from_file('can_relax/gui/app.py', default_timeout=60).run()
+    app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / 'can_relax/gui/app.py'), default_timeout=60).run()
     app.checkbox(key='use_example_data').check().run()
     app.selectbox(key='analysis_fit_model').select('Single_KWW').run()
     app.selectbox(key='plateau_mode').select('Fit').run()

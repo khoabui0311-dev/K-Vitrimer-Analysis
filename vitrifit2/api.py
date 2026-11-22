@@ -1,0 +1,369 @@
+"""Local-first FastAPI service for VitriFit 2.0.
+
+Bind to 127.0.0.1 (see run_v2.py). Do not expose this unauthenticated service
+to the internet or a laboratory LAN.
+"""
+from __future__ import annotations
+
+import json
+import os
+from pathlib import Path
+from uuid import UUID
+
+from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, Response
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field
+
+from .comparison import compare_runs
+from .comparison_export import comparison_csv
+from .import_adapter import import_relaxation_upload, preview_relaxation_upload
+from .persistence import NotesConflict, VitriFitStore
+from .publication_export import export_publication_figure
+from .science import fit_saved_curve, suggest_automatic_trim
+from .sample_api import router as sample_router
+
+DATA_DIR = Path.home() / ".vitrifit2"
+MAX_UPLOAD = 50 * 1024 * 1024
+
+
+def get_store() -> VitriFitStore:
+    return VitriFitStore(Path(os.environ.get("VITRIFIT2_DATA_DIR", DATA_DIR)))
+
+
+app = FastAPI(title="VitriFit 2.0", version="0.1.0", docs_url="/api/docs",
+              openapi_url="/api/openapi.json")
+
+# This service has no user authentication: enforce local host and origin.
+@app.middleware("http")
+async def localhost_only(request, call_next):
+    from fastapi.responses import JSONResponse as Response
+    hostname = (request.headers.get("host", "").split(":")[0]).lower()
+    origin = request.headers.get("origin")
+    if hostname not in ("127.0.0.1", "localhost", "testserver"):
+        return Response(status_code=403, content={"detail": "Localhost access only"})
+    if origin and origin not in (
+        "http://127.0.0.1:8000", "http://localhost:8000",
+        "http://127.0.0.1:5173", "http://localhost:5173"
+    ):
+        return Response(status_code=403, content={"detail": "Untrusted request origin"})
+    return await call_next(request)
+
+
+app.add_middleware(CORSMiddleware,
+                   allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+                   allow_credentials=False, allow_methods=["GET", "POST", "PUT"],
+                   allow_headers=["Content-Type"])
+
+
+@app.exception_handler(ValueError)
+async def _bad_request(request, exc: ValueError):
+    return JSONResponse(status_code=422, content={"detail": str(exc)})
+
+
+@app.exception_handler(KeyError)
+async def _not_found(request, exc: KeyError):
+    return JSONResponse(status_code=404, content={"detail": str(exc)})
+
+
+class Named(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+
+
+class SampleNotesUpdate(BaseModel):
+    text: str = Field(max_length=100_000)
+    revision: int = Field(ge=0)
+
+
+class Region(BaseModel):
+    mode: str
+    start_s: float
+    end_s: float
+
+
+class FitRequest(BaseModel):
+    model: str = "Single_KWW"
+    plateau_mode: str = "Zero"
+    fixed_plateau_mpa: float = 0.0
+    component: str = "characteristic"
+
+
+class CompareRequest(BaseModel):
+    run_ids: list[str]
+    mode: str
+    temperature_c: float | None = None
+    kinetic_model: str = "Arrhenius"
+    windows: dict[str, list[float]] = Field(default_factory=dict)
+
+
+class SavedComparison(BaseModel):
+    name: str
+    run_ids: list[str]
+    mode: str
+    settings: dict = Field(default_factory=dict)
+
+
+class NewPreset(BaseModel):
+    name: str
+    settings: dict
+
+
+class FigureDraft(BaseModel):
+    run_ids: list[str]
+    preset_id: str | None = None
+    composition: dict = Field(default_factory=dict)
+    overrides: dict = Field(default_factory=dict)
+
+
+class NewFigure(FigureDraft):
+    name: str
+
+
+@app.get("/api/health")
+def health():
+    return {"status": "ok", "application": "VitriFit 2.0", "storage": "local"}
+
+
+@app.get("/api/backup")
+def export_backup(store: VitriFitStore = Depends(get_store)):
+    return Response(store.export_backup_bytes(), media_type="application/zip",
+                    headers={"Content-Disposition": 'attachment; filename="vitrifit2-backup.zip"'})
+
+
+@app.get("/api/projects")
+def list_projects(store: VitriFitStore = Depends(get_store)):
+    return store.list_projects()
+
+
+@app.post("/api/projects", status_code=201)
+def create_project(req: Named, store: VitriFitStore = Depends(get_store)):
+    return {"id": store.create_project(req.name)}
+
+
+@app.get("/api/projects/{project_id}/samples")
+def list_samples(project_id: str, store: VitriFitStore = Depends(get_store)):
+    return store.list_samples(project_id)
+
+
+@app.post("/api/projects/{project_id}/samples", status_code=201)
+def create_sample(project_id: str, req: Named, store: VitriFitStore = Depends(get_store)):
+    return {"id": store.create_sample(project_id, req.name)}
+
+
+@app.get("/api/samples/{sample_id}/notes")
+def read_sample_notes(sample_id: str, store: VitriFitStore = Depends(get_store)):
+    return store.get_sample_notes(sample_id)
+
+
+@app.put("/api/samples/{sample_id}/notes")
+def update_sample_notes(sample_id: str, data: SampleNotesUpdate,
+                        store: VitriFitStore = Depends(get_store)):
+    try:
+        return store.save_sample_notes(sample_id, data.text, data.revision)
+    except NotesConflict as exc:
+        raise HTTPException(409, str(exc)) from exc
+
+
+@app.get("/api/samples/{sample_id}/experiments")
+def list_experiments(sample_id: str, store: VitriFitStore = Depends(get_store)):
+    return store.list_experiments(sample_id)
+
+
+@app.post("/api/import-preview")
+async def preview_import(file: UploadFile = File(...)):
+    """Inspect all detected curves and quality issues without saving the file."""
+    content = await file.read(MAX_UPLOAD + 1)
+    if len(content) > MAX_UPLOAD:
+        raise HTTPException(413, f"File limit is {MAX_UPLOAD} bytes")
+    return preview_relaxation_upload(Path(file.filename or "").name, content)
+
+
+@app.post("/api/samples/{sample_id}/experiments", status_code=201)
+async def import_experiment(sample_id: str,
+                            file: UploadFile = File(...),
+                            metadata: str = Form("{}"),
+                            request_id: UUID | None = Form(None),
+                            store: VitriFitStore = Depends(get_store)):
+    content = await file.read(MAX_UPLOAD + 1)
+    if len(content) > MAX_UPLOAD:
+        raise HTTPException(413, f"File limit is {MAX_UPLOAD} bytes")
+    try:
+        meta = json.loads(metadata)
+    except json.JSONDecodeError as exc:
+        raise ValueError("Experiment metadata must be valid JSON") from exc
+    if not isinstance(meta, dict):
+        raise ValueError("Experiment metadata must be a JSON object")
+    return import_relaxation_upload(store, sample_id, Path(file.filename or "").name,
+                                    content, metadata=meta,
+                                    request_id=str(request_id) if request_id else None)
+
+
+@app.get("/api/experiments/{experiment_id}/curves")
+def list_curves(experiment_id: str, store: VitriFitStore = Depends(get_store)):
+    return store.list_curves(experiment_id)
+
+
+@app.get("/api/curves/{curve_id}")
+def get_curve(curve_id: str, store: VitriFitStore = Depends(get_store)):
+    return store.get_curve(curve_id)
+
+
+@app.get("/api/curves/{curve_id}/suggest-trim")
+def suggest_trim(curve_id: str, store: VitriFitStore = Depends(get_store)):
+    return suggest_automatic_trim(store, curve_id)
+
+
+@app.post("/api/curves/{curve_id}/region")
+def apply_region(curve_id: str, req: Region, store: VitriFitStore = Depends(get_store)):
+    revision = store.apply_region(curve_id, req.mode, req.start_s, req.end_s)
+    return {"revision_id": revision, "curve": store.get_curve(curve_id)}
+
+
+@app.post("/api/curves/{curve_id}/undo")
+def undo(curve_id: str, store: VitriFitStore = Depends(get_store)):
+    store.undo(curve_id)
+    return store.get_curve(curve_id)
+
+
+@app.post("/api/curves/{curve_id}/redo")
+def redo(curve_id: str, store: VitriFitStore = Depends(get_store)):
+    store.redo(curve_id)
+    return store.get_curve(curve_id)
+
+
+@app.post("/api/curves/{curve_id}/fit", status_code=201)
+def fit(curve_id: str, req: FitRequest, store: VitriFitStore = Depends(get_store)):
+    return fit_saved_curve(store, curve_id, model=req.model,
+                           plateau_mode=req.plateau_mode,
+                           fixed_plateau_mpa=req.fixed_plateau_mpa,
+                           component=req.component)
+
+
+@app.get("/api/analyses")
+def list_analyses(project_id: str | None = None,
+                  store: VitriFitStore = Depends(get_store)):
+    return store.list_analysis_runs(project_id)
+
+
+@app.get("/api/analyses/{run_id}")
+def analysis(run_id: str, store: VitriFitStore = Depends(get_store)):
+    return store.get_analysis(run_id)
+
+
+@app.post("/api/compare")
+def compare(req: CompareRequest, store: VitriFitStore = Depends(get_store)):
+    return compare_runs(store, req.run_ids, req.mode, req.temperature_c,
+                        req.kinetic_model, req.windows)
+
+
+@app.get("/api/comparisons")
+def list_comparisons(store: VitriFitStore = Depends(get_store)):
+    return store.list_comparisons()
+
+
+@app.post("/api/comparisons", status_code=201)
+def save_comparison(req: SavedComparison, store: VitriFitStore = Depends(get_store)):
+    return {"id": store.save_comparison(req.name, req.mode, req.run_ids, req.settings)}
+
+
+@app.get("/api/comparisons/{comparison_id}")
+def load_comparison(comparison_id: str, store: VitriFitStore = Depends(get_store)):
+    return store.get_comparison(comparison_id)
+
+
+@app.get("/api/comparisons/{comparison_id}/export.csv")
+def export_comparison_csv(comparison_id: str,
+                          store: VitriFitStore = Depends(get_store)):
+    """Download a reproducible comparison table with analysis revision IDs."""
+    payload = comparison_csv(store, comparison_id)
+    return Response(
+        content=payload.encode("utf-8-sig"),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="vitrifit-comparison.csv"',
+                 "Cache-Control": "no-store"},
+    )
+
+
+@app.get("/api/figures/presets")
+def list_presets(store: VitriFitStore = Depends(get_store)):
+    return store.list_figure_presets()
+
+
+@app.post("/api/figures/presets", status_code=201)
+def save_preset(req: NewPreset, store: VitriFitStore = Depends(get_store)):
+    return {"id": store.save_figure_preset(req.name, req.settings)}
+
+
+@app.get("/api/figures/presets/{preset_id}")
+def get_preset(preset_id: str, store: VitriFitStore = Depends(get_store)):
+    return store.get_figure_preset(preset_id)
+
+
+@app.get("/api/figures")
+def list_figures(store: VitriFitStore = Depends(get_store)):
+    return store.list_saved_figures()
+
+
+@app.post("/api/figures", status_code=201)
+def save_figure(req: NewFigure, store: VitriFitStore = Depends(get_store)):
+    return {"id": store.save_figure(req.name, req.run_ids,
+                                    req.preset_id, req.composition, req.overrides)}
+
+
+@app.post("/api/figures/preview")
+def preview_publication(req: FigureDraft, store: VitriFitStore = Depends(get_store)):
+    """Render draft settings without creating a figure record."""
+    content, media_type = _render_figure(store, dict(req), fmt="svg", dpi=300,
+                                         browser_preview=True)
+    return Response(content, media_type=media_type, headers={"Cache-Control": "no-store"})
+
+
+@app.get("/api/figures/{figure_id}")
+def get_figure(figure_id: str, store: VitriFitStore = Depends(get_store)):
+    return store.get_figure(figure_id)
+
+
+def _render_figure(store: VitriFitStore, figure: dict, fmt: str, dpi: int,
+                   *, browser_preview: bool = False) -> tuple[bytes, str]:
+    settings = {}
+    if figure["preset_id"]:
+        settings.update(store.get_figure_preset(figure["preset_id"])["settings"])
+    settings.update(figure["overrides"])
+    if browser_preview:
+        settings["pub_colorspace"] = "RGB"
+    composition = figure["composition"]
+    kind = {"curves": "relaxation", "relaxation": "relaxation",
+            "kinetics": "kinetics", "fixed_temperature": "fixed_temperature",
+            "eyring": "eyring", "van_t_hoff": "van_t_hoff"}.get(
+                composition.get("plot_type", "relaxation"))
+    if kind is None:
+        raise ValueError("Unknown figure-composition plot type")
+    return export_publication_figure(
+        store, figure["run_ids"], kind, settings, fmt=fmt, dpi=dpi,
+        kinetic_model=composition.get("kinetic_model", "Arrhenius"),
+        windows=composition.get("windows", {}),
+        temperature_c=composition.get("temperature_c"))
+
+
+@app.get("/api/figures/{figure_id}/export")
+def export_saved_publication(figure_id: str, fmt: str = "tiff",
+                             dpi: int = 300, inline: bool = False,
+                             store: VitriFitStore = Depends(get_store)):
+    """Export a saved manuscript figure with the exact pinned fit revisions."""
+    content, media_type = _render_figure(store, store.get_figure(figure_id), fmt, dpi,
+                                         browser_preview=inline and fmt == "svg")
+    extension = "jpg" if fmt == "jpeg" else fmt
+    disposition = "inline" if inline and fmt == "svg" else "attachment"
+    return Response(content, media_type=media_type,
+                    headers={"Content-Disposition":
+                             f'{disposition}; filename="VitriFit_Figure_{figure_id[:8]}.{extension}"'})
+
+
+app.include_router(sample_router)
+
+# In production, serve the prebuilt React interface from the same origin.
+# In development, Vite proxies /api to the localhost backend.
+UI_DIST = Path(__file__).resolve().parent / "web" / "dist"
+if UI_DIST.is_dir():
+    app.mount("/", StaticFiles(directory=str(UI_DIST), html=True), name="web")

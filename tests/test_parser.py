@@ -136,3 +136,16 @@ def test_leading_time_only_acquisition_rows_are_reported(tmp_path):
 def test_other_partial_observations_remain_errors(tmp_path, rows):
     with pytest.raises(ValueError, match='incomplete'):
         parse_curve_records(_csv(tmp_path, 'Temp,Time,Modulus\n' + rows))
+
+
+
+def test_scientific_columns_with_temperature_context_suffix(tmp_path):
+    """The annotation '— 60°C' is context, not the column quantity."""
+    path = _csv(tmp_path,
+        "Temperature (°C) — 60°C,Time (s) — 60°C,Modulus (MPa) — 60°C\n"
+        "60,0.01,0.039\n"
+        "60,1.5,0.034\n")
+    record = parse_curve_records(path)[0]
+    assert record["Temp"] == 60.
+    assert record["Data"]["Time"].tolist() == [.01, 1.5]
+    assert record["Data"]["Modulus"].tolist() == [.039, .034]

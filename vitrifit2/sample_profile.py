@@ -1,0 +1,193 @@
+"""Additive sample-centric specimen and measurement metadata for VitriFitStore.
+
+Existing stress-relaxation experiments/curves are untouched. This extension
+uses new tables and foreign keys, allowing older SQLite stores to reopen.
+"""
+from __future__ import annotations
+
+import hashlib
+import json
+from uuid import uuid4
+
+from .persistence import _json, _now
+
+
+TECHNIQUES = frozenset(("DMA", "DSC", "Rheology", "Tensile"))
+METHODS = frozenset(("stress_relaxation", "amplitude_sweep",
+                     "frequency_sweep", "temperature_ramp",
+                     "tensile_test", "calorimetry", "other"))
+# Reject scientifically misleading combinations at the metadata boundary.
+# "other" remains available for explicitly unsupported instrument modes.
+TECHNIQUE_METHODS = {
+    "DMA": frozenset(("temperature_ramp", "frequency_sweep",
+                      "stress_relaxation", "other")),
+    "DSC": frozenset(("calorimetry", "other")),
+    "Rheology": frozenset(("amplitude_sweep", "frequency_sweep",
+                           "stress_relaxation", "other")),
+    "Tensile": frozenset(("tensile_test", "other")),
+}
+
+
+def ensure_sample_profile_schema(store):
+    with store._db() as db:
+        db.executescript("""
+        CREATE TABLE IF NOT EXISTS v2_specimens (
+            id TEXT PRIMARY KEY,
+            sample_id TEXT NOT NULL REFERENCES samples(id),
+            label TEXT NOT NULL,
+            metadata_json TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS v2_measurements (
+            id TEXT PRIMARY KEY,
+            specimen_id TEXT NOT NULL REFERENCES v2_specimens(id),
+            technique TEXT NOT NULL,
+            method TEXT NOT NULL,
+            conditions_json TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS v2_measurement_files (
+            id TEXT PRIMARY KEY,
+            measurement_id TEXT NOT NULL REFERENCES v2_measurements(id),
+            filename TEXT NOT NULL,
+            sha256 TEXT NOT NULL,
+            byte_count INTEGER NOT NULL,
+            metadata_json TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_v2_files_measurement
+            ON v2_measurement_files(measurement_id);
+        CREATE INDEX IF NOT EXISTS idx_v2_specimens_sample
+            ON v2_specimens(sample_id);
+        CREATE INDEX IF NOT EXISTS idx_v2_measurements_specimen
+            ON v2_measurements(specimen_id);
+        """)
+
+
+def create_specimen(store, sample_id, label, metadata=None):
+    ensure_sample_profile_schema(store)
+    if not isinstance(label, str) or not label.strip():
+        raise ValueError("Specimen label required")
+    metadata = {} if metadata is None else metadata
+    if not isinstance(metadata, dict):
+        raise ValueError("Specimen metadata must be a dictionary")
+    key = uuid4().hex
+    with store._db() as db:
+        store._require(db, "samples", sample_id)
+        db.execute("INSERT INTO v2_specimens VALUES (?,?,?,?,?)",
+                   (key, sample_id, label.strip(), _json(metadata), _now()))
+    return key
+
+
+def create_measurement(store, specimen_id, technique, method, conditions=None):
+    ensure_sample_profile_schema(store)
+    if technique not in TECHNIQUES or method not in METHODS:
+        raise ValueError("Unsupported technique or method")
+    if method not in TECHNIQUE_METHODS[technique]:
+        raise ValueError("Technique/method mismatch")
+    conditions = {} if conditions is None else conditions
+    if not isinstance(conditions, dict):
+        raise ValueError("Measurement conditions must be a dictionary")
+    key = uuid4().hex
+    with store._db() as db:
+        store._require(db, "v2_specimens", specimen_id)
+        db.execute("INSERT INTO v2_measurements VALUES (?,?,?,?,?,?)",
+                   (key, specimen_id, technique, method, _json(conditions), _now()))
+    return key
+
+
+def attach_measurement_file(store, measurement_id, filename, raw_bytes,
+                            metadata=None):
+    """Attach immutable raw bytes by SHA256 without parsing or overwriting.
+
+    A failed foreign-key lookup leaves no database record or blob behind.
+    """
+    ensure_sample_profile_schema(store)
+    if (not isinstance(filename, str) or not filename.strip()
+            or len(filename) > 255 or "\\x00" in filename):
+        raise ValueError("Valid original filename required")
+    if not isinstance(raw_bytes, bytes) or not raw_bytes:
+        raise ValueError("Nonempty raw bytes required")
+    metadata = {} if metadata is None else metadata
+    if not isinstance(metadata, dict):
+        raise ValueError("File metadata must be a dictionary")
+    encoded = _json(metadata)
+    digest = hashlib.sha256(raw_bytes).hexdigest()
+    with store._db() as db:
+        store._require(db, "v2_measurements", measurement_id)
+    target = store.blobs / digest
+    if target.exists() and hashlib.sha256(target.read_bytes()).hexdigest() != digest:
+        raise IOError("Existing content-addressed raw blob is corrupt")
+    if not target.exists():
+        temporary = store.blobs / ("." + uuid4().hex + ".tmp")
+        try:
+            temporary.write_bytes(raw_bytes)
+            temporary.replace(target)
+        finally:
+            temporary.unlink(missing_ok=True)
+    key = uuid4().hex
+    with store._db() as db:
+        store._require(db, "v2_measurements", measurement_id)
+        db.execute("INSERT INTO v2_measurement_files VALUES (?,?,?,?,?,?,?)",
+                   (key, measurement_id, filename.strip(), digest,
+                    len(raw_bytes), encoded, _now()))
+    return key
+
+
+def get_measurement_file(store, file_id):
+    """Read original bytes and verify their content-addressed integrity."""
+    ensure_sample_profile_schema(store)
+    with store._db() as db:
+        record = store._require(db, "v2_measurement_files", file_id)
+    try:
+        content = (store.blobs / record["sha256"]).read_bytes()
+    except FileNotFoundError as exc:
+        raise IOError("Original measurement file is missing") from exc
+    if len(content) != record["byte_count"] or (
+            hashlib.sha256(content).hexdigest() != record["sha256"]):
+        raise IOError("Original measurement file integrity check failed")
+    return content
+
+
+def list_measurement_files(store, measurement_id):
+    ensure_sample_profile_schema(store)
+    with store._db() as db:
+        store._require(db, "v2_measurements", measurement_id)
+        rows = db.execute(
+            "SELECT * FROM v2_measurement_files WHERE measurement_id=? "
+            "ORDER BY created_at,id", (measurement_id,)).fetchall()
+    return [{"file_id": row["id"], "filename": row["filename"],
+             "sha256": row["sha256"], "byte_count": row["byte_count"],
+             "metadata": json.loads(row["metadata_json"])}
+            for row in rows]
+
+
+def get_sample_profile(store, sample_id):
+    """Return only persisted records; missing techniques remain empty lists."""
+    ensure_sample_profile_schema(store)
+    with store._db() as db:
+        sample = store._require(db, "samples", sample_id)
+        specimens = db.execute(
+            "SELECT * FROM v2_specimens WHERE sample_id=? ORDER BY created_at,id",
+            (sample_id,)).fetchall()
+        result = {"sample_id": sample_id, "name": sample["name"],
+                  "techniques": {technique: [] for technique in sorted(TECHNIQUES)},
+                  "specimens": []}
+        for specimen in specimens:
+            record = {"specimen_id": specimen["id"], "label": specimen["label"],
+                      "metadata": json.loads(specimen["metadata_json"]),
+                      "measurements": []}
+            measurements = db.execute(
+                "SELECT * FROM v2_measurements WHERE specimen_id=? ORDER BY created_at,id",
+                (specimen["id"],)).fetchall()
+            for measurement in measurements:
+                item = {"measurement_id": measurement["id"],
+                        "specimen_id": specimen["id"],
+                        "technique": measurement["technique"],
+                        "method": measurement["method"],
+                        "conditions": json.loads(measurement["conditions_json"]),
+                        "files": list_measurement_files(store, measurement["id"])}
+                record["measurements"].append(item)
+                result["techniques"][item["technique"]].append(item)
+            result["specimens"].append(record)
+    return result
