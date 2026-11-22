@@ -157,3 +157,22 @@ def test_exact_threshold_at_last_acquired_point_is_observed():
     assert result["measured_crossing_observed"] is True
     assert result["measured_crossing_time_s"] == pytest.approx(100.)
     assert result["measured_crossing_bracket_s"] == [10., 100.]
+
+
+def test_noisy_relaxation_multiple_downward_crossings_are_flagged():
+    threshold = math.exp(-1)
+    result = relaxation_observability(
+        (1., 2., 3., 4., 5.), model="maxwell", parameters=(3.,),
+        normalized_modulus=(.9, .2, .6, .1, .05))
+    assert result["measured_downward_crossing_count"] == 2
+    assert result["measured_multiple_crossings"] is True
+    assert result["measured_crossing_bracket_s"] == [1., 2.]
+    assert 1. < result["measured_crossing_time_s"] < 2.
+
+
+def test_monotone_relaxation_has_one_downward_crossing():
+    result = relaxation_observability(
+        (1., 2., 3., 4.), model="maxwell", parameters=(3.,),
+        normalized_modulus=(1., .8, .2, .1))
+    assert result["measured_downward_crossing_count"] == 1
+    assert result["measured_multiple_crossings"] is False
