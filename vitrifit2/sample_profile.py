@@ -115,6 +115,8 @@ def attach_measurement_file(store, measurement_id, filename, raw_bytes,
     with store._db() as db:
         store._require(db, "v2_measurements", measurement_id)
     target = store.blobs / digest
+    if target.exists() and hashlib.sha256(target.read_bytes()).hexdigest() != digest:
+        raise IOError("Existing content-addressed raw blob is corrupt")
     if not target.exists():
         temporary = store.blobs / ("." + uuid4().hex + ".tmp")
         try:
@@ -136,7 +138,10 @@ def get_measurement_file(store, file_id):
     ensure_sample_profile_schema(store)
     with store._db() as db:
         record = store._require(db, "v2_measurement_files", file_id)
-    content = (store.blobs / record["sha256"]).read_bytes()
+    try:
+        content = (store.blobs / record["sha256"]).read_bytes()
+    except FileNotFoundError as exc:
+        raise IOError("Original measurement file is missing") from exc
     if len(content) != record["byte_count"] or (
             hashlib.sha256(content).hexdigest() != record["sha256"]):
         raise IOError("Original measurement file integrity check failed")
