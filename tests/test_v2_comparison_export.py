@@ -65,7 +65,7 @@ def test_csv_escapes_spreadsheet_formula_in_sample_and_project_names(tmp_path):
     comparison = store.save_comparison("=formula", "curves", runs)
     rows = list(csv.DictReader(StringIO(comparison_csv(store, comparison))))
     assert rows[0]["comparison_name"] == "'=formula"
-    assert rows[0]["project_name"].startswith("'  =")
+    assert rows[0]["project_name"] == "'=HYPERLINK(1)"
     assert rows[0]["sample_name"] == "'+SUM(1,2)"
     assert rows[1]["sample_name"] == "'@SUM(1,2)"
     # Original metadata remains unmodified inside the database.
