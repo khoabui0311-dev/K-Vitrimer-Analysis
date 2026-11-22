@@ -105,10 +105,11 @@ def relaxation_observability(time_s, *, model, parameters,
     # warrants review even if each time lies inside the acquisition window.
     crossing_ratio = None
     if empirical_crossing is not None and empirical_crossing > 0 and tau > 0:
-        crossing_ratio = max(tau, empirical_crossing) / min(tau, empirical_crossing)
-        if not math.isfinite(crossing_ratio):
-            crossing_ratio = None
-        elif crossing_ratio >= 2:
+        # Compare in log space to avoid overflow when times differ greatly.
+        log_ratio = abs(math.log(tau) - math.log(empirical_crossing))
+        crossing_ratio = (math.exp(log_ratio) if log_ratio <= math.log(
+            np.finfo(float).max) else None)
+        if log_ratio >= math.log(2):
             warnings.append("Model-predicted and measured threshold crossings "
                             "differ by at least a factor of two")
     return {
