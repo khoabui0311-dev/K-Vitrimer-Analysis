@@ -176,3 +176,25 @@ def test_monotone_relaxation_has_one_downward_crossing():
         normalized_modulus=(1., .8, .2, .1))
     assert result["measured_downward_crossing_count"] == 1
     assert result["measured_multiple_crossings"] is False
+
+
+def test_threshold_plateau_is_one_crossing_event():
+    threshold = math.exp(-1)
+    result = relaxation_observability(
+        (1., 2., 3., 4., 5.), model="maxwell", parameters=(3.,),
+        normalized_modulus=(.9, threshold, threshold, threshold, .2))
+    assert result["measured_downward_crossing_count"] == 1
+    assert result["measured_multiple_crossings"] is False
+    assert result["measured_crossing_time_s"] == pytest.approx(2.)
+    assert result["measured_crossing_bracket_s"] == [1., 2.]
+
+
+def test_first_point_exact_threshold_does_not_hide_later_crossing():
+    threshold = math.exp(-1)
+    result = relaxation_observability(
+        (1., 2., 3., 4.), model="maxwell", parameters=(3.,),
+        normalized_modulus=(threshold, .8, .2, .1))
+    assert result["measured_downward_crossing_count"] == 2
+    assert result["measured_multiple_crossings"] is True
+    assert result["measured_crossing_time_s"] == pytest.approx(1.)
+    assert result["measured_crossing_bracket_s"] == [1., 1.]
