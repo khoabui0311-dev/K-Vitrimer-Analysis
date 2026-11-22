@@ -45,6 +45,7 @@ def open_project(state, data, parse_source):
     state.update(project['settings'])
     state.update(options)
     apply_style(state, project['publication_style'])
+    state.pop('figure_style_undo', None)
     state['publication_format_name'] = 'Project figure format'
     state['restore_kinetics_exclusions'] = options['kinetics_exclusions']
     state.pop('kinetics_exclusion_context', None)

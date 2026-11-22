@@ -15,6 +15,7 @@ from can_relax.gui.labels import curve_labels
 from can_relax.gui.exporting import figure_bytes, MIME_TYPES
 from can_relax.core.extrapolation import maxwell_equivalent_tv
 from can_relax.gui.figure_style import render_style_controls, render_style_download
+from can_relax.io.figure_style import JOURNAL_SIZES
 
 def save_and_download(fig, title_prefix, pub_colorspace, key_suffix):
     # Render exports only on request. Each rerun drops old downloads so changed
@@ -655,12 +656,8 @@ def render_publication(tab_pub, PLOTLY_STYLE: dict, Tg_input: float, G_prime_inp
                         "ACS/RSC Double-Column (170 x 140 mm)",
                         "Custom"
                     ], key="pub_preset")
-                    if fig_preset == "ACS/RSC Single-Column (85 x 75 mm)":
-                        default_width, default_height, disable_size = 8.5, 7.5, True
-                    elif fig_preset == "ACS/RSC Double-Column (170 x 140 mm)":
-                        default_width, default_height, disable_size = 17.0, 14.0, True
-                    else:
-                        default_width, default_height, disable_size = 12.7, 10.0, False
+                    default_width, default_height = JOURNAL_SIZES.get(fig_preset, (12.7, 10.0))
+                    disable_size = fig_preset in JOURNAL_SIZES
 
                     if st.session_state.get('pub_size_preset') != fig_preset:
                         st.session_state.update(pub_w=float(default_width), pub_h=float(default_height), pub_size_preset=fig_preset)

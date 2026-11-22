@@ -125,11 +125,17 @@ colors, panel labels/positions, legends, display units, normalization, publicati
 kinetics model, axis choices and TIFF resolution. Custom axis bounds are included
 when they have been set. Unvisited controls use the app defaults.
 
-To reuse it, select the `.vstyle` file and click **Apply figure format**. This
+To reuse it, select the `.vstyle` file, review its name and physical dimensions,
+and click **Apply figure format**. This
 replaces the publication settings while keeping the data, point exclusions and
 main analysis. Check units, axis ranges and the publication model when applying
-a format to a different dataset. **Reset figure formatting** restores defaults
-without clearing the analysis. Settings of temporarily hidden figures remain
+a format to a different dataset. Choose **Use automatic axis limits when applying**
+to recalculate the plot bounds while keeping the saved units and scales.
+**Reset figure formatting** restores defaults without clearing the analysis.
+**Undo format apply or reset** restores the formatting from immediately before
+the most recent apply/reset, including its name. Undo is available for the current
+session and is cleared when opening another project.
+Settings of temporarily hidden figures remain
 available when those figures are enabled again.
 
 **Figure colors** lets you choose kinetics marker/fit colors and the six-color
@@ -137,3 +143,6 @@ relaxation palette. The palette repeats for additional curves. Project files
 also keep these settings; a separate format file is useful when sharing a
 journal format without sharing measurements. Invalid or unsupported format
 files are rejected before replacing the current formatting.
+Named journal presets must match their stated dimensions; use **Custom** for
+another size. A format containing custom dimensions alone is treated as Custom,
+so its size is not replaced by the default journal preset.

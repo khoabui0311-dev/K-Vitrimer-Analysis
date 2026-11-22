@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from can_relax.io.figure_style import apply_style, capture_style, load_style, save_style
+from can_relax.io.figure_style import apply_style, capture_style, load_style, save_style, validate_style, with_automatic_axes, JOURNAL_SIZES
 from can_relax.io.project import load_project, save_project
 from tests.test_projects import recipe
 
@@ -29,7 +29,7 @@ def test_style_roundtrip_is_data_free_and_only_changes_publication():
 
 
 @pytest.mark.parametrize('invalid', [
-    {'results': []}, {'pub_w': 100}, {'pub_h': float('nan')}, {'pub_preset': 'Unknown'},
+    {'results': []}, {'pub_w': 100}, {'pub_w': 10**1000}, {'pub_h': float('nan')}, {'pub_preset': 'Unknown'},
     {'pub_kin_showfit': 'false'}, {'pub_rel_ms': 2.5}, {'pub_data_color': 'javascript:foo'},
     {'pl_2': 'x' * 81}, {'pub_rel_cust_lims': True},
     {'pub_rel_cust_lims': True, 'pub_rel_xmin': -1., 'pub_rel_xmax': 2., 'pub_rel_ymin': 0., 'pub_rel_ymax': 1.},
@@ -64,6 +64,33 @@ def test_unsupported_or_oversized_style_rejected():
         load_style(json.dumps(document).encode())
     with pytest.raises(ValueError):
         load_style(b' ' * (128*1024 + 1))
+
+
+@pytest.mark.parametrize('preset,size', list(JOURNAL_SIZES.items()))
+def test_named_preset_has_matching_export_dimensions(preset, size):
+    restored = validate_style({'pub_preset': preset})
+    assert (restored['pub_w'], restored['pub_h']) == size
+    with pytest.raises(ValueError, match='dimensions do not match'):
+        validate_style({'pub_preset': preset, 'pub_w': 5., 'pub_h': size[1]})
+
+
+def test_partial_custom_size_is_not_overwritten_by_a_default_preset():
+    state = {'pub_preset': next(iter(JOURNAL_SIZES)), 'pub_w': 8.5, 'pub_h': 7.5}
+    apply_style(state, {'pub_w': 16.})
+    assert state['pub_preset'] == state['pub_size_preset'] == 'Custom'
+    assert (state['pub_w'], state['pub_h']) == (16., 10.)
+
+
+def test_automatic_axes_preserve_units_colors_scales_and_input():
+    settings = {**style(), 'pub_rel_cust_lims': True, 'pub_rel_xmin': 1., 'pub_rel_xmax': 1000.,
+                'pub_rel_ymin': 0., 'pub_rel_ymax': 1., 'pub_xunit': 'Minutes (min)', 'pub_xscale': 'Log'}
+    original = copy.deepcopy(settings)
+    automatic = with_automatic_axes(settings)
+    assert settings == original
+    assert automatic['pub_rel_cust_lims'] is False
+    assert 'pub_rel_xmin' not in automatic and 'pub_rel_ymax' not in automatic
+    assert automatic['pub_xunit'] == 'Minutes (min)' and automatic['pub_xscale'] == 'Log'
+    assert automatic['pub_fit_color'] == settings['pub_fit_color']
 
 
 def test_style_and_project_restore_current_widgets_without_changing_analysis(monkeypatch):
@@ -112,6 +139,11 @@ def test_style_and_project_restore_current_widgets_without_changing_analysis(mon
     app.button(key='reset_figure_style').click().run()
     assert app.selectbox(key='pub_preset').value != 'Custom'
     assert app.session_state['analysis_id'] == analysis_id
+    app.button(key='undo_figure_style').click().run()
+    assert app.number_input(key='pub_w').value == 16.
+    assert app.color_picker(key='pub_fit_color').value == '#123456'
+    assert app.button(key='undo_figure_style').disabled
+    app.button(key='reset_figure_style').click().run()
     pending['figure_style_upload'] = payload
     app.run()
     app.button(key='apply_figure_style').click().run()
@@ -120,6 +152,24 @@ def test_style_and_project_restore_current_widgets_without_changing_analysis(mon
     assert not app.checkbox(key='pub_kin_showfit').value
     assert app.color_picker(key='pub_fit_color').value == '#123456'
     assert app.session_state['analysis_id'] == analysis_id
+    # A bad upload is rejected before Apply and does not change the open format.
+    pending['figure_style_upload'] = b'{invalid'
+    app.run()
+    assert not app.exception and app.button(key='apply_figure_style').disabled
+    assert app.number_input(key='pub_w').value == 16.
+    # Automatic axes is an explicit override, without changing the other formatting.
+    bounded = {**expected, 'pub_rel_cust_lims': True, 'pub_rel_xmin': 1., 'pub_rel_xmax': 1000.,
+               'pub_rel_ymin': 0., 'pub_rel_ymax': 1.}
+    pending['figure_style_upload'] = save_style(bounded, 'Another dataset')
+    app.run()
+    app.checkbox(key='figure_style_auto_axes').check().run()
+    app.button(key='apply_figure_style').click().run()
+    assert not app.exception
+    assert not app.checkbox(key='pub_rel_cust_lims').value
+    assert app.number_input(key='pub_w').value == 16.
+    assert app.session_state['analysis_id'] == analysis_id
+    app.button(key='undo_figure_style').click().run()
+    assert load_style(downloads['Save figure format'])['settings'] == expected
     app.button(key='reset_figure_style').click().run()
     pending['project_upload'] = project
     app.run()
@@ -128,3 +178,4 @@ def test_style_and_project_restore_current_widgets_without_changing_analysis(mon
     assert app.number_input(key='pub_w').value == 16.
     assert app.text_input(key='pl_2').value == 'B'
     assert load_project(downloads['Save project'])['publication_style'] == expected
+    assert app.button(key='undo_figure_style').disabled
