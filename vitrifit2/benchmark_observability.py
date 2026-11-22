@@ -32,7 +32,7 @@ def relaxation_observability(time_s, *, model, parameters,
     if not math.isfinite(threshold) or not 0 < threshold < 1:
         raise ValueError("threshold must be between zero and one")
     params = np.asarray(parameters, dtype=float)
-    if not np.all(np.isfinite(params)):
+    if params.ndim != 1 or not np.all(np.isfinite(params)):
         raise ValueError("Nonfinite model parameters")
     expected_count = {"maxwell": 1, "kww": 2, "dual_maxwell": 3}[model]
     if len(params) != expected_count:
@@ -68,6 +68,9 @@ def relaxation_observability(time_s, *, model, parameters,
                 float(t[i] + (threshold-y[i]) * (t[i+1]-t[i])
                       / (y[i+1]-y[i])) if y[i+1] != y[i] else float(t[i]))
     first, last = float(t[0]), float(t[-1])
+    # An empirical crossing can disagree with a model prediction; keep both.
+    empirical_location = (None if empirical_crossing is None else
+                          "inside_window")
     location = ("before_window" if tau < first else
                 "after_window" if tau > last else "inside_window")
     return {
@@ -79,6 +82,7 @@ def relaxation_observability(time_s, *, model, parameters,
         "predicted_crossing_within_window": location == "inside_window",
         "measured_crossing_time_s": empirical_crossing,
         "measured_crossing_observed": empirical_crossing is not None,
+        "measured_crossing_location": empirical_location,
         "warning": (None if location == "inside_window" else
                     "Predicted crossing lies outside measurement window; "
                     "reported characteristic time is extrapolated"),
