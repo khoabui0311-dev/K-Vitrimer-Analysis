@@ -174,6 +174,18 @@ export default function SampleProfile({sampleId}:{sampleId:string}){
     {error&&<div className="error">{error}</div>}
     {notice&&<p className="ok-text" role="status">{notice}</p>}
     <section className="card">
+      <h2>Verify backup integrity</h2>
+      <p className="muted">Checks a VitriFit ZIP without restoring files or changing the current workspace.</p>
+      <div className="controls">
+        <label className="field">Backup ZIP<input type="file" accept=".zip,application/zip"
+          onChange={e=>{setBackupFile(e.target.files?.[0]||null);setBackupReport(null);}}/></label>
+        <button className="subtle" disabled={!backupFile||busy} onClick={verifyBackup}>Verify ZIP</button>
+      </div>
+      {backupReport&&<p className="ok-text" role="status">Verified: {String(backupReport.raw_blob_count)} raw blobs,
+        {" "}{String(backupReport.database_integrity)} SQLite integrity.
+        No restore performed.</p>}
+    </section>
+    <section className="card">
       <div className="card-head"><h2>{profile?.name||"Loading sample..."}</h2>
         <button className="subtle" disabled={busy} onClick={addSpecimen}>+ New specimen</button></div>
       <p className="muted">Sample → physical specimen → measurement → immutable raw file → analysis.</p>
@@ -201,7 +213,7 @@ export default function SampleProfile({sampleId}:{sampleId:string}){
         <button className={"profile-measurement "+(measurementId===m.measurement_id?"selected":"")}
           key={m.measurement_id} onClick={()=>{setMeasurementId(m.measurement_id);setMethod(m.method);}}>
           <strong>{m.technique} · {m.method}</strong>
-          <small>{String(m.conditions.temperature_c??"Temperature not supplied")} °C · {m.files.length} raw files</small>
+          <small>{m.conditions.temperature_c==null?"Temperature not supplied":String(m.conditions.temperature_c)+" °C"} · {m.files.length} raw files</small>
         </button>)}</div>
     </section>}
     {selected&&<section className="card">
