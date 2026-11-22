@@ -51,16 +51,16 @@ software version, model/plateau, Tg, rubbery modulus, kinetics base, global and
 per-curve time settings, excluded points, and the selected curves. It also saves
 the kinetics model, fitted component and excluded curves; mastercurve reference
 temperature/replicate and modulus convention; spectrum settings; curve display
-options; and report title/notes.
+options; report title/notes; and publication formatting, including colors and fit visibility.
 
 Open the file through **Open a saved project → Open project**. If the saved
 workspace had an analysis or mastercurve, it is recalculated with the current software. A
 version mismatch is reported. Results can change across software versions;
 retain exported numerical results and provenance for the original analysis.
 
-Older project files remain readable and use defaults for the new downstream
-choices; the interface reports this. Model-comparison runs and publication
-figure styling are not saved. Review those again and keep their exported results.
+Older project files remain readable and use defaults for missing downstream
+choices or publication formatting; the interface reports this. Model-comparison
+runs are not saved. Review those again and keep their exported results.
 Projects contain the source data; consider that before sharing a project file.
 
 **New project** clears the open workspace. Download your project and exports
@@ -113,4 +113,27 @@ space; TIFF offers 300, 600 or 1200 DPI and JPEG uses 600 DPI.
 
 Changing a figure setting removes previously prepared download controls.
 Prepare the files again after editing so they reflect the current figure.
-Publication styling is not yet included in saved `.vfit` projects.
+Publication styling is included in new `.vfit` projects (schema 3). Earlier
+schema 1 and 2 projects reopen with default publication formatting.
+
+## Save and reuse figure formats
+
+In **Publish → Save or load figure formatting**, enter a format name and click
+**Save figure format** to download a `.vstyle` file. It contains publication
+settings, not experimental data: figure and fit visibility, dimensions, fonts,
+colors, panel labels/positions, legends, display units, normalization, publication
+kinetics model, axis choices and TIFF resolution. Custom axis bounds are included
+when they have been set. Unvisited controls use the app defaults.
+
+To reuse it, select the `.vstyle` file and click **Apply figure format**. This
+replaces the publication settings while keeping the data, point exclusions and
+main analysis. Check units, axis ranges and the publication model when applying
+a format to a different dataset. **Reset figure formatting** restores defaults
+without clearing the analysis. Settings of temporarily hidden figures remain
+available when those figures are enabled again.
+
+**Figure colors** lets you choose kinetics marker/fit colors and the six-color
+relaxation palette. The palette repeats for additional curves. Project files
+also keep these settings; a separate format file is useful when sharing a
+journal format without sharing measurements. Invalid or unsupported format
+files are rejected before replacing the current formatting.

@@ -37,6 +37,7 @@ from can_relax.io.project_options import DEFAULT_OPTIONS
 from can_relax.io.analysis_report import make_snapshot
 from can_relax.gui.reporting import render_report_export
 from can_relax.gui.point_review import render_point_review
+from can_relax.gui.figure_style import preserve_style
 
 # Shared Plotly layout for visual consistency across all tabs
 PLOTLY_STYLE = dict(
@@ -141,6 +142,7 @@ inject_custom_css()
 st.sidebar.title(f"🧪 {APP_NAME}")
 st.sidebar.caption(f"{VERSION} | {RELEASE_CHANNEL}")
 render_project_open(parse_uploaded_file)
+preserve_style()
 # Keep optional controls when an analysis is temporarily invalidated or a model
 # hides a widget. Explicit assignment detaches these settings from widget cleanup.
 for option_key in DEFAULT_OPTIONS:
@@ -870,8 +872,6 @@ with tab_analysis:
                 options={key: st.session_state.get(key, value) for key, value in DEFAULT_OPTIONS.items()})
             render_report_export(report_snapshot)
 
-    render_project_save(source_bytes, uploaded_file.name if uploaded_file else 'toy_data.csv',
-                        review_settings, exclusions, current_id)
 
 # ------------------------------------------------------------------
 # TAB 3: VIRTUAL LAB  →  extracted to can_relax/gui/tabs/tab_virtual_lab.py
@@ -899,3 +899,7 @@ from can_relax.gui.components import render_education_tab, render_credits_tab, r
 render_plotting_tab(tab_plotting)
 render_education_tab(tab_education)
 render_credits_tab(tab_credits)
+
+# Capture formatting after publication controls have rendered their current values.
+render_project_save(source_bytes, uploaded_file.name if uploaded_file else 'toy_data.csv',
+                    review_settings, exclusions, current_id)

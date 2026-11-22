@@ -14,6 +14,7 @@ from can_relax.core.kinetics import KineticsEngine, predict_van_t_hoff
 from can_relax.gui.labels import curve_labels
 from can_relax.gui.exporting import figure_bytes, MIME_TYPES
 from can_relax.core.extrapolation import maxwell_equivalent_tv
+from can_relax.gui.figure_style import render_style_controls, render_style_download
 
 def save_and_download(fig, title_prefix, pub_colorspace, key_suffix):
     # Render exports only on request. Each rerun drops old downloads so changed
@@ -337,13 +338,13 @@ def _render_figure2(pan_settings, pan_preview, active_res, kinetics_df, glob, au
                         if tau_kin_model == "Arrhenius":
                             x_data = fit_res_pub['Plot']['x'] * 1000.0
                             y_data = fit_res_pub['Plot']['y']
-                            ax2.scatter(x_data, y_data, s=kin_marker_size**2, alpha=0.8, edgecolors='black', linewidth=0.8, color='steelblue', zorder=3)
+                            ax2.scatter(x_data, y_data, s=kin_marker_size**2, alpha=0.8, edgecolors='black', linewidth=0.8, color=glob.get('data_color', 'steelblue'), zorder=3)
                             x_range = np.linspace(x_data.min() * 0.95, x_data.max() * 1.05, 100)
                             y_fit = (slope_pub / 1000.0) * x_range + intercept_pub
                             label_fit = r"$E_\mathrm{a} = %.1f \pm %.1f\ \mathrm{kJ\ mol}^{-1}$" % (Ea_pub, Ea_std_pub) if show_ea_std else r"$E_\mathrm{a} = %.1f\ \mathrm{kJ\ mol}^{-1}$" % Ea_pub
                             label_fit += "\n" + r"$R^2 = %.4f$" % r_sq_pub
                             if show_kin_fit:
-                                ax2.plot(x_range, y_fit, '--', color='red', linewidth=kin_line_width, label=label_fit, zorder=2)
+                                ax2.plot(x_range, y_fit, '--', color=glob.get('fit_color', 'red'), linewidth=kin_line_width, label=label_fit, zorder=2)
                             
                             if show_tv and np.isfinite(Tv_pub):
                                 Tv_x_1000 = ((ln_tau_t_pub - intercept_pub) / slope_pub) * 1000.0
@@ -351,13 +352,13 @@ def _render_figure2(pan_settings, pan_preview, active_res, kinetics_df, glob, au
                         else:
                             inv_T = 1.0 / T_K_all
                             ln_tau = np.log(np.array(taus_list))
-                            ax2.scatter(inv_T * 1000, ln_tau, s=kin_marker_size**2, alpha=0.8, edgecolors='black', linewidth=0.8, color='steelblue', zorder=3)
+                            ax2.scatter(inv_T * 1000, ln_tau, s=kin_marker_size**2, alpha=0.8, edgecolors='black', linewidth=0.8, color=glob.get('data_color', 'steelblue'), zorder=3)
                             T_K_grid = np.linspace(T_K_all.min(), T_K_all.max(), 150)
                             y_fit = fit_res_pub['Params']['A'] + fit_res_pub['Params']['B'] / (T_K_grid - fit_res_pub['Params']['T0'])
                             label_fit = r"VFT: $B = %.0f\ \mathrm{K},\ T_0 = %.1f^\circ\mathrm{C}$" % (B_pub, T0_pub)
                             label_fit += "\n" + r"$R^2 = %.4f$" % r_sq_pub
                             if show_kin_fit:
-                                ax2.plot(1000 / T_K_grid, y_fit, '--', color='red', linewidth=kin_line_width, label=label_fit, zorder=2)
+                                ax2.plot(1000 / T_K_grid, y_fit, '--', color=glob.get('fit_color', 'red'), linewidth=kin_line_width, label=label_fit, zorder=2)
 
                         ax2.set_xlabel(r"$1000/T\ (\mathrm{K}^{-1})$", fontdict=font_label_kin, labelpad=8)
                         ax2.set_ylabel(r"$\ln(\tau)$", fontdict=font_label_kin, labelpad=8)
@@ -457,13 +458,13 @@ def _render_figure3(pan_settings, pan_preview, kinetics_df, glob, auto_bounds):
 
                         x_data = fit_res_pub['Plot']['x']
                         y_data = fit_res_pub['Plot']['y']
-                        ax3.scatter(x_data * 1000, y_data, s=eyr_marker_size**2, alpha=0.8, edgecolors='black', linewidth=0.8, color='steelblue', zorder=3)
+                        ax3.scatter(x_data * 1000, y_data, s=eyr_marker_size**2, alpha=0.8, edgecolors='black', linewidth=0.8, color=glob.get('data_color', 'steelblue'), zorder=3)
                         x_range = np.linspace(x_data.min() * 0.95, x_data.max() * 1.05, 100)
                         y_fit = fit_res_pub['Params']['slope'] * x_range + fit_res_pub['Params']['intercept']
                         label_fit = r"$\Delta H^\ddagger = %.1f\ \mathrm{kJ\ mol}^{-1}$" % fit_res_pub['dH']
                         label_fit += "\n" + r"$\Delta S^\ddagger = %.1f\ \mathrm{J\ mol}^{-1}\mathrm{K}^{-1}$" % fit_res_pub['dS']
                         if show_eyr_fit:
-                            ax3.plot(x_range * 1000, y_fit, '--', color='red', linewidth=eyr_line_width, label=label_fit, zorder=2)
+                            ax3.plot(x_range * 1000, y_fit, '--', color=glob.get('fit_color', 'red'), linewidth=eyr_line_width, label=label_fit, zorder=2)
 
                         ax3.set_xlabel(r"$1000/T\ (\mathrm{K}^{-1})$", fontdict={'family': eyr_font_family, 'size': eyr_label_size, 'weight': eyr_label_weight, 'style': eyr_label_style})
                         ax3.set_ylabel(r"$\ln(\tau \cdot T)$", fontdict={'family': eyr_font_family, 'size': eyr_label_size, 'weight': eyr_label_weight, 'style': eyr_label_style})
@@ -563,13 +564,13 @@ def _render_figure4(pan_settings, pan_preview, active_res, kinetics_df, glob, au
 
                         x_data = fit_res_pub['Plot']['x']
                         y_data = fit_res_pub['Plot']['y']
-                        ax4.scatter(x_data, y_data, s=vh_marker_size**2, alpha=0.8, edgecolors='black', linewidth=0.8, color='steelblue', zorder=3)
+                        ax4.scatter(x_data, y_data, s=vh_marker_size**2, alpha=0.8, edgecolors='black', linewidth=0.8, color=glob.get('data_color', 'steelblue'), zorder=3)
                         x_range = np.linspace(x_data.min() * 0.95, x_data.max() * 1.05, 100)
                         T_range = 1000.0 / x_range
                         y_fit = predict_van_t_hoff(T_range, **fit_res_pub['Params'])
                         label_fit = "Empirical modulus fit\n" + r"$\Delta H_{diss} = %.1f\ \mathrm{kJ\ mol}^{-1}$" % fit_res_pub['dH_diss']
                         if show_vh_fit:
-                            ax4.plot(x_range, y_fit, '--', color='red', linewidth=vh_line_width, label=label_fit, zorder=2)
+                            ax4.plot(x_range, y_fit, '--', color=glob.get('fit_color', 'red'), linewidth=vh_line_width, label=label_fit, zorder=2)
 
                         ax4.set_xlabel(r"$1000/T\ (\mathrm{K}^{-1})$", fontdict={'family': vh_font_family, 'size': vh_label_size, 'weight': vh_label_weight, 'style': vh_label_style})
                         ax4.set_ylabel(r"$G_0$ (MPa)", fontdict={'family': vh_font_family, 'size': vh_label_size, 'weight': vh_label_weight, 'style': vh_label_style})
@@ -593,6 +594,7 @@ def _render_figure4(pan_settings, pan_preview, active_res, kinetics_df, glob, au
 def render_publication(tab_pub, PLOTLY_STYLE: dict, Tg_input: float, G_prime_input: float):
     with tab_pub:
         st.header("📝 Publication Figures")
+        style_slot = render_style_controls()
         if 'active_results' in st.session_state and st.session_state.active_results:
             active_res = st.session_state.active_results
             kinetics_df = st.session_state.get('kinetics_df', pd.DataFrame())
@@ -677,15 +679,25 @@ def render_publication(tab_pub, PLOTLY_STYLE: dict, Tg_input: float, G_prime_inp
                     
                     pub_colorspace = st.selectbox("Color Space Mode", ["RGB", "CMYK (for Print/Publication)"], key="pub_colorspace")
 
+                with st.expander('Figure colors'):
+                    st.color_picker('Kinetics data points', '#4682b4', key='pub_data_color')
+                    st.color_picker('Kinetics fitted lines', '#ff0000', key='pub_fit_color')
+                    palette = PLOTLY_STYLE.get('colorway', ['#6366f1', '#f43f5e', '#10b981', '#f59e0b', '#8b5cf6', '#3b82f6'])
+                    st.caption('Relaxation curve colors repeat in this order for additional curves.')
+                    for index in range(6):
+                        st.color_picker(f'Curve color {index + 1}', palette[index % len(palette)], key=f'pub_curve_color_{index}')
+
             glob = {
                 'fig_width': fig_width, 'fig_height': fig_height,
                 'panel_font_family': panel_font_family, 'panel_font_weight': panel_font_weight,
                 'panel_font_size': panel_font_size, 'panel_font_style': panel_font_style,
                 'pub_colorspace': pub_colorspace,
-                'color_palette': PLOTLY_STYLE.get('colorway', ['#6366f1', '#f43f5e', '#10b981', '#f59e0b', '#3b82f6', '#8b5cf6'])
+                'color_palette': [st.session_state[f'pub_curve_color_{i}'] for i in range(6)],
+                'data_color': st.session_state['pub_data_color'], 'fit_color': st.session_state['pub_fit_color']
             }
 
             _render_figure1(pan_settings, pan_preview, active_res, glob, auto_bounds)
             _render_figure2(pan_settings, pan_preview, active_res, kinetics_df, glob, auto_bounds, G_prime_input)
             _render_figure3(pan_settings, pan_preview, kinetics_df, glob, auto_bounds)
             _render_figure4(pan_settings, pan_preview, active_res, kinetics_df, glob, auto_bounds)
+        render_style_download(style_slot)

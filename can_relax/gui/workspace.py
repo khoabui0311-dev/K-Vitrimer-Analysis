@@ -8,6 +8,7 @@ from can_relax.core.selection import prepare_curve
 from can_relax.io.project import DEFAULT_SETTINGS, load_project, save_project
 from can_relax.io.project_options import DEFAULT_OPTIONS
 from can_relax.version import VERSION
+from can_relax.io.figure_style import apply_style, capture_style
 
 
 def source_file(data, filename):
@@ -43,6 +44,8 @@ def open_project(state, data, parse_source):
             state.pop(key, None)
     state.update(project['settings'])
     state.update(options)
+    apply_style(state, project['publication_style'])
+    state['publication_format_name'] = 'Project figure format'
     state['restore_kinetics_exclusions'] = options['kinetics_exclusions']
     state.pop('kinetics_exclusion_context', None)
     state['project_regenerate_master'] = options['tts_generated']
@@ -60,11 +63,13 @@ def open_project(state, data, parse_source):
     state['project_restore_selection'] = project['selected_curves']
     state['project_rerun_analysis'] = project['analysed']
     state['project_notice'] = (f"Opened {project['filename']}. Data, point exclusions and fit settings restored. "
-                               'Kinetics, spectrum and curve display choices restored. Saved analyses and mastercurves are recalculated. Publication styling must be set separately.')
+                               'Kinetics, spectrum, curve display and publication formatting restored. Saved analyses and mastercurves are recalculated.')
     if project['saved_version'] != VERSION:
         state['project_notice'] += f" Saved with {project['saved_version']}; running {VERSION}. Results may differ."
     if project['schema_version'] == 1:
         state['project_notice'] += ' This older project has no downstream choices; defaults were used for those settings.'
+    if project['schema_version'] < 3:
+        state['project_notice'] += ' This older project has no publication formatting; default formatting was used.'
     state.pop('model_comparison', None)
     state.pop('prepared_report', None)
 
@@ -100,10 +105,11 @@ def render_project_save(source, filename, timing, exclusions, current_id):
     with st.sidebar.container():
         st.subheader('Keep your work')
         try:
+            recipe['publication_style'] = capture_style(st.session_state)
             data = save_project(source, filename, recipe)
             st.download_button('Save project', data, 'analysis.vfit', mime='application/json',
                                key='save_project', width='stretch')
-            st.caption('Includes source data, fitting, kinetics selections, mastercurve choices, spectrum settings and report notes. Keep exported results separately as a record of this calculation.')
+            st.caption('Includes source data, analysis choices, report notes and publication formatting. Keep exported results separately as a record of this calculation.')
         except ValueError as exc:
             st.warning(str(exc))
 

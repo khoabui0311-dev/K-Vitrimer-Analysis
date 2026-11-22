@@ -9,6 +9,7 @@ from pathlib import PureWindowsPath
 from can_relax.core.models import PRONY
 from can_relax.version import APP_NAME, VERSION
 from can_relax.io.project_options import validate_options
+from can_relax.io.figure_style import validate_style
 
 MAX_SOURCE_BYTES = 25 * 1024 * 1024
 MAX_PROJECT_BYTES = 36 * 1024 * 1024
@@ -83,7 +84,8 @@ def validate_recipe(recipe):
         raise ValueError('Invalid analysis status.')
     return {'settings': checked, 'curve_timing': checked_timing,
             'point_exclusions': exclusions, 'selected_curves': selected, 'analysed': analysed,
-            'options': validate_options(recipe.get('options', {}))}
+            'options': validate_options(recipe.get('options', {})),
+            'publication_style': validate_style(recipe.get('publication_style', {}))}
 
 
 def save_project(source, filename, recipe):
@@ -94,7 +96,7 @@ def save_project(source, filename, recipe):
         raise ValueError('Projects require a CSV or XLSX source.')
     recipe = validate_recipe(recipe)
     document = {
-        'format': 'vitrifit-project', 'schema_version': 2,
+        'format': 'vitrifit-project', 'schema_version': 3,
         'software': {'name': APP_NAME, 'version': VERSION},
         'source': {'filename': filename, 'sha256': hashlib.sha256(source).hexdigest(),
                    'base64': base64.b64encode(source).decode('ascii')},
@@ -112,12 +114,16 @@ def load_project(data):
     try:
         document = json.loads(data)
         _mapping(document, 'Project')
-        if document.get('format') != 'vitrifit-project' or type(document.get('schema_version')) is not int or document['schema_version'] not in (1, 2):
+        if document.get('format') != 'vitrifit-project' or type(document.get('schema_version')) is not int or document['schema_version'] not in (1, 2, 3):
             raise ValueError('Unsupported project format or version.')
         if document['schema_version'] == 1:
             document['options'] = {}
         elif 'options' not in document:
             raise ValueError('Project analysis options are missing.')
+        if document['schema_version'] < 3:
+            document['publication_style'] = {}
+        elif 'publication_style' not in document:
+            raise ValueError('Project publication formatting is missing.')
         recipe = validate_recipe(document)
         source = _mapping(document.get('source'), 'Source')
         filename = source['filename']

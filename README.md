@@ -15,6 +15,8 @@ See the [quick-start guide](docs/QUICK_START.md) and
 - Save a `.vfit` project containing the original CSV/XLSX, model settings, curve timing,
   point exclusions, selected curves, kinetics model/component/exclusions, mastercurve
   reference and normalization, spectrum settings, curve display choices and report notes.
+  Publication formatting is included: figure dimensions, fonts, colors, labels,
+  legends, display axes, visibility and export resolution.
   Reopening restores the recipe and recalculates an analysis and mastercurve that had
   been generated. Older `.vfit` files remain readable, using defaults for new choices.
 - Compare Maxwell, single KWW and two-Maxwell for one curve using the same retained
@@ -27,6 +29,8 @@ See the [quick-start guide](docs/QUICK_START.md) and
   be printed to PDF using the browser.
 - Show or hide fitted curves in each publication figure. Export RGB SVG/PDF for
   scalable figures, or TIFF/JPEG using the selected resolution and color space.
+- Save reusable `.vstyle` figure formats from **Publish** and apply them to other
+  datasets. Format files contain display settings only, with no measurements.
 
 Run the preview from this branch using the source instructions below.
 See [the workspace guide](docs/WORKSPACE_PREVIEW.md) for a complete walkthrough.
