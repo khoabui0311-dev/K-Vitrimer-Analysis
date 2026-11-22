@@ -173,6 +173,8 @@ class VitriFitStore:
         validated = [self._validate_curve(c) for c in curves]
         digest = hashlib.sha256(raw_bytes).hexdigest()
         target = self.blobs / digest
+        if target.exists() and hashlib.sha256(target.read_bytes()).hexdigest() != digest:
+            raise IOError("Existing content-addressed raw blob is corrupt")
         if not target.exists():
             temp_file = self.blobs / f".{digest}.{_id()}.tmp"
             try:
