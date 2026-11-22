@@ -1,7 +1,7 @@
 # VitriFit 2.0
 
 Stress relaxation fitting and kinetics analysis for materials research.
-This development branch contains **2.0.0-dev.2**, the new workspace preview.
+This development branch contains **2.0.0-dev.3**, the point-review and reports preview.
 The published Windows candidate remains **2.0.0-rc.1** and does not contain
 these new workspace features. Previously named K Vitrimer Analysis.
 See the [quick-start guide](docs/QUICK_START.md) and
@@ -10,13 +10,21 @@ See the [quick-start guide](docs/QUICK_START.md) and
 ## New workspace preview
 
 - Import data and choose the model in the main workspace, with dataset and fit-review summaries.
+- Exclude or restore groups of measurements using a graph box/lasso, point-number
+  ranges, or elapsed-time intervals. Undo edits and restore all manual exclusions.
 - Save a `.vfit` project containing the original CSV/XLSX, model settings, curve timing,
-  point exclusions and selected curves. Reopening restores the recipe and recalculates
-  an analysis that had been run. Kinetics selections, mastercurves and plot styling
-  must be reviewed again; export those results separately.
+  point exclusions, selected curves, kinetics model/component/exclusions, mastercurve
+  reference and normalization, spectrum settings, curve display choices and report notes.
+  Reopening restores the recipe and recalculates an analysis and mastercurve that had
+  been generated. Older `.vfit` files remain readable, using defaults for new choices.
 - Compare Maxwell, single KWW and two-Maxwell for one curve using the same retained
   observations and plateau policy. Inspect fit overlays, residuals, AICc/BIC and warnings,
   then explicitly choose a model to refit all temperatures.
+- Prepare a self-contained HTML analysis report and a strict JSON numerical snapshot
+  from the **Report** tab. The report includes selected curves, residuals, parameters,
+  kinetics, available mastercurves/comparisons, spectrum estimates and provenance.
+  Downloads are invalidated when their inputs change. Reports open offline and can
+  be printed to PDF using the browser.
 
 Run the preview from this branch using the source instructions below.
 See [the workspace guide](docs/WORKSPACE_PREVIEW.md) for a complete walkthrough.

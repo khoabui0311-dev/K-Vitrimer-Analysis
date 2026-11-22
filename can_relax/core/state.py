@@ -4,7 +4,7 @@ import json
 
 
 DERIVED_KEYS = ('active_results', 'kinetics_df', 'master_data', 'spec_config',
-                'spec_results', 'selection_id', 'master_config')
+                'spec_results', 'selection_id', 'master_config', 'kinetics_snapshot', 'prepared_report')
 
 
 def analysis_identity(data, settings):
@@ -14,7 +14,7 @@ def analysis_identity(data, settings):
 
 
 def clear_analysis(state):
-    for key in ('results', 'analysis_id', *DERIVED_KEYS):
+    for key in ('results', 'analysis_id', 'analysis_skipped', *DERIVED_KEYS):
         state.pop(key, None)
 
 

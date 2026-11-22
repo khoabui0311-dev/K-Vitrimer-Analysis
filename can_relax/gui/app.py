@@ -33,6 +33,10 @@ from can_relax.core.spectrum import SpectrumAnalyzer
 from can_relax.gui.workspace import (render_project_open, render_project_save,
                                      render_data_summary, render_result_summary)
 from can_relax.gui.model_comparison import render_comparison
+from can_relax.io.project_options import DEFAULT_OPTIONS
+from can_relax.io.analysis_report import make_snapshot
+from can_relax.gui.reporting import render_report_export
+from can_relax.gui.point_review import render_point_review
 
 # Shared Plotly layout for visual consistency across all tabs
 PLOTLY_STYLE = dict(
@@ -137,6 +141,11 @@ inject_custom_css()
 st.sidebar.title(f"🧪 {APP_NAME}")
 st.sidebar.caption(f"{VERSION} | {RELEASE_CHANNEL}")
 render_project_open(parse_uploaded_file)
+# Keep optional controls when an analysis is temporarily invalidated or a model
+# hides a widget. Explicit assignment detaches these settings from widget cleanup.
+for option_key in DEFAULT_OPTIONS:
+    if option_key in st.session_state:
+        st.session_state[option_key] = st.session_state[option_key]
 st.title('Your relaxation workspace')
 st.caption('Bring in your data, review the measurements, then fit and compare. Save a project to continue later.')
 if st.session_state.get('project_notice'):
@@ -255,7 +264,7 @@ with tab_analysis:
             st.session_state['point_exclusions'] = {}
         exclusions = st.session_state['point_exclusions']
         with st.expander('Data review: timing and incorrect points', expanded=False):
-            st.caption('Set the actual loading clock time for each curve. Leave origin at 0 if recorded times are already elapsed times. Unchecking Keep excludes a measurement without changing the source file. Run Analysis after edits.')
+            st.caption('Set the actual loading clock time for each curve. Leave origin at 0 if recorded times are already elapsed times. Select groups of points on the graph or by range below. Run Analysis after edits.')
             timing = pd.DataFrame([{'Curve_ID': r['Curve_ID'], 'Temperature (C)': r['Temp'],
                                     'Loading origin (s)': time_origin, 'Cutoff (s)': time_cutoff} for r in curves])
             timing_id = f'{dataset_id}_{time_origin}_{time_cutoff}'
@@ -281,27 +290,11 @@ with tab_analysis:
                 chosen = next(r for r in curves if r['Curve_ID'] == chosen_id)
                 settings = review_settings[chosen_id]
                 try:
-                    _, preview, _ = prepare_curve(chosen['Data'], **settings, excluded=exclusions.get(chosen_id, []))
+                    render_point_review(chosen, settings, dataset_id)
                 except ValueError as exc:
                     clear_analysis(st.session_state)
                     st.error(str(exc))
                     st.stop()
-                edited_points = st.data_editor(preview, hide_index=True, height=300,
-                    disabled=[c for c in preview.columns if c != 'Keep'],
-                    key=f"points_{dataset_id}_{chosen_id}_{settings}_{st.session_state.get('source_epoch', 0)}")
-                exclusions[chosen_id] = edited_points.loc[~edited_points['Keep'], 'Point'].astype(int).tolist()
-                _, preview, audit = prepare_curve(chosen['Data'], **settings, excluded=exclusions[chosen_id])
-                raw_plot = go.Figure()
-                accepted = preview['Keep'] & preview['In time window']
-                for mask, label, color in [(accepted, 'Selected', '#238b45'), (~accepted, 'Excluded', '#d73027')]:
-                    points = preview.loc[mask]
-                    raw_plot.add_trace(go.Scatter(x=points['Elapsed time (s)'], y=points['Modulus'],
-                        mode='markers', name=label, marker=dict(color=color), customdata=points['Point'],
-                        hovertemplate='Point %{customdata}<br>Elapsed time %{x} s<br>Modulus %{y} MPa<extra>%{fullData.name}</extra>'))
-                raw_plot.update_layout(xaxis_title='Elapsed time (s)', yaxis_title='Modulus (MPa)', height=300)
-                st.plotly_chart(raw_plot, width='stretch')
-                st.caption(f"{audit['points_after_manual_selection']} of {len(preview)} measurements selected. Point numbers refer to imported observations, before sorting or downsampling. Automatic peak/drift preprocessing still follows this selection.")
-                st.download_button('Download reviewed points CSV', preview.to_csv(index=False), f'{chosen_id}_review.csv')
     current_id = analysis_identity(source_bytes, {'model': fit_model, 'Tg': Tg_input,
         'cutoff': time_cutoff, 'origin': time_origin, 'plateau_mode': plateau_mode, 'fixed_plateau': fixed_plateau,
         'curve_timing': review_settings, 'point_exclusions': {cid: ids for cid, ids in exclusions.items() if ids}})
@@ -351,6 +344,7 @@ with tab_analysis:
             
         st.session_state.results = res
         st.session_state.analysis_id = current_id
+        st.session_state.analysis_skipped = skipped
         if res: st.success(f"Processed {len(res)} curves.")
         if skipped: st.warning(f"Skipped curves: {', '.join(skipped)}")
 
@@ -398,7 +392,7 @@ with tab_analysis:
             st.session_state.selection_id = selection_id
         st.session_state.active_results = active_results 
 
-        t1, t_compare, t2, t3, t4 = st.tabs(["Curves", "Compare models", "Kinetics", "Mastercurve", "\U0001f308 Spectrum"], key='analysis_results_tabs')
+        t1, t_compare, t2, t3, t4, t_report = st.tabs(["Curves", "Compare models", "Kinetics", "Mastercurve", "\U0001f308 Spectrum", "Report"], key='analysis_results_tabs')
         with t_compare:
             render_comparison(curves, review_settings, exclusions, Tg_input,
                               plateau_mode, fixed_plateau, current_id)
@@ -519,11 +513,16 @@ with tab_analysis:
 
         # 2. KINETICS
         with t2:
-            kinetic_component = st.radio('Fitted component', ['Slow (tau2)', 'Fast (tau1)'], horizontal=True) if len(TAU_INDICES[fit_model]) == 2 else None
+            kinetic_component = st.radio('Fitted component', ['Slow (tau2)', 'Fast (tau1)'], horizontal=True, key='kinetic_component') if len(TAU_INDICES[fit_model]) == 2 else None
             st.caption('Kinetics is a separate regression of extracted relaxation times. A fitted activation energy alone does not validate an Arrhenius law or identify a molecular mechanism.')
             st.caption("G0 denotes the first retained reference modulus, not an inferred zero-time plateau. Raw 1/e requires one observed crossing.")
             k_data = []
             st.session_state.kinetics_df = pd.DataFrame()
+            st.session_state.kinetics_snapshot = None
+            kinetics_context = analysis_identity(selection_id.encode(), {'component': kinetic_component})
+            if st.session_state.get('kinetics_exclusion_context') != kinetics_context:
+                st.session_state['kinetics_exclusions'] = st.session_state.pop('restore_kinetics_exclusions', [])
+                st.session_state['kinetics_exclusion_context'] = kinetics_context
             for r in active_results:
                 t_val = np.nan
                 if kinetics_mode == "Raw 1/e": t_val = r.get('Tau_1e', np.nan)
@@ -543,12 +542,14 @@ with tab_analysis:
 
             if k_data:
                 df_k = pd.DataFrame(k_data)
+                df_k['Include'] = ~df_k['Curve_ID'].isin(st.session_state.get('kinetics_exclusions', []))
                 col_edit, col_chart = st.columns([1, 2])
                 with col_edit:
                     st.markdown("##### Outlier Rejection")
                     st.caption("Review flagged curves and uncheck rows to exclude them. Out-of-window tau values are not automatically rejected.")
-                    edited_df = st.data_editor(df_k, column_config={"Include": st.column_config.CheckboxColumn("Fit?", default=True)}, hide_index=True, height=280, width='stretch', disabled=[c for c in df_k.columns if c != "Include"], key=f"kinetics_editor_{selection_id}_{kinetic_component}")
+                    edited_df = st.data_editor(df_k, column_config={"Include": st.column_config.CheckboxColumn("Fit?", default=True)}, hide_index=True, height=280, width='stretch', disabled=[c for c in df_k.columns if c != "Include"], key=f"kinetics_editor_{kinetics_context}_{st.session_state.get('source_epoch', 0)}")
                     st.session_state.kinetics_df = edited_df
+                    st.session_state['kinetics_exclusions'] = edited_df.loc[~edited_df['Include'], 'Curve_ID'].tolist()
                     
                     st.markdown("---")
                     kinetics_model_type = st.selectbox(
@@ -559,6 +560,8 @@ with tab_analysis:
 
                 with col_chart:
                     active = edited_df[edited_df["Include"] == True]
+                    st.session_state.kinetics_snapshot = {'model': kinetics_model_type, 'mode': kinetics_mode,
+                        'component': kinetic_component, 'selection': edited_df.to_dict('records'), 'fit': None}
                     if any(active['Fit flags'] != 'None'):
                         st.warning('Included curves have fit-quality flags. Review them before interpreting activation energy.')
                     st.download_button('Download kinetics selection CSV', edited_df.to_csv(index=False), 'kinetics_selection.csv')
@@ -580,6 +583,7 @@ with tab_analysis:
                             fit_res = k_engine.fit_coupled_kinetics(active["Temp"].tolist(), active["Tau"].tolist(), Tg=Tg_input)
                             
                         if fit_res:
+                            st.session_state.kinetics_snapshot['fit'] = fit_res
                             if fit_res.get("Warning"):
                                 st.warning(fit_res["Warning"])
                             r_sq = fit_res.get("R2", 0.0)
@@ -705,6 +709,7 @@ with tab_analysis:
 
         # 3. MASTERCURVE (TTS)
         with t3:
+            regenerate_master = st.session_state.pop('project_regenerate_master', False)
             if len(active_results) >= 2:
                 col_tts_ctrl, col_tts_plot = st.columns([1, 3])
                 with col_tts_ctrl:
@@ -712,24 +717,28 @@ with tab_analysis:
                     # Reference temperature selection
                     temps_available = sorted(set(r['Temp'] for r in active_results))
                     mid_idx = len(temps_available) // 2
-                    ref_temp_sel = st.selectbox("Reference T (°C)", temps_available, index=mid_idx)
+                    if st.session_state.get('tts_reference_temp') not in temps_available:
+                        st.session_state['tts_reference_temp'] = temps_available[mid_idx]
+                    ref_temp_sel = st.selectbox("Reference T (°C)", temps_available, key='tts_reference_temp')
                     references = [r for r in active_results if r['Temp'] == ref_temp_sel]
                     reference_id = None
+                    if st.session_state.get('tts_reference_curve') not in [r['Curve_ID'] for r in references]:
+                        st.session_state['tts_reference_curve'] = None
                     if len(references) > 1:
                         reference_id = st.selectbox('Reference replicate',
                             [None] + [r['Curve_ID'] for r in references],
                             format_func=lambda cid: 'Mean of all selected replicates' if cid is None else plot_labels[cid],
-                            key=f'tts_reference_{selection_id}_{ref_temp_sel}')
+                            key='tts_reference_curve')
                     st.caption('Reference tau uses the arithmetic mean of selected replicates at this temperature, unless a specific curve is chosen.')
                     normalization = st.selectbox('TTS modulus convention', ['observed', 'model_initial', 'absolute'],
-                        format_func=lambda v: {'observed': 'Observed reference normalization', 'model_initial': 'Model-extrapolated zero-time normalization', 'absolute': 'Absolute modulus (MPa)'}[v])
+                        format_func=lambda v: {'observed': 'Observed reference normalization', 'model_initial': 'Model-extrapolated zero-time normalization', 'absolute': 'Absolute modulus (MPa)'}[v], key='tts_normalization')
                     tts_component = 'fast' if kinetic_component == 'Fast (tau1)' else 'slow'
                     master_config = (selection_id, ref_temp_sel, reference_id, normalization, tts_component)
                     st.caption('Horizontal shifts alone do not establish superposition. Different acquisition starts can prevent overlap after observed-reference normalization.')
                     if st.session_state.get('master_config') != master_config:
                         st.session_state.pop('master_data', None)
                     # Generate mastercurve
-                    if st.button("Generate Mastercurve"):
+                    if st.button("Generate Mastercurve") or regenerate_master:
                         try:
                             master_data = tts_engine.generate_mastercurve(active_results, ref_temp=ref_temp_sel, ref_curve_id=reference_id, normalization=normalization, component=tts_component)
                             st.session_state.master_data = master_data
@@ -779,10 +788,7 @@ with tab_analysis:
             c_spec, c_ctrl = st.columns([3, 1])
             with c_ctrl:
                 opt_alpha = st.checkbox("Auto-optimize Smoothness (L-curve)", value=True, key="opt_alpha")
-                if not opt_alpha:
-                    alpha_reg = st.slider("Smoothness (\u03b1)", 1e-5, 10.0, 0.1, step=0.01, format="%.5f", key="alpha_reg")
-                else:
-                    alpha_reg = 0.1  # ignored
+                alpha_reg = st.slider("Smoothness (\u03b1)", 1e-5, 10.0, 0.1, step=0.01, format="%.5f", key="alpha_reg", disabled=opt_alpha)
                 sub_G_eq = st.checkbox("Subtract G_eq (Tail Modulus)", value=True, key="sub_G_eq")
                 n_modes = st.slider("Bins", 20, 200, 50, key="n_modes")
                 
@@ -851,6 +857,18 @@ with tab_analysis:
 
 
 
+
+        with t_report:
+            comparison = st.session_state.get('model_comparison')
+            comparison_summary = ({'curve_id': comparison['key'][1], 'rows': comparison['rows']}
+                                  if comparison and comparison['key'][0] == current_id else None)
+            report_snapshot = make_snapshot(active_results, metadata, source_bytes,
+                uploaded_file.name if uploaded_file else 'toy_data.csv',
+                kinetics=st.session_state.get('kinetics_snapshot'), master=st.session_state.get('master_data'),
+                spectrum=spec_outputs, comparison=comparison_summary,
+                skipped=st.session_state.get('analysis_skipped', []),
+                options={key: st.session_state.get(key, value) for key, value in DEFAULT_OPTIONS.items()})
+            render_report_export(report_snapshot)
 
     render_project_save(source_bytes, uploaded_file.name if uploaded_file else 'toy_data.csv',
                         review_settings, exclusions, current_id)

@@ -1,7 +1,7 @@
 # VitriFit workspace preview
 
-Version **2.0.0-dev.2** adds a working analysis workspace, portable project files,
-and a dedicated comparison of relaxation models. These features are in the
+Version **2.0.0-dev.3** adds bulk point review, an offline analysis report and expanded project
+restoration to the workspace and model comparison. These features are in the
 development source, not in the published `2.0.0-rc.1` installer.
 
 ## Try the workflow
@@ -23,6 +23,24 @@ development source, not in the published `2.0.0-rc.1` installer.
    This is an explicit user decision. Scores from one curve are not a global
    model recommendation and do not identify physical mechanisms.
 
+## Exclude many points at once
+
+In **Data review**, select the curve and drag a box over its graph. The graph
+toolbar also offers lasso selection. Click **Exclude highlighted points** to
+remove the whole group from fitting, or **Restore highlighted points** to keep it.
+
+Alternatively, select **Point numbers** and enter inclusive ranges such as
+`1-40, 75-90`, or select **Time interval** and enter inclusive elapsed-time bounds.
+Point numbers always refer to original imported rows, even when times are duplicated
+or unsorted. Actions apply only to the current curve.
+
+**Undo last point edit** reverses up to 30 changes in the open session, including
+individual table edits. **Restore all manually excluded points** clears that curve's
+manual exclusions. The table remains available under **Individual points and reviewed
+data table**. Restoring points does not override the loading origin or time cutoff.
+Run Analysis again after edits. Saved projects retain exclusions; undo history is
+only kept in the current session.
+
 ## Save and reopen
 
 Use **Save project** in the sidebar to download an `analysis.vfit` file. If the
@@ -30,16 +48,19 @@ sidebar is collapsed, open it with the arrow at the upper left.
 
 The project contains the original input file (up to 25 MB), its checksum,
 software version, model/plateau, Tg, rubbery modulus, kinetics base, global and
-per-curve time settings, excluded points, and the selected curves.
+per-curve time settings, excluded points, and the selected curves. It also saves
+the kinetics model, fitted component and excluded curves; mastercurve reference
+temperature/replicate and modulus convention; spectrum settings; curve display
+options; and report title/notes.
 
 Open the file through **Open a saved project → Open project**. If the saved
-workspace had an analysis, it is recalculated with the current software. A
+workspace had an analysis or mastercurve, it is recalculated with the current software. A
 version mismatch is reported. Results can change across software versions;
 retain exported numerical results and provenance for the original analysis.
 
-Kinetics temperature selections, downstream model choices, mastercurves,
-spectrum settings, comparison runs and plot styling are not saved in this
-first project format. Review those again and keep their exported results.
+Older project files remain readable and use defaults for the new downstream
+choices; the interface reports this. Model-comparison runs and publication
+figure styling are not saved. Review those again and keep their exported results.
 Projects contain the source data; consider that before sharing a project file.
 
 **New project** clears the open workspace. Download your project and exports
@@ -49,3 +70,29 @@ save a project.
 Malformed projects, unsupported versions, source checksum mismatches and curve
 settings that do not match the source are rejected before replacing the open
 workspace. Projects are JSON data and do not deserialize executable objects.
+
+## Create an analysis report
+
+After running the analysis, choose the curves to include and open **Report**.
+Enter a title and research notes, then click **Prepare analysis report**.
+Download the HTML report and its JSON numerical snapshot. The report contains:
+
+- Selected curves, fit parameters with local standard errors, residuals and warnings.
+- The current kinetics selection and regression, including excluded rows.
+- The current mastercurve if generated, spectrum estimates, and model comparison if run.
+- Preprocessing choices, source checksum, software version and creation time.
+
+HTML reports contain their own vector figures and styles and require no internet
+connection. Open a report in a browser and use Print / Save as PDF to obtain a PDF.
+The JSON snapshot preserves the numerical arrays and treats unavailable values as
+`null`. The report always uses linear time for curve/residual figures so t = 0 is
+not hidden; display-axis preferences are recorded separately.
+
+Changing selections, settings, comparisons or report notes removes outdated
+downloads. Prepare the report again to capture the updated calculation. Failed
+or unavailable kinetics are labelled explicitly; an earlier successful regression
+is never substituted. Saving a project preserves a recipe for recalculation;
+saving a report/snapshot preserves a fixed record of the calculation now shown.
+
+Reports contain selected measurements and research notes. Review these before
+sharing. They are analysis records, not independent scientific validation.
