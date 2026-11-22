@@ -190,7 +190,7 @@ export default function SampleProfile({sampleId}:{sampleId:string}){
           {["Rheology","DMA","DSC","Tensile"].map(t=><option key={t}>{t}</option>)}</select></label>
         <label className="field">Method<select value={method} onChange={e=>setMethod(e.target.value)}>
           {(technique==="Rheology"?["amplitude_sweep","frequency_sweep","stress_relaxation"]:
-            technique==="DMA"?["temperature_ramp","frequency_sweep"]:
+            technique==="DMA"?["temperature_ramp"]:
             technique==="DSC"?["calorimetry"]:["tensile_test"]).map(m=><option key={m}>{m}</option>)}</select></label>
       </div>
       <label className="field">Measurement conditions (JSON)
